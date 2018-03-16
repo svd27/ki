@@ -9,4 +9,11 @@
 
 rootProject.name = "kinterest"
 
-include("core:common", "core:annotations-processor-jvm")
+include("core:common",
+        "core:annotations-processor-jvm",
+        "core:core-jvm",
+        "core:annotations-processor-jvm:example-jvm",
+        "datastores:datastores-jvm:memory-jvm",
+        "datastores:datastores-jvm:mongo-jvm")
+
+includeBuild("./takenoko")

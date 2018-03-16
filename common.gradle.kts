@@ -10,10 +10,12 @@ configure(common) {
     }
 
     dependencies {
-        compile(kotlin("stdlib-common"))
-        //testCompile
-        //compile "org.jetbrains.kotlin:kotlin-stdlib-common:$kotlin_version"
-        //testCompile "org.jetbrains.kotlin:kotlin-test-annotations-common:$kotlin_version"
-        //testCompile "org.jetbrains.kotlin:kotlin-test-common:$kotlin_version"
+        "compile"(kotlin("stdlib-common"))
+        "testCompile"(kotlin("test-annotations-common"))
+        "testCompile"(kotlin("test-common"))
+    }
+
+    repositories {
+        jcenter()
     }
 }
