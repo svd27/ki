@@ -1,0 +1,3 @@
+[submodule "takenoko"]
+	path = takenoko
+	url = https://github.com/svd27/takenoko.git
