@@ -22,14 +22,18 @@ plugins {
     id("ch.netzwerg.release") version "1.2.3"
     maven
     `build-scan`
-
 }
 
-
-subprojects {
-
-
+val jvm by extra {
+    subprojects.filter {
+        it.name.endsWith("-jvm")
+    }
 }
+
+configure(jvm) {
+    plugins { jacoco }
+}
+
 buildScan {
     setLicenseAgreementUrl("https://gradle.com/terms-of-service")
     setLicenseAgree("yes")

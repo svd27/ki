@@ -10,4 +10,4 @@ interface Generator {
     fun generate(type:TypeElement, round:RoundEnvironment, env:ProcessingEnvironment) : Pair<String,String>?
 }
 
-fun ProcessingEnvironment.note(msg:String) = messager.printMessage(Diagnostic.Kind.NOTE, msg)
+fun ProcessingEnvironment.note(msg:Any?) = messager.printMessage(Diagnostic.Kind.NOTE, "$msg")

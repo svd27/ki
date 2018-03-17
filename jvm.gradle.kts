@@ -11,9 +11,8 @@ configure(jvm) {
         java
         kotlin("jvm")
     }
-    apply {
-        plugin("kotlin-platform-jvm")
-    }
+
+    apply { plugin("kotlin-platform-jvm") }
 
     dependencies {
         "compile"(kotlin("reflect"))

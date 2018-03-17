@@ -4,11 +4,17 @@ import info.kinterest.DataStore
 import info.kinterest.DataStoreManager
 import info.kinterest.KIEntity
 import info.kinterest.datastores.jvm.DataStores
+import info.kinterest.jvm.KIJvmEntity
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.read
 import kotlin.concurrent.write
 
-object MemoryDataStoreManager : DataStoreManager {
+open class KIJvmMemEntity<T:Comparable<T>>(override val _store: DataStore, override val id: T) : KIJvmEntity<T> {
+    override val _storageType: String
+        get() = "jvm.mem"
+}
+
+object JvmMemoryDataStoreManager : DataStoreManager {
     override val type : String = "jvm.memory"
     init {
         DataStores.add(type, this)
@@ -23,9 +29,9 @@ object MemoryDataStoreManager : DataStoreManager {
     override fun add(ds: DataStore) = rw.write { _stores[ds.name] = ds }
 }
 
-class MemoryDataStore(override val name:String) : DataStore {
+class JvmMemoryDataStore(override val name:String) : DataStore {
     init {
-       MemoryDataStoreManager.add(this)
+       JvmMemoryDataStoreManager.add(this)
     }
 
     override fun <E : KIEntity<K>, K : Comparable<K>> retrieve(k: K): E? =

@@ -7,12 +7,20 @@ dependencies {
     "compile"("org.yanex.takenoko:takenoko:0.1.1")
     "testCompile"(project("example-jvm"))
     "kaptTest"(project(":"))
+    compile(project(":core:core-jvm"))
+    compile(project(":datastores:datastores-jvm:memory-jvm"))
 }
 
 plugins {
+    kotlin("jvm")
     kotlin("kapt")
     idea
     maven
+    jacoco
+}
+
+jacoco {
+    toolVersion = "0.8.0"
 }
 
 kapt {
