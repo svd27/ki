@@ -28,7 +28,7 @@ class FileSpec : ShouldSpec( {
     "correct file should be generated" should {
         File("./build") should exist()
         File("./build") should exist()
-        File("./build/generated/source/kaptKotlin/test/ExTotalTestJvmMemem.kt") should exist()
+        File("./build/generated/source/kaptKotlin/test/TotalTestJvmMem.kt") should exist()
     }
     "the loaded class" should {
         val kc = TotalTestJvmMem::class

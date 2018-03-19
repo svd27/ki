@@ -11,6 +11,13 @@ dependencies {
     compile(project(":datastores:datastores-jvm:memory-jvm"))
 }
 
+tasks.withType<Test> {
+    doFirst {
+        systemProperties = systemProperties + ("projectConfigScan" to "false")
+    }
+}
+
+
 plugins {
     kotlin("jvm")
     kotlin("kapt")
