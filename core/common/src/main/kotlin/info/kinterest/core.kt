@@ -1,11 +1,13 @@
 package info.kinterest
 
+val NULL : Any? = null
+
 interface Keyed<T:Comparable<T>> {
     val id : T;
 }
 
 interface DataStore {
-    fun<E:KIEntity<K>,K:Comparable<K>> retrieve(k:K) : E?
+    fun<K:Comparable<K>> retrieve(type:String,k:K) : KIEntity<K>?
     fun<E:KIEntity<K>,K:Comparable<K>> create(e:E) : E
     val name : String
 }
@@ -25,6 +27,15 @@ interface DataStores {
 }
 
 interface KIEntity<T:Comparable<T>> : Keyed<T> {
-    val _storageType : String
     val _store : DataStore
+    fun asTransient() : TransientEntity<T>
+}
+
+interface TransientEntity<T:Comparable<T>> : KIEntity<T>
+interface EntitySupport<E:KIEntity<K>,K:Comparable<K>> {
+    /**
+     * creates a new transient entity, requires that all properties are given in their ctor order
+     */
+    fun transient(id:K?, values : Map<String,Any?>) : TransientEntity<K>
+    fun<DS:DataStore> create(ds:DS, id:K,map:Map<String,Any?>) : E
 }
