@@ -24,9 +24,7 @@ import kotlinx.coroutines.experimental.channels.*
 abstract class KIJvmMemEntity<T : Comparable<T>>(override val _store: DataStore, override val id: T) : KIJvmEntity<T>()
 
 class JvmMemoryDataStoreFactory : DataStoreFactory {
-    override fun create(cfg: DataStoreConfig): DataStore {
-        TODO("not implemented")
-    }
+    override fun create(cfg: DataStoreConfig): DataStore = JvmMemoryDataStore(JvmMemCfg(cfg))
 }
 
 class JvmMemCfg(cfg:DataStoreConfig) : DataStoreConfig by cfg {
