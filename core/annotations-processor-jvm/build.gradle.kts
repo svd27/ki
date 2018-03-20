@@ -4,7 +4,7 @@ import org.jetbrains.kotlin.gradle.dsl.Coroutines
 
 dependencies {
     "expectedBy"(project(":core:common"))
-    "compile"("org.yanex.takenoko:takenoko:0.1.1")
+    compile("org.yanex.takenoko:takenoko:0.1.1")
     "testCompile"(project("example-jvm"))
     "kaptTest"(project(":"))
     compile(project(":core:core-jvm"))

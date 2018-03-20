@@ -1,3 +1,4 @@
+import org.gradle.util.GradleVersion
 import org.jetbrains.kotlin.gradle.dsl.Coroutines
 import org.jetbrains.kotlin.gradle.dsl.KotlinCompile
 
@@ -7,6 +8,7 @@ import org.jetbrains.kotlin.gradle.dsl.KotlinCompile
  * This is a general purpose Gradle build.
  * Learn how to create Gradle builds at https://guides.gradle.org/creating-new-gradle-builds/
  */
+println("Gradle Version: ${GradleVersion.current().version}")
 buildscript {
     repositories {
         mavenCentral()
@@ -46,10 +48,6 @@ apply {
 allprojects {
     group = "info.kinterest"
     plugins { maven }
-    println("REPOS for ${name}")
-    repositories.forEach { repo ->
-        println("$this $repo")
-    }
 }
 
 

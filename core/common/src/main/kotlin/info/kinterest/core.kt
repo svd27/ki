@@ -7,9 +7,8 @@ interface Keyed<T:Comparable<T>> {
 }
 
 interface DataStore {
-    fun<K:Comparable<K>> retrieve(type:String,k:K) : KIEntity<K>?
-    fun<E:KIEntity<K>,K:Comparable<K>> create(e:E) : E
     val name : String
+    operator fun<K:Comparable<K>> get(id:K) : KIEntity<K>
 }
 
 interface DataStoreManager {
@@ -38,4 +37,8 @@ interface EntitySupport<E:KIEntity<K>,K:Comparable<K>> {
      */
     fun transient(id:K?, values : Map<String,Any?>) : TransientEntity<K>
     fun<DS:DataStore> create(ds:DS, id:K,map:Map<String,Any?>) : E
+}
+
+interface Versioned<V> {
+    val _version : V
 }

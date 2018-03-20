@@ -1,24 +1,19 @@
 package info.kinterest.annotations.processor
 
-import info.kinterest.Entity
-import info.kinterest.StorageTypes
+import info.kinterest.annotations.Entity
+import info.kinterest.annotations.StorageTypes
 import info.kinterest.annotations.processor.generators.Generator
 import info.kinterest.annotations.processor.generators.JvmMemoryGenerator
 import info.kinterest.annotations.processor.generators.note
 import org.slf4j.LoggerFactory
-import org.yanex.takenoko.PrettyPrinter
-import org.yanex.takenoko.PrettyPrinterConfiguration
 import javax.annotation.processing.*
 import javax.lang.model.SourceVersion
 import javax.lang.model.element.TypeElement
 import javax.tools.Diagnostic
-import org.yanex.takenoko.kotlinFile
 import java.io.File
-import java.nio.file.Files
-import java.nio.file.Paths
 import javax.lang.model.element.Element
 
-@SupportedAnnotationTypes("info.kinterest.Entity")
+@SupportedAnnotationTypes("info.kinterest.annotations.Entity")
 @SupportedOptions(Processor.KAPT_KOTLIN_GENERATED_OPTION_NAME, "kapt.verbose", "targets")
 @SupportedSourceVersion(SourceVersion.RELEASE_8)
 class Processor : AbstractProcessor() {

@@ -1,17 +1,16 @@
 package info.kinterest.annotations.processor
 
-import info.kinterest.Entity
-import info.kinterest.GeneratedId
+import info.kinterest.annotations.Entity
+import info.kinterest.annotations.GeneratedId
 import info.kinterest.KIEntity
-import info.kinterest.StorageTypes
+import info.kinterest.annotations.StorageTypes
+import info.kinterest.annotations.Versioned
 import info.kinterest.annotations.processor.jvm.mem.TotalTestJvmMem
-import info.kinterest.datastores.jvm.memory.JvmMemoryDataStore
+import info.kinterest.annotations.processor.jvm.mem.VersionedTestJvmMem
 import io.kotlintest.matchers.*
 import io.kotlintest.specs.ShouldSpec
-import io.kotlintest.specs.StringSpec
 import java.io.File
 import java.util.*
-import kotlin.reflect.full.declaredMemberProperties
 import kotlin.reflect.full.memberProperties
 
 @Entity()
@@ -24,20 +23,37 @@ interface TotalTest : KIEntity<UUID> {
 
 }
 
+@Entity()
+@StorageTypes(arrayOf("jvm.mem"))
+@Versioned
+interface VersionedTest : KIEntity<Long> {
+    @get:GeneratedId()
+    override val id: Long
+    val total : Int?
+    var adapt : Boolean?
+
+}
+
 class FileSpec : ShouldSpec( {
     "correct file should be generated" should {
-        File("./build") should exist()
         File("./build") should exist()
         File("./build/generated/source/kaptKotlin/test/TotalTestJvmMem.kt") should exist()
     }
     "the loaded class" should {
         val kc = TotalTestJvmMem::class
         "id should be available and of proper type" {
-            val idProp = kc.memberProperties.filter { it.name == "id" }.firstOrNull()
+            val idProp = TotalTestJvmMem::id
             idProp shouldNotBe null
-            idProp!!.returnType.classifier shouldEqual UUID::class
+            idProp.returnType.classifier shouldEqual UUID::class
             val totalProp = kc.memberProperties.filter { it.name == "total" }.firstOrNull()
             totalProp shouldNotBe null
         }
+    }
+})
+
+class VersionedSpec() : ShouldSpec({
+    "the class " should {
+        val kc = VersionedTestJvmMem::class
+        kc shouldNotBe null
     }
 })

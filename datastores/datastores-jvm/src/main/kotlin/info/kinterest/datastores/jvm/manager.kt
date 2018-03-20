@@ -1,18 +1,54 @@
 package info.kinterest.datastores.jvm
 
+import com.github.salomonbrys.kodein.Kodein
+import com.github.salomonbrys.kodein.bind
+import com.github.salomonbrys.kodein.instance
 import info.kinterest.DataStore
 import kotlin.concurrent.*
 import info.kinterest.DataStoreManager
 import info.kinterest.KIEntity
 import info.kinterest.jvm.KIJvmEntity
-import java.util.concurrent.locks.ReadWriteLock
+import java.util.*
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.reflect.KClass
 import kotlin.reflect.full.isSubclassOf
 import kotlin.reflect.full.superclasses
 
 
-object DataStores : info.kinterest.DataStores {
+
+class DataStoreConfigManager(kodein: Kodein) {
+    val cfgs : List<DataStoreConfig> = kodein.instance("datastore-configs")
+    val dataSores : DataStores = kodein.instance()
+    init {
+        val subKodein = Kodein {
+            cfgs.forEach {
+                bind<DataStoreConfig>("cfg.${it.type}.${it.name}") to it
+            }
+
+        }
+    }
+}
+
+interface DataStoreFactory {
+    fun create(cfg: DataStoreConfig) : DataStore
+}
+
+class DataStoreFactoryProvider() {
+    val factories = mutableMapOf<String,DataStoreFactory>()
+    init {
+        this.javaClass.classLoader.getResources("datasource-factory.properties").iterator().forEach {
+            val props = Properties()
+            it.openStream().use {
+                props.load(it)
+            }
+            props.forEach { n, v ->
+                factories[n.toString()] = (Class.forName(v.toString()).newInstance() as DataStoreFactory)
+            }
+        }
+    }
+}
+
+class DataStores : info.kinterest.DataStores {
     private val rw  = ReentrantReadWriteLock()
     override val types: Map<String, DataStoreManager>
       get() = rw.read { _types.toMap() }
@@ -22,7 +58,7 @@ object DataStores : info.kinterest.DataStores {
     }
 }
 
-class JvmEntityMeta<E:KIJvmEntity<K>, K:Comparable<K>>(val klass:KClass<E>) {
+class JvmEntityMeta<E:KIEntity<K>, K:Comparable<K>>(val klass:KClass<E>) {
     val name : String = klass.simpleName!!
     val root : KClass<KIEntity<K>> by lazy {
         @Suppress("UNCHECKED_CAST")

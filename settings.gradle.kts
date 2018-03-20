@@ -16,4 +16,4 @@ include("core:common",
         "datastores:datastores-jvm:memory-jvm",
         "datastores:datastores-jvm:mongo-jvm")
 
-includeBuild("./takenoko")
+includeBuild(rootDir.resolve("takenoko"))

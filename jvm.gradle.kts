@@ -22,7 +22,17 @@ configure(jvm) {
         "compile"("io.vertx:vertx-web:3.5.1")
         "compile"("io.vertx:vertx-lang-kotlin-coroutines:3.5.1")
         "compile"("io.vertx:vertx-lang-kotlin:3.5.1")
+        "compile"("com.beust:klaxon:2.1.13")
         "testCompile"("io.kotlintest:kotlintest:2.0.7")
+    }
+
+    tasks.withType<Test>() {
+        doFirst {
+            systemProperties = systemProperties + ("projectConfigScan" to "false")
+            testLogging {
+                showStandardStreams = true
+            }
+        }
     }
 
     repositories {
