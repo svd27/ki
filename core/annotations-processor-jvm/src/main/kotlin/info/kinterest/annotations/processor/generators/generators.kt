@@ -13,7 +13,7 @@ import javax.lang.model.type.*
 import javax.tools.Diagnostic
 import kotlin.reflect.KClass
 
-class EntityInfo(val type: TypeElement, round: RoundEnvironment, env: ProcessingEnvironment) {
+class EntityInfo(val type: TypeElement, env: ProcessingEnvironment) {
     val srcPkg = type.qualifiedName.split('.').dropLast(1).joinToString(separator = ".")
     val targetPkg = "$srcPkg.${JvmMemoryGenerator.store}"
     val root: TypeElement
@@ -31,7 +31,7 @@ class EntityInfo(val type: TypeElement, round: RoundEnvironment, env: Processing
     }
 
 
-    val name = type.simpleName.toString() + JvmMemoryGenerator.suffix;
+    val name = type.simpleName.toString() + JvmMemoryGenerator.suffix
     val idGetter = type.enclosedElements.filter { el: Element? -> el is ExecutableElement }.first { it.simpleName.toString().equals("getId") }
     val idExecutableType: ExecutableType = idGetter.asType() as ExecutableType
     val idDecType = when (idExecutableType.returnType) {
@@ -105,7 +105,7 @@ fun String.normalize(): String = if (startsWith("java.lang")) {
         else -> toString()
     }
 } else {
-    this.toString()
+    this
 }
 
 sealed class Typing {
@@ -125,7 +125,7 @@ object JvmMemoryGenerator : Generator {
 
 
     override fun generate(type: TypeElement, round: RoundEnvironment, env: ProcessingEnvironment): Pair<String, String>? = kotlin.run {
-        val entity = EntityInfo(type, round, env)
+        val entity = EntityInfo(type, env)
 
         env.messager.printMessage(Diagnostic.Kind.NOTE, "found element $type")
         entity.name to
@@ -161,7 +161,7 @@ object JvmMemoryGenerator : Generator {
                             property<Long>("_version", VAL+ OVERRIDE) {
                                 getter(KoModifierList.Empty, true) {
                                     append("""
-                                        store.getVersion<${entity.type.simpleName},${entity.idTypeStr}>(id)
+                                        store.getVersion<${entity.type.simpleName},${entity.idTypeStr}>(id)!!
                                     """.trimIndent())
                                 }
                             }
@@ -207,11 +207,11 @@ object JvmMemoryGenerator : Generator {
                                 implements(parseType(entity.type.qualifiedName.toString()))
                                 implements("${TransientEntity::class.qualifiedName}<${entity.idTypeStr}>")
                                 primaryConstructor {
-                                    property("_id", parseType("${entity.idTypeStr}").nullable, VAL + PRIVATE)
+                                    property("_id", parseType(entity.idTypeStr).nullable, VAL + PRIVATE)
                                     property("values", parseType("Map<String,Any?>"), PRIVATE + VAL)
                                 }
                                 secondaryConstructor {
-                                    param("id", parseType("${entity.idTypeStr}").nullable)
+                                    param("id", parseType(entity.idTypeStr).nullable)
                                     entity.fields.forEach {
                                         param(it.name, it.koType)
                                     }
@@ -219,7 +219,7 @@ object JvmMemoryGenerator : Generator {
                                     val arg = arrayOf("id", map)
                                     delegateCall("this", *arg)
                                 }
-                                property("id", parseType("${entity.idTypeStr}"), VAL + OVERRIDE) {
+                                property("id", parseType(entity.idTypeStr), VAL + OVERRIDE) {
                                     getter(KoModifierList.Empty, true) {
                                         append("if(_id!=null) _id else TODO()")
                                     }
@@ -252,7 +252,7 @@ object JvmMemoryGenerator : Generator {
                             }
 
                             function("transient", OVERRIDE) {
-                                param("id", parseType("${entity.idTypeStr}").nullable)
+                                param("id", parseType(entity.idTypeStr).nullable)
                                 param("values", parseType("Map<String,Any?>"))
                                 body(true) {
                                     append("Transient(id, values)")
@@ -262,7 +262,7 @@ object JvmMemoryGenerator : Generator {
                             function("create", OVERRIDE) {
                                 typeParam("DS", parseType("${DataStore::class.qualifiedName}"))
                                 param("ds", parseType("DS"))
-                                param("id", parseType("${entity.idTypeStr}"))
+                                param("id", parseType(entity.idTypeStr))
                                 param("values", parseType("Map<String,Any?>"))
                                 returnType(parseType("${entity.type.qualifiedName}"))
                                 body(true) {

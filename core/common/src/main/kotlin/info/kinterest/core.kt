@@ -2,13 +2,14 @@ package info.kinterest
 
 val NULL : Any? = null
 
+expect interface Class<T>
 interface Keyed<T:Comparable<T>> {
-    val id : T;
+    val id : T
 }
 
 interface DataStore {
     val name : String
-    operator fun<K:Comparable<K>> get(id:K) : KIEntity<K>
+    operator fun<K:Comparable<K>> get(type:Class<*>,id:K) : KIEntity<K>?
 }
 
 interface DataStoreManager {

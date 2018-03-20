@@ -4,8 +4,6 @@ val jvm by extra {
     }
 }
 
-println("JVM: $jvm")
-
 configure(jvm) {
     plugins {
         java
@@ -15,6 +13,7 @@ configure(jvm) {
     apply { plugin("kotlin-platform-jvm") }
 
     dependencies {
+        "expectedBy"(project(":core:common"))
         "compile"(kotlin("reflect"))
         "compile"(kotlin("stdlib-jdk8"))
         "compile"("ch.qos.logback:logback-classic:1.0.13")

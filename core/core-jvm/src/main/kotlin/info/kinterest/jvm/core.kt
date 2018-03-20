@@ -8,6 +8,7 @@ import kotlin.reflect.KMutableProperty1
 import kotlin.reflect.KProperty1
 import kotlin.reflect.full.memberProperties
 
+
 abstract class KIJvmEntity<K:Comparable<K>> : KIEntity<K> {
     abstract val _meta : KIJvmEntityMeta<KIEntity<*>>
     abstract val _me : KClass<*>
