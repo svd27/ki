@@ -1,5 +1,6 @@
 package info.kinterest.datastores.jvm
 
+import arrow.data.Try
 import com.github.salomonbrys.kodein.Kodein
 import com.github.salomonbrys.kodein.bind
 import com.github.salomonbrys.kodein.instance
@@ -8,6 +9,8 @@ import kotlin.concurrent.*
 import info.kinterest.DataStoreManager
 import info.kinterest.KIEntity
 import info.kinterest.jvm.KIJvmEntity
+import info.kinterest.jvm.KIJvmEntityMeta
+import kotlinx.coroutines.experimental.Deferred
 import java.util.*
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.reflect.KClass
@@ -20,12 +23,14 @@ class DataStoreConfigManager(kodein: Kodein) {
     val cfgs : List<DataStoreConfig> = kodein.instance("datastore-configs")
     val dataSores : DataStores = kodein.instance()
     init {
+        @Suppress("UNUSED_VARIABLE")
         val subKodein = Kodein {
             cfgs.forEach {
                 bind<DataStoreConfig>("cfg.${it.type}.${it.name}") to it
             }
 
         }
+
     }
 }
 
@@ -58,7 +63,8 @@ class DataStores : info.kinterest.DataStores {
     }
 }
 
-class JvmEntityMeta<E:KIEntity<K>, K:Comparable<K>>(val klass:KClass<E>) {
+/*
+class JvmEntityMeta<E:KIEntity<K>, K:Comparable<K>>(val klass:KClass<E>, val impl : KClass<KIEntity<K>>) : KIJvmEntityMeta<E>() {
     val name : String = klass.simpleName!!
     val root : KClass<KIEntity<K>> by lazy {
         @Suppress("UNCHECKED_CAST")
@@ -72,8 +78,11 @@ class JvmEntityMeta<E:KIEntity<K>, K:Comparable<K>>(val klass:KClass<E>) {
         while (ck!=null) {ck = findRoot(); if(ck!=null) k =ck}
         k
     }
+
 }
+*/
 
-interface DataStoreJvm : DataStore {
-
+abstract class DataStoreJvm(override val name : String) : DataStore {
+    abstract fun<K:Comparable<K>> create(type:KClass<*>,id:K, values: Map<String, Any?>) : Try<Deferred<Try<K>>>
+    abstract fun<K:Comparable<K>> create(type:KClass<*>, values: Map<String, Any?>) : Try<Deferred<Try<K>>>
 }

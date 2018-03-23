@@ -7,9 +7,8 @@ interface Keyed<T:Comparable<T>> {
     val id : T
 }
 
-interface DataStore {
+expect interface DataStore {
     val name : String
-    operator fun<K:Comparable<K>> get(type:Class<*>,id:K) : KIEntity<K>?
 }
 
 interface DataStoreManager {
@@ -31,13 +30,15 @@ interface KIEntity<T:Comparable<T>> : Keyed<T> {
     fun asTransient() : TransientEntity<T>
 }
 
-interface TransientEntity<T:Comparable<T>> : KIEntity<T>
+interface TransientEntity<T:Comparable<T>> : KIEntity<T> {
+    val values: Map<String,Any?>
+}
 interface EntitySupport<E:KIEntity<K>,K:Comparable<K>> {
     /**
      * creates a new transient entity, requires that all properties are given in their ctor order
      */
     fun transient(id:K?, values : Map<String,Any?>) : TransientEntity<K>
-    fun<DS:DataStore> create(ds:DS, id:K,map:Map<String,Any?>) : E
+    fun<DS:DataStore> create(ds:DS, id:K,values:Map<String,Any?>)
 }
 
 interface Versioned<V> {

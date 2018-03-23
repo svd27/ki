@@ -9,7 +9,6 @@ import io.kotlintest.specs.WordSpec
 class TestDataStoreFactory : WordSpec( {
     "factory should have at least on entry" should {
         val fac = DataStoreFactoryProvider()
-        println("!!! ${fac.factories}")
         fac.factories.size shouldBe beGreaterThan(0)
     }
 

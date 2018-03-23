@@ -102,6 +102,8 @@ fun String.normalize(): String = if (startsWith("java.lang")) {
         java.lang.Long::class.java.canonicalName -> Long::class.qualifiedName!!
         java.lang.Short::class.java.canonicalName -> Short::class.qualifiedName!!
 
+        java.lang.String::class.java.canonicalName -> String::class.qualifiedName!!
+
         else -> toString()
     }
 } else {
@@ -133,15 +135,11 @@ object JvmMemoryGenerator : Generator {
                     import(parseType(Versioned::class.java))
                     classDeclaration(entity.name) {
                         primaryConstructor() {
-                            if (entity.versioned)
-                                property("store", KoType.Companion.parseType(JvmMemoryDataStore::class.qualifiedName!!), VAL)
-                            else
-                                param("store", KoType.Companion.parseType(JvmMemoryDataStore::class.qualifiedName!!))
+                            property("store", KoType.Companion.parseType(JvmMemoryDataStore::class.qualifiedName!!), VAL)
                             param("id", entity.idKoType)
-                            entity.fields.forEach { param(it.name, it.koType) }
                         }
                         extends(
-                                KoType.Companion.parseType("${KIJvmMemEntity::class.qualifiedName}<${entity.idTypeStr}>"),
+                                KoType.Companion.parseType("${KIJvmMemEntity::class.qualifiedName}<${entity.type.simpleName},${entity.idTypeStr}>"),
                                 "store", "id")
                         implements(KoType.Companion.parseType("${entity.type.qualifiedName}"))
                         if (entity.versioned)
@@ -161,7 +159,7 @@ object JvmMemoryGenerator : Generator {
                             property<Long>("_version", VAL+ OVERRIDE) {
                                 getter(KoModifierList.Empty, true) {
                                     append("""
-                                        store.getVersion<${entity.type.simpleName},${entity.idTypeStr}>(id)!!
+                                        store.version<${entity.type.simpleName},${entity.idTypeStr}>(id)!!
                                     """.trimIndent())
                                 }
                             }
@@ -169,7 +167,17 @@ object JvmMemoryGenerator : Generator {
                         entity.fields.forEach {
                             val mod = if (it.readOnly) VAL else VAR
                             property(it.name, it.koType, OVERRIDE + mod) {
-                                initializer(it.name)
+                                getter(KoModifierList.Empty, true) {
+                                    append("""store.getProp(id, meta["${it.name}"]!!)""")
+                                    if(!it.nullable) append("!!")
+                                }
+                                if(!it.readOnly) {
+                                    setter(KoModifierList.Empty, true, "value") {
+
+                                        append("""store.setProp(id, meta["${it.name}"]!!, value)""")
+                                        if(!it.nullable) append("!!")
+                                    }
+                                }
                             }
                         }
 
@@ -181,26 +189,22 @@ object JvmMemoryGenerator : Generator {
                         }
 
                         companionDeclaration("") {
-                            implements(parseType("info.kinterest.jvm.KIJvmEntitySupport<${entity.type.qualifiedName},${entity.idTypeStr}>"))
+                            implements(parseType("info.kinterest.jvm.KIJvmEntitySupport<${entity.type.simpleName},${entity.idTypeStr}>"))
                             property("meta", null, VAL + OVERRIDE) {
                                 getter(KoModifierList.Empty, true) {
                                     append("Meta")
                                 }
                             }
                             objectDeclaration("Meta") {
-                                parseType("info.kinterest.jvm.KIJvmEntityMeta<*>")
-                                extends("info.kinterest.jvm.KIJvmEntityMeta<info.kinterest.KIEntity<*>>", "${entity.name}::class")
+                                val ext = parseType("info.kinterest.jvm.KIJvmEntityMeta<${entity.type.simpleName},${entity.idTypeStr}>")
+                                extends(ext, "${entity.name}::class", "${entity.type}::class")
                                 parseType(entity.root.qualifiedName.toString())
                                 property("root", null, OVERRIDE + VAL) {
                                     initializer("${entity.root}::class")
                                 }
-                                property("me", null, OVERRIDE + VAL) {
-                                    initializer("${entity.type}::class")
-                                }
                                 property("parent", parseType("${KClass::class.qualifiedName}<*>").nullable, OVERRIDE + VAL) {
                                     initializer(entity.parent?.let { "${entity.parent}::class" } ?: "null")
                                 }
-
                             }
 
                             classDeclaration("Transient") {
@@ -208,7 +212,7 @@ object JvmMemoryGenerator : Generator {
                                 implements("${TransientEntity::class.qualifiedName}<${entity.idTypeStr}>")
                                 primaryConstructor {
                                     property("_id", parseType(entity.idTypeStr).nullable, VAL + PRIVATE)
-                                    property("values", parseType("Map<String,Any?>"), PRIVATE + VAL)
+                                    property("values", parseType("Map<String,Any?>"), OVERRIDE + VAL)
                                 }
                                 secondaryConstructor {
                                     param("id", parseType(entity.idTypeStr).nullable)
@@ -264,10 +268,8 @@ object JvmMemoryGenerator : Generator {
                                 param("ds", parseType("DS"))
                                 param("id", parseType(entity.idTypeStr))
                                 param("values", parseType("Map<String,Any?>"))
-                                returnType(parseType("${entity.type.qualifiedName}"))
                                 body(true) {
-                                    val fields = entity.fields.map { "values[\"${it.name}\"] as ${it.typeName}" }.joinToString(", ")
-                                    append("${entity.name}(ds as JvmMemoryDataStore, id, $fields)")
+                                    append("(ds as JvmMemoryDataStore).create(Meta.me, id, values) as Unit")
                                 }
                             }
                         }
