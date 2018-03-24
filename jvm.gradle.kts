@@ -36,12 +36,14 @@ configure(jvm) {
         "compile"("com.beust:klaxon:2.1.13")
         "compile" ("io.github.microutils:kotlin-logging:1.4.9")
 
+        /*
         "compile"("io.arrow-kt:arrow-core:$arrowVersion")
         "compile"("io.arrow-kt:arrow-typeclasses:$arrowVersion")
         "compile"("io.arrow-kt:arrow-instances:$arrowVersion")
         "compile"("io.arrow-kt:arrow-data:$arrowVersion")
         "compile"("io.arrow-kt:arrow-syntax:$arrowVersion")
         "kapt"("io.arrow-kt:arrow-annotations-processor:$arrowVersion")
+        */
 
         "testCompile"("io.kotlintest:kotlintest:2.0.7")
         "testCompileOnly"("junit:junit:4.12")

@@ -1,13 +1,8 @@
 package info.kinterest.datastores.jvm.memory
 
-import arrow.core.getOrElse
-import arrow.data.getOrDefault
-import arrow.data.getOrElse
-import info.kinterest.KIEntity
-import info.kinterest.Versioned
+import info.kinterest.*
 import info.kinterest.annotations.Entity
 import info.kinterest.annotations.StorageTypes
-import info.kinterest.cast
 import info.kinterest.datastores.jvm.DataStoreConfig
 import info.kinterest.datastores.jvm.DataStoreFactoryProvider
 import info.kinterest.datastores.jvm.memory.jvm.mem.TestRootJvmMem
@@ -65,23 +60,23 @@ class TestJvmMem : WordSpec({
              ds should beOfType<JvmMemoryDataStore>()
              val mem = ds.cast<JvmMemoryDataStore>()
              val k = mem.create(TestRoot::class, "a", mapOf("name" to "aname"))
-             k.failed() shouldNotBe true
+             k.isFailure shouldNotBe true
              val deferred = k.getOrDefault { null }
              deferred shouldNotBe null
              println("deferred: $deferred")
              val tryk = runBlocking { deferred?.await()  }
              println("tryk = $tryk")
-             if(tryk?.isFailure() == true) {
+             if(tryk?.isFailure == true) {
                  tryk.getOrElse { t ->  log.error { t }; ""}
              }
-             tryk?.isSuccess() shouldBe true
+             tryk?.isSuccess shouldBe true
 
              tryk?.map { key -> println("k: $key"); key}
              val da = mem.retrieve<TestRoot,String>("a")
              val atry = runBlocking {
                  da.await()
              }
-             atry.isSuccess() shouldBe true
+             atry.isSuccess shouldBe true
              val e = atry.getOrElse { null}!!
              e.id shouldBe "a"
              e.name shouldBe "aname"
@@ -116,9 +111,9 @@ class TestVersion : WordSpec({
         val kdefer = tryDefer.getOrElse { null }!!
         val tryk = runBlocking { kdefer.await() }
         "be successfull" {
-            tryDefer.isSuccess() shouldBe true
+            tryDefer.isSuccess shouldBe true
             tryk.getOrElse { log.error(it) { it } }
-            tryk.isSuccess() shouldBe true
+            tryk.isSuccess shouldBe true
         }
 
 
@@ -156,7 +151,7 @@ class TestVersion : WordSpec({
         val ex = trySet.toEither().swap().getOrElse { null }!!
         "fail on trying a change with the wrong version" {
             trySet.getOrElse { log.trace(it) { } }
-            trySet.isFailure() shouldBe true
+            trySet.isFailure shouldBe true
             log.trace(ex) { }
             ex shouldBe beOfType<DataStoreError.OptimisticLockException>()
         }

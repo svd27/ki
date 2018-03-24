@@ -1,22 +1,17 @@
 package info.kinterest.datastores.jvm
 
-import arrow.data.Try
 import com.github.salomonbrys.kodein.Kodein
 import com.github.salomonbrys.kodein.bind
 import com.github.salomonbrys.kodein.instance
 import info.kinterest.DataStore
-import kotlin.concurrent.*
 import info.kinterest.DataStoreManager
-import info.kinterest.KIEntity
-import info.kinterest.jvm.KIJvmEntity
-import info.kinterest.jvm.KIJvmEntityMeta
+import info.kinterest.Try
 import kotlinx.coroutines.experimental.Deferred
 import java.util.*
 import java.util.concurrent.locks.ReentrantReadWriteLock
+import kotlin.concurrent.read
+import kotlin.concurrent.write
 import kotlin.reflect.KClass
-import kotlin.reflect.full.isSubclassOf
-import kotlin.reflect.full.superclasses
-
 
 
 class DataStoreConfigManager(kodein: Kodein) {
