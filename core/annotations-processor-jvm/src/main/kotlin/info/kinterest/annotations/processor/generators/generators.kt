@@ -135,11 +135,11 @@ object JvmMemoryGenerator : Generator {
                     import(parseType(Versioned::class.java))
                     classDeclaration(entity.name) {
                         primaryConstructor() {
-                            property("store", KoType.Companion.parseType(JvmMemoryDataStore::class.qualifiedName!!), VAL)
+                            property("store", parseType(JvmMemoryDataStore::class.qualifiedName!!), VAL)
                             param("id", entity.idKoType)
                         }
                         extends(
-                                KoType.Companion.parseType("${KIJvmMemEntity::class.qualifiedName}<${entity.type.simpleName},${entity.idTypeStr}>"),
+                                parseType("${KIJvmMemEntity::class.qualifiedName}<${entity.type.simpleName},${entity.idTypeStr}>"),
                                 "store", "id")
                         implements(KoType.Companion.parseType("${entity.type.qualifiedName}"))
                         if (entity.versioned)
@@ -173,9 +173,8 @@ object JvmMemoryGenerator : Generator {
                                 }
                                 if(!it.readOnly) {
                                     setter(KoModifierList.Empty, true, "value") {
-
-                                        append("""store.setProp(id, meta["${it.name}"]!!, value)""")
-                                        if(!it.nullable) append("!!")
+                                        val suffix = if (entity.versioned) ",_version" else ""
+                                        append("""Unit.apply { store.setProp(id, meta["${it.name}"]!!, value$suffix) }""")
                                     }
                                 }
                             }

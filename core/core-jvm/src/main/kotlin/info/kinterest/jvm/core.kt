@@ -9,6 +9,23 @@ import kotlin.reflect.*
 import kotlin.reflect.full.memberProperties
 
 
+sealed class KIError(msg:String, cause:Throwable?, enableSuppression:Boolean=false, writeableStackTrace:Boolean=true) :
+        Exception(msg,cause,enableSuppression, writeableStackTrace)
+sealed class DataStoreError(val ds: DataStore, msg:String, cause:Throwable?, enableSuppression:Boolean=false, writeableStackTrace:Boolean=true) :
+  KIError(msg, cause, enableSuppression, writeableStackTrace) {
+    class EntityNotFound(val kc: KClass<*>, val key: Comparable<*>, ds: DataStore, cause: Throwable? = null, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
+            DataStoreError(ds, "Entity ${kc.simpleName} with Key $key not found in DataStore ${ds.name}", cause, enableSuppression, writeableStackTrace)
+
+    class MetaDataNotFound(val kc: KClass<*>, ds: DataStore, cause: Throwable? = null, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
+            DataStoreError(ds, "Metadata for Entity ${kc.qualifiedName} not found", cause, enableSuppression, writeableStackTrace)
+    class VersionNotFound(val kc:KClass<*>, val key:Comparable<*>, ds:DataStore, cause: Throwable? = null, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
+            DataStoreError(ds, "version for Entity ${kc.simpleName} with id $key not found", cause, enableSuppression, writeableStackTrace)
+    class VersionAlreadyExists(val kc:KClass<*>, val key:Comparable<*>, ds:DataStore, cause: Throwable? = null, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
+            DataStoreError(ds, "version for Entity ${kc.simpleName} with id $key not found", cause, enableSuppression, writeableStackTrace)
+    class OptimisticLockException(val kc:KClass<*>, val key:Comparable<*>, val expectedVersion:Any, val actualVersion:Any, ds:DataStore,cause: Throwable? = null, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
+            DataStoreError(ds, "wrong version for ${kc.simpleName} with id $key, expected: $expectedVersion, actual: $actualVersion", cause, enableSuppression, writeableStackTrace)
+}
+
 @Suppress("UNCHECKED_CAST")
 abstract class KIJvmEntity<E:KIEntity<K>,K:Comparable<K>> : KIEntity<K> {
     abstract val _meta : KIJvmEntityMeta<E,K>

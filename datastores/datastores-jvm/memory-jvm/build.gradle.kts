@@ -20,6 +20,10 @@ kapt {
     arguments { arg("targets", "jvm.memory") }
 }
 
+tasks.withType<Test>() {
+    systemProperties = systemProperties + ("logback.configurationFile" to  File(projectDir,"src/test/resources/logback-test.xml").absolutePath)
+}
+
 idea {
     module {
         testSourceDirs = testSourceDirs + files("build/generated/source/kapt/test", "build/generated/source/kaptKotlin/test")
