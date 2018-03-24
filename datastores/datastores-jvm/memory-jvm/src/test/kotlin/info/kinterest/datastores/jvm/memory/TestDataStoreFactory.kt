@@ -1,18 +1,21 @@
 package info.kinterest.datastores.jvm.memory
 
 import info.kinterest.datastores.jvm.DataStoreConfig
-import info.kinterest.datastores.jvm.DataStoreFactory
 import info.kinterest.datastores.jvm.DataStoreFactoryProvider
-import io.kotlintest.matchers.*
-import io.kotlintest.specs.WordSpec
+import org.amshove.kluent.*
+import org.jetbrains.spek.api.Spek
+import org.jetbrains.spek.api.dsl.given
+import org.jetbrains.spek.api.dsl.it
+import org.jetbrains.spek.api.dsl.on
 
-class TestDataStoreFactory : WordSpec( {
-    "factory should have at least on entry" should {
+object TestDataStoreFactory : Spek( {
+    given("a DataStoreFactoryProvider") {
         val fac = DataStoreFactoryProvider()
-        fac.factories.size shouldBe beGreaterThan(0)
-    }
-
-    "given a cfg" should {
+        on("loading") {
+            it("should have at least on entry") {
+                fac.factories.size `should be greater or equal to` 1
+            }
+        }
         val cfg = object : DataStoreConfig {
             override val name: String
                 get() = "test"
@@ -21,9 +24,11 @@ class TestDataStoreFactory : WordSpec( {
             override val config: Map<String, Any?>
                 get() = emptyMap()
         }
-        val fac = DataStoreFactoryProvider()
         val ds = fac.factories[cfg.type]!!.create(cfg)
-        println(ds)
-        ds shouldNotBe null
+        on("creating a ds") {
+            it("should be created") {
+                ds `should not be` null
+            }
+        }
     }
 })

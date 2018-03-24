@@ -1,4 +1,3 @@
-import org.gradle.api.tasks.testing.logging.TestLogEvent
 
 val jvm by extra {
     subprojects.filter {
@@ -8,8 +7,13 @@ val jvm by extra {
 
 configure(jvm) {
     buildscript {
+        repositories {
+            mavenCentral()
+        }
         dependencies {
+            classpath ("org.jetbrains.kotlin:kotlin-gradle-plugin:1.2.30")
             classpath("org.junit.platform:junit-platform-gradle-plugin:1.1.0")
+            classpath("com.kncept.junit5.reporter:junit-reporter:1.1.0")
         }
     }
     plugins {
@@ -21,6 +25,8 @@ configure(jvm) {
     apply {
         plugin("kotlin-platform-jvm")
         plugin("kotlin-kapt")
+        plugin("org.junit.platform.gradle.plugin")
+        plugin("com.kncept.junit5.reporter")
     }
 
     val arrowVersion = "0.6.1"
@@ -36,6 +42,14 @@ configure(jvm) {
         "compile"("com.beust:klaxon:2.1.13")
         "compile" ("io.github.microutils:kotlin-logging:1.4.9")
 
+        "testCompile"("org.jetbrains.spek:spek-api:1.1.5") {
+            exclude("org.jetbrains.kotlin")
+        }
+        "testRuntime"("org.jetbrains.spek:spek-junit-platform-engine:1.1.5") {
+            exclude("org.jetbrains.kotlin")
+        }
+
+        "testImplementation"("org.amshove.kluent:kluent:1.35")
         /*
         "compile"("io.arrow-kt:arrow-core:$arrowVersion")
         "compile"("io.arrow-kt:arrow-typeclasses:$arrowVersion")
@@ -45,13 +59,17 @@ configure(jvm) {
         "kapt"("io.arrow-kt:arrow-annotations-processor:$arrowVersion")
         */
 
+        /*
         "testCompile"("io.kotlintest:kotlintest:2.0.7")
         "testCompileOnly"("junit:junit:4.12")
         "testRuntimeOnly"("org.junit.vintage:junit-vintage-engine:5.1.0")
         "testImplementation"("org.junit.jupiter:junit-jupiter-api:5.1.0")
         "testRuntimeOnly"("org.junit.jupiter:junit-jupiter-engine:5.1.0")
+        */
     }
 
+
+    /*
     tasks.withType<Test>() {
         useJUnitPlatform()
         System.setProperty("idea.io.use.fallback", "true")
@@ -66,10 +84,8 @@ configure(jvm) {
                 showStandardStreams = true
             }
         }
-        testLogging {
-            events =  setOf(TestLogEvent.PASSED, TestLogEvent.STARTED, TestLogEvent.FAILED, TestLogEvent.SKIPPED)
-        }
     }
+    */
 
     repositories {
         jcenter()

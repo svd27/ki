@@ -7,11 +7,15 @@ import info.kinterest.annotations.StorageTypes
 import info.kinterest.annotations.Versioned
 import info.kinterest.annotations.processor.jvm.mem.TotalTestJvmMem
 import info.kinterest.annotations.processor.jvm.mem.VersionedTestJvmMem
-import io.kotlintest.matchers.*
-import io.kotlintest.specs.ShouldSpec
+import org.amshove.kluent.*
+import org.jetbrains.spek.api.Spek
+import org.jetbrains.spek.api.dsl.given
+import org.jetbrains.spek.api.dsl.it
+import org.jetbrains.spek.api.dsl.on
 import java.io.File
 import java.util.*
 import kotlin.reflect.full.memberProperties
+import kotlin.reflect.full.superclasses
 
 @Entity()
 @StorageTypes(arrayOf("jvm.mem"))
@@ -34,26 +38,36 @@ interface VersionedTest : KIEntity<Long> {
 
 }
 
-class FileSpec : ShouldSpec( {
-    "correct file should be generated" should {
-        File("./build") should exist()
-        File("./build/generated/source/kaptKotlin/test/TotalTestJvmMem.kt") should exist()
+object FileSpec : Spek( {
+    given("a generator") {
+        val root = File(".")
+        println("${root.absolutePath}")
+        val file = File("./build/generated/source/kaptKotlin/test/TotalTestJvmMem.kt")
+        on("a kapt run") {
+            it("the file should exist") {
+                file.exists() `should be` true
+            }
+        }
     }
-    "the loaded class" should {
-        val kc = TotalTestJvmMem::class
-        "id should be available and of proper type" {
+    val kc = TotalTestJvmMem::class
+    given("the class is loaded") {
+        it("") {
             val idProp = TotalTestJvmMem::id
-            idProp shouldNotBe null
-            idProp.returnType.classifier shouldEqual UUID::class
+            idProp `should not be` null
+            idProp.returnType.classifier `should equal` UUID::class
             val totalProp = kc.memberProperties.filter { it.name == "total" }.firstOrNull()
-            totalProp shouldNotBe null
+            totalProp `should not be` null
         }
     }
 })
 
-class VersionedSpec() : ShouldSpec({
-    "the class " should {
-        val kc = VersionedTestJvmMem::class
-        kc shouldNotBe null
+object VersionedSpec : Spek({
+    val kc = VersionedTestJvmMem::class
+    given("the class") {
+        on("checking the type") {
+            it("should be versioned") {
+                kc.superclasses.toList() `should contain` info.kinterest.Versioned::class
+            }
+        }
     }
 })
