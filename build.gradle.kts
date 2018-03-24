@@ -23,6 +23,10 @@ buildscript {
     }
 }
 
+repositories {
+    mavenCentral()
+}
+
 plugins {
     id("ch.netzwerg.release") version "1.2.3"
     maven
