@@ -15,6 +15,8 @@ sealed class DataStoreError(val ds: DataStore, msg:String, cause:Throwable?, ena
   KIError(msg, cause, enableSuppression, writeableStackTrace) {
     class EntityNotFound(val kc: KClass<*>, val key: Comparable<*>, ds: DataStore, cause: Throwable? = null, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
             DataStoreError(ds, "Entity ${kc.simpleName} with Key $key not found in DataStore ${ds.name}", cause, enableSuppression, writeableStackTrace)
+    class EntityExists(val kc: KClass<*>, val key: Comparable<*>, ds: DataStore, cause: Throwable? = null, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
+            DataStoreError(ds, "Entity ${kc.simpleName} with Key $key already exists in DataStore ${ds.name}", cause, enableSuppression, writeableStackTrace)
 
     class MetaDataNotFound(val kc: KClass<*>, ds: DataStore, cause: Throwable? = null, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
             DataStoreError(ds, "Metadata for Entity ${kc.qualifiedName} not found", cause, enableSuppression, writeableStackTrace)

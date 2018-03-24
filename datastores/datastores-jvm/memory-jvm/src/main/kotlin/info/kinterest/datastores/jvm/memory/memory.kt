@@ -140,7 +140,8 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
 
                 meta!!.let { m ->
                     buckets[m.me]!!.let { bucket ->
-                        assert(bucket[id] == null)
+                        assert(bucket.bucket[id] == null)
+                        if(bucket[id]!=null) throw DataStoreError.EntityExists(type, id, this@JvmMemoryDataStore)
                         bucket.create(id, values)
                         id
                     }

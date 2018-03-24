@@ -8,6 +8,7 @@ import info.kinterest.datastores.jvm.DataStoreFactoryProvider
 import info.kinterest.datastores.jvm.memory.jvm.mem.TestRootJvmMem
 import info.kinterest.jvm.DataStoreError
 import info.kinterest.jvm.KIJvmEntity
+import kotlinx.coroutines.experimental.Deferred
 import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.runBlocking
 import org.amshove.kluent.*
@@ -91,18 +92,17 @@ object TestJvmMem : Spek({
         }
 
 
-        fun create() : TestRoot = run {
-            val kdef = mem.create(TestRoot::class, "a", mapOf("name" to "aname"))
+        fun create(k:String) : TestRoot = run {
+            val kdef = mem.create(TestRoot::class, k, mapOf("name" to "aname"))
             val deferred = kdef.getOrDefault { null }
             val tryk = runBlocking { deferred?.await()  }
             val k = tryk?.getOrDefault { null }
             val da = mem.retrieve<TestRoot,String>(k!!)
             val atry = runBlocking { da.await() }
-            atry.isSuccess shouldBe true
             atry.getOrElse { null}!!
         }
 
-        val e1 = create()
+        val e1 = create("b")
         e1.online = true
 
         on("changing a property") {
@@ -110,6 +110,20 @@ object TestJvmMem : Spek({
             it("should reflect the change") {
                 e1.online.`should not be null`()
                 e1.online!! `should be equal to` true
+            }
+        }
+
+        on("creating an entity with an existing id") {
+            val kdef = mem.create(TestRoot::class, "a", mapOf("name" to "aname"))
+            val deferred = kdef.getOrDefault { null }
+            val tryk = runBlocking { deferred?.await()  }
+            it("should fail") {
+                tryk!!.isSuccess.`should be false`()
+            }
+            val ex = tryk!!.fold({ it }, { null })
+            it("should have an exception of proper type") {
+                ex.`should not be null`()
+                ex `should be instance of` DataStoreError.EntityExists::class
             }
         }
     }
@@ -210,4 +224,61 @@ class TestVersion : Spek({
 
 
     }
+})
+
+object TestDelete : Spek({
+    val fac = DataStoreFactoryProvider()
+
+    val cfg = object : DataStoreConfig {
+        override val name: String
+            get() = "test"
+        override val type: String
+            get() = "jvm.mem"
+        override val config: Map<String, Any?>
+            get() = emptyMap()
+    }
+
+    val ds = fac.factories[cfg.type]!!.create(cfg);
+
+    val mem = ds.cast<JvmMemoryDataStore>()
+    fun create(k:String) : TestRoot = run {
+        val kdef = mem.create(TestRoot::class, k, mapOf("name" to "aname"))
+        val deferred = kdef.getOrDefault { null }
+        val tryk = runBlocking { deferred?.await()  }
+        val k = tryk?.getOrDefault { null }
+        val da = mem.retrieve<TestRoot,String>(k!!)
+        val atry = runBlocking { da.await() }
+        atry.isSuccess shouldBe true
+        atry.getOrElse { null}!!
+    }
+
+    val entity = create("k")
+    on("a created entity") {
+        it("should really exist") {
+            entity.`should not be null`()
+        }
+    }
+    val tdel = mem.delete<TestRoot,String>(listOf("k"))
+    val res = tdel.map { runBlocking { it.await() } }.fold({ null }, { it })?.fold({null}, {it})
+    val tret = mem.retrieve<TestRoot, String>("k").let { runBlocking { it.await() } }
+    on("deleting the entity") {
+        it("can be called") {
+            tdel.isSuccess.`should be true`()
+        }
+        it("the result should be correct") {
+            res `should equal` listOf("k")
+        }
+    }
+
+    on("retrieving a deleted entity") {
+        it("should not succeed") {
+            tret.isFailure.`should be true`()
+        }
+        it("should deliver a proper exception") {
+            val ex = tret.fold({ it }, { null })
+            ex.`should not be null`()
+            ex `should be instance of` DataStoreError.EntityNotFound::class
+        }
+    }
+
 })
