@@ -261,6 +261,12 @@ object JvmMemoryGenerator : Generator {
                                     }
                                 }
 
+                                property("_meta", parseType("${KIEntityMeta::class.qualifiedName}<${entity.idTypeStr}>"), VAL + OVERRIDE) {
+                                    getter(KoModifierList.Empty, true) {
+                                        append("TODO()")
+                                    }
+                                }
+
                                 entity.fields.forEach {
                                     if (it.readOnly) {
                                         property(it.name, it.koType, OVERRIDE + VAL) {

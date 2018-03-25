@@ -3,9 +3,10 @@ package info.kinterest.datastores.jvm
 import com.github.salomonbrys.kodein.Kodein
 import com.github.salomonbrys.kodein.bind
 import com.github.salomonbrys.kodein.instance
-import info.kinterest.DataStore
-import info.kinterest.DataStoreManager
-import info.kinterest.Try
+import info.kinterest.*
+import info.kinterest.jvm.DataStoreError
+import info.kinterest.jvm.filter.EntityFilter
+import info.kinterest.meta.KIEntityMeta
 import kotlinx.coroutines.experimental.Deferred
 import java.util.*
 import java.util.concurrent.locks.ReentrantReadWriteLock
@@ -78,6 +79,8 @@ class JvmEntityMeta<E:KIEntity<K>, K:Comparable<K>>(val klass:KClass<E>, val imp
 */
 
 abstract class DataStoreJvm(override val name : String) : DataStore {
-    abstract fun<K:Comparable<K>> create(type:KClass<*>,id:K, values: Map<String, Any?>) : Try<Deferred<Try<K>>>
-    abstract fun<K:Comparable<K>> create(type:KClass<*>, values: Map<String, Any?>) : Try<Deferred<Try<K>>>
+    abstract fun<E:KIEntity<K>,K:Comparable<K>> query(type:KIEntityMeta<K>,f:EntityFilter<E,K>) : Try<Deferred<Try<Iterable<K>>>>
+    abstract fun<E:KIEntity<K>,K:Comparable<K>> retrieve(type:KIEntityMeta<K>,ids:Iterable<K>) : Try<Deferred<Try<Iterable<E>>>>
+    abstract fun<K:Comparable<K>> create(type:KIEntityMeta<K>, entities:Iterable<Pair<K,Map<String, Any?>>>) : Try<Deferred<Try<Iterable<K>>>>
+    abstract fun<K:Comparable<K>> delete(type:KIEntityMeta<K>, entities:Iterable<K>) : Try<Deferred<Either<DataStoreError,Iterable<K>>>>
 }

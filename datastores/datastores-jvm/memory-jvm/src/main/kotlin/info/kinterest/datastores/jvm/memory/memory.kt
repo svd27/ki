@@ -8,6 +8,8 @@ import info.kinterest.jvm.DataStoreError
 import info.kinterest.jvm.KIJvmEntity
 import info.kinterest.jvm.KIJvmEntityMeta
 import info.kinterest.jvm.KIJvmEntitySupport
+import info.kinterest.jvm.filter.EntityFilter
+import info.kinterest.meta.KIEntityMeta
 import info.kinterest.meta.KIProperty
 import kotlinx.coroutines.experimental.CommonPool
 import kotlinx.coroutines.experimental.Deferred
@@ -36,6 +38,7 @@ class JvmMemCfg(cfg: DataStoreConfig) : DataStoreConfig by cfg {
 val log = KotlinLogging.logger { }
 
 class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
+
     @Suppress("MemberVisibilityCanBePrivate")
     val pool = CommonPool
     private val dir = cfg.dir
@@ -70,6 +73,32 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
 
     }
 
+    override fun <E : KIEntity<K>, K : Comparable<K>> query(type: KIEntityMeta<K>, f: EntityFilter<E, K>): Try<Deferred<Try<Iterable<K>>>> = Try {
+        val bucket = buckets[type.me.cast()]
+        bucket?.let {
+            async {
+                Try {bucket.query(f)}
+            }
+        }?:throw DataStoreError.MetaDataNotFound(type.me.cast(), this)
+    }
+
+    override fun <E : KIEntity<K>, K : Comparable<K>> retrieve(type: KIEntityMeta<K>, ids: Iterable<K>): Try<Deferred<Try<Iterable<E>>>> = Try {
+        val b = buckets.get(type.me as KClass<*>)
+        b?.let { ab ->
+            async(pool) {
+                Try {
+                    ab.let { bucket ->
+                        ids.map { id ->
+                            if (bucket[id] == null) throw DataStoreError.EntityNotFound(type.me.cast(), id, this@JvmMemoryDataStore)
+                            type.new(this@JvmMemoryDataStore, id) as E
+                        }
+                    }
+                }
+            }
+        } ?: throw DataStoreError.BatchError("failure to retrieve", type.me.cast(), this)
+
+    }
+
 
     inline fun <reified E : KIEntity<K>, K : Comparable<K>> retrieve(id: K): Deferred<Try<E>> = run {
         async(pool) {
@@ -86,7 +115,7 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
 
     inline operator fun <reified E : KIEntity<K>, K : Comparable<K>, reified V : Any> get(id: K, prop: KIProperty<V>): Try<V?> = Try {
         buckets[E::class]!!.let { bucket ->
-            if(bucket[id]==null) throw DataStoreError.EntityNotFound(E::class, id, this)
+            if (bucket[id] == null) throw DataStoreError.EntityNotFound(E::class, id, this)
             bucket[id]?.get(prop.name)?.cast<V?>()
         }
     }
@@ -113,7 +142,7 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
             setProp(id: K, prop: KIProperty<V>, v: V?, version: Long): Deferred<Try<Unit>> =
             prop(E::class, id, prop, v, version)
 
-    fun<E:KIEntity<K>,K:Comparable<K>,V:Any> prop(type:KClass<*>,id: K, prop: KIProperty<V>, v: V?, version: Long): Deferred<Try<Unit>> = async(pool) {
+    fun <E : KIEntity<K>, K : Comparable<K>, V : Any> prop(type: KClass<*>, id: K, prop: KIProperty<V>, v: V?, version: Long): Deferred<Try<Unit>> = async(pool) {
         Try {
             buckets[type]!!.let { bucket: Bucket ->
                 log.trace { ">>> setProp $id in $bucket entity: ${bucket[id]} version: $version version current: ${bucket.version(id)}" }
@@ -123,7 +152,15 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
         }
     }
 
-    inline fun<reified E:KIEntity<K>,K:Comparable<K>> delete(ids:Iterable<K>) : Try<Deferred<Try<Iterable<K>>>> = Try {
+    override fun <K : Comparable<K>> delete(type: KIEntityMeta<K>, entities: Iterable<K>): Try<Deferred<Either<DataStoreError, Iterable<K>>>> = Try {
+        async {
+            Try {
+                buckets[type.me as KClass<*>]!!.delete(entities)
+            }.fold({ ex -> Either.left<DataStoreError, Iterable<K>>(DataStoreError.BatchError("error deleting entities", type.me as KClass<*>, this@JvmMemoryDataStore, ex)) }, { res -> Either.right(res) })
+        }
+    }
+
+    inline fun <reified E : KIEntity<K>, K : Comparable<K>> delete(ids: Iterable<K>): Try<Deferred<Try<Iterable<K>>>> = Try {
         async {
             Try {
                 buckets[this@JvmMemoryDataStore[E::class].me]!!.delete(ids)
@@ -131,9 +168,16 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
         }
     }
 
-    override fun <K : Comparable<K>> create(type: KClass<*>, values: Map<String, Any?>): Try<Deferred<Try<K>>> = Try { TODO("not implemented") }
+    override fun <K : Comparable<K>> create(type: KIEntityMeta<K>, entities: Iterable<Pair<K, Map<String, Any?>>>): Try<Deferred<Try<Iterable<K>>>> = Try {
+        val b = buckets.get(type.me as KClass<*>)
+        b?.let { bucket ->
+            async {
+                bucket.create(entities).cast<Try<Iterable<K>>>()
+            }
+        } ?: throw DataStoreError.MetaDataNotFound(type.me as KClass<*>, this)
+    }
 
-    override fun <K : Comparable<K>> create(type: KClass<*>, id: K, values: Map<String, Any?>): Try<Deferred<Try<K>>> = Try {
+    fun <K : Comparable<K>> create(type: KClass<*>, id: K, values: Map<String, Any?>): Try<Deferred<Try<K>>> = Try {
         async(pool) {
             Try {
                 @Suppress("UNCHECKED_CAST")
@@ -142,7 +186,7 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
                 meta!!.let { m ->
                     buckets[m.me]!!.let { bucket ->
                         assert(bucket.bucket[id] == null)
-                        if(bucket[id]!=null) throw DataStoreError.EntityExists(type, id, this@JvmMemoryDataStore)
+                        if (bucket[id] != null) throw DataStoreError.EntityExists(type, id, this@JvmMemoryDataStore)
                         bucket.create(id, values)
                         id
                     }
@@ -154,15 +198,16 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
 
     @Suppress("UNCHECKED_CAST")
     operator inline fun <reified E : KIEntity<K>, K : Comparable<K>> get(id: K): E? = this[E::class].new(this, id) as? E
-    operator inline fun<reified E:KIEntity<K>, reified K:Comparable<K>> contains(id:K) : Boolean = buckets[this[E::class].me]!![id] != null
+
+    operator inline fun <reified E : KIEntity<K>, reified K : Comparable<K>> contains(id: K): Boolean = buckets[this[E::class].me]!![id] != null
 
     inline fun <reified E : KIEntity<K>, K : Comparable<K>> version(id: K): Long? = buckets[E::class]!!.version(id)
 
-    private fun<R> DB.tx(tx : DB.() -> R) : R = try {
+    private fun <R> DB.tx(tx: DB.() -> R): R = try {
         val res = this.tx()
         commit()
         res
-    } catch (e:Throwable) {
+    } catch (e: Throwable) {
         rollback()
         throw e
     }
@@ -202,10 +247,10 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
 
         internal operator fun set(k: Comparable<*>, version: Long, values: Map<String, Any?>): Map<String, Any?> = db.run {
             assert(versioned)
-            if(bucket[k]==null) throw DataStoreError.EntityNotFound(meta.me, k, this@JvmMemoryDataStore)
+            if (bucket[k] == null) throw DataStoreError.EntityNotFound(meta.me, k, this@JvmMemoryDataStore)
             val versionName = versionName(k)
-            val current = Try {db.atomicLong(versionName).open()}.getOrElse { throw DataStoreError.VersionNotFound(meta.me, k, this@JvmMemoryDataStore, cause = it) }
-            if(current.compareAndSet(version, version+1)) {
+            val current = Try { db.atomicLong(versionName).open() }.getOrElse { throw DataStoreError.VersionNotFound(meta.me, k, this@JvmMemoryDataStore, cause = it) }
+            if (current.compareAndSet(version, version + 1)) {
                 db.set(k, values)
             } else throw DataStoreError.OptimisticLockException(meta.me, k, current, version, this@JvmMemoryDataStore)
         }
@@ -213,6 +258,16 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
 
         private fun versionName(k: Comparable<*>) = "${meta.me.simpleName}.$k._version"
 
+        fun create(entites: Iterable<Pair<Comparable<*>, Map<String, Any?>>>): Try<Iterable<Comparable<*>>> = Try {
+            db.tx {
+                entites.map { (id, values) ->
+                    val map = values.toMutableMap()
+                    Try { bucket[id] = map }.getOrElse { throw DataStoreError.EntityExists(meta.me, id, this@JvmMemoryDataStore) }
+                    if (versioned) Try { db.atomicLong(versionName(id), 0) }.getOrElse { throw DataStoreError.VersionAlreadyExists(meta.me, id, this@JvmMemoryDataStore, it) }
+                    id
+                }
+            }
+        }
 
         fun create(id: Comparable<*>, values: Map<String, Any?>) = db.tx {
             val mutableMap = values.toMutableMap()
@@ -224,8 +279,8 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
             index(id, values)
         }
 
-        fun<K:Comparable<*>> delete(ids:Iterable<K>) : Iterable<K> = db.tx {
-            ids.map { bucket.remove(it) to it }.map { del -> if(del.first==null) null else del.second }.filterNotNull()
+        fun <K : Comparable<*>> delete(ids: Iterable<K>): Iterable<K> = db.tx {
+            ids.map { bucket.remove(it) to it }.map { del -> if (del.first == null) null else del.second }.filterNotNull()
         }
 
         fun version(id: Comparable<*>): Long = db.atomicLong(versionName(id)).open().get()
@@ -233,6 +288,10 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
         @Suppress("UNUSED_PARAMETER")
         fun index(k: Any, values: Map<String, Any?>) {
 
+        }
+
+        fun <K:Comparable<K>> query(f: EntityFilter<*, K>): Iterable<K> = run {
+            bucket.iterator().asSequence().filter{f.matches(it as Map<String, Any?>)}.asIterable().cast()
         }
     }
 

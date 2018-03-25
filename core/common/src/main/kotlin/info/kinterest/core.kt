@@ -1,8 +1,10 @@
 package info.kinterest
 
+import info.kinterest.meta.KIEntityMeta
+
 val NULL : Any? = null
 
-expect interface Klass<T>
+expect interface Klass<T:Any>
 
 expect class UUID
 
@@ -30,6 +32,7 @@ interface DataStores {
 
 interface KIEntity<T:Comparable<T>> : Keyed<T> {
     val _store : DataStore
+    val _meta : KIEntityMeta<T>
     fun asTransient() : TransientEntity<T>
 }
 
