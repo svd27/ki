@@ -2,7 +2,10 @@ package info.kinterest
 
 val NULL : Any? = null
 
-expect interface Class<T>
+expect interface Klass<T>
+
+expect class UUID
+
 interface Keyed<T:Comparable<T>> {
     val id : T
 }

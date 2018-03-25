@@ -70,14 +70,14 @@ object TestJvmMem : Spek({
 
         on("creating an entity") {
 
-            if (tryk?.isFailure == true) {
+            if (tryk.isFailure == true) {
                 tryk.getOrElse { t -> log.error(t) { tryk }; "" }
             }
 
             it("should work") {
                 kdef.isFailure `should not be` true
                 deferred `should not be` null
-                tryk?.isSuccess `should be` true
+                tryk.isSuccess `should be` true
             }
         }
 
@@ -93,13 +93,13 @@ object TestJvmMem : Spek({
 
 
         fun create(k:String) : TestRoot = run {
-            val kdef = mem.create(TestRoot::class, k, mapOf("name" to "aname"))
-            val deferred = kdef.getOrDefault { null }
-            val tryk = runBlocking { deferred?.await()  }
-            val k = tryk?.getOrDefault { null }
-            val da = mem.retrieve<TestRoot,String>(k!!)
-            val atry = runBlocking { da.await() }
-            atry.getOrElse { null}!!
+            val kd = mem.create(TestRoot::class, k, mapOf("name" to "aname"))
+            val def = kd.getOrDefault { null }
+            val tk = runBlocking { def?.await()  }
+            val key = tk?.getOrDefault { null }
+            val dret = mem.retrieve<TestRoot,String>(key!!)
+            val tryret = runBlocking { dret.await() }
+            tryret.getOrElse { null}!!
         }
 
         val e1 = create("b")
@@ -114,13 +114,13 @@ object TestJvmMem : Spek({
         }
 
         on("creating an entity with an existing id") {
-            val kdef = mem.create(TestRoot::class, "a", mapOf("name" to "aname"))
-            val deferred = kdef.getOrDefault { null }
-            val tryk = runBlocking { deferred?.await()  }
+            val kd = mem.create(TestRoot::class, "a", mapOf("name" to "aname"))
+            val def = kd.getOrDefault { null }
+            val tk = runBlocking { def?.await()  }
             it("should fail") {
-                tryk!!.isSuccess.`should be false`()
+                tk!!.isSuccess.`should be false`()
             }
-            val ex = tryk!!.fold({ it }, { null })
+            val ex = tk!!.fold({ it }, { null })
             it("should have an exception of proper type") {
                 ex.`should not be null`()
                 ex `should be instance of` DataStoreError.EntityExists::class
@@ -154,13 +154,13 @@ class TestVersion : Spek({
     val entity = tryVersioned.getOrDefault { null }
 
     fun create() : TestVersioned = run {
-        val tryDefer = mem.create(TestVersioned::class, 0.toLong(), mapOf("name" to "aname", "someone" to "not me"))
-        val kdefer = tryDefer.getOrElse { null }!!
-        val tryk = runBlocking { kdefer.await() }
-        val k = tryk.getOrDefault { log.error(it) { it }; (-1).toLong() }
-        val retrDeferred = mem.retrieve<TestVersioned, Long>(k)
-        val tryVersioned = runBlocking { retrDeferred.await() }
-        tryVersioned.getOrDefault { null }!!
+        val td = mem.create(TestVersioned::class, 0.toLong(), mapOf("name" to "aname", "someone" to "not me"))
+        val kd = td.getOrElse { null }!!
+        val tk = runBlocking { kd.await() }
+        val key = tk.getOrDefault { log.error(it) { it }; (-1).toLong() }
+        val rd = mem.retrieve<TestVersioned, Long>(key)
+        val tv = runBlocking { rd.await() }
+        tv.getOrDefault { null }!!
     }
     given("an entity") {
         on("checking the result") {

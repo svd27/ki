@@ -1,7 +1,12 @@
 package info.kinterest
 
 import kotlin.reflect.KClass
-actual typealias Class<T> = KClass<T>
+import java.util.UUID
+
+actual typealias UUID = UUID
+actual typealias Klass<T> = KClass<T>
+
+
 
 actual interface DataStore {
     actual val name: String

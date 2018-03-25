@@ -1,8 +1,10 @@
 package info.kinterest
 
 import kotlin.reflect.KClass
+import java.util.UUID
 
-actual typealias Class<T> = KClass<T>
+actual typealias UUID = UUID
+actual typealias Klass<T> = KClass<T>
 
 
 actual interface DataStore {

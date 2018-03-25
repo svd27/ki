@@ -8,6 +8,7 @@ import info.kinterest.jvm.DataStoreError
 import info.kinterest.jvm.KIJvmEntity
 import info.kinterest.jvm.KIJvmEntityMeta
 import info.kinterest.jvm.KIJvmEntitySupport
+import info.kinterest.meta.KIProperty
 import kotlinx.coroutines.experimental.CommonPool
 import kotlinx.coroutines.experimental.Deferred
 import kotlinx.coroutines.experimental.async
@@ -83,21 +84,21 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
         }
     }
 
-    inline operator fun <reified E : KIEntity<K>, K : Comparable<K>, reified V : Any> get(id: K, prop: KIJvmEntityMeta<E, K>.Property): Try<V?> = Try {
+    inline operator fun <reified E : KIEntity<K>, K : Comparable<K>, reified V : Any> get(id: K, prop: KIProperty<V>): Try<V?> = Try {
         buckets[E::class]!!.let { bucket ->
             if(bucket[id]==null) throw DataStoreError.EntityNotFound(E::class, id, this)
             bucket[id]?.get(prop.name)?.cast<V?>()
         }
     }
 
-    inline fun <reified E : KIEntity<K>, K : Comparable<K>, reified V : Any> getProp(id: K, prop: KIJvmEntityMeta<E, K>.Property): V? = run {
+    inline fun <reified E : KIEntity<K>, K : Comparable<K>, reified V : Any> getProp(id: K, prop: KIProperty<V>): V? = run {
         buckets[E::class]!!.let { bucket ->
             bucket[id]?.get(prop.name)?.cast()
         }
     }
 
     inline fun <reified E : KIEntity<K>, K : Comparable<K>, reified V : Any>
-            setProp(id: K, prop: KIJvmEntityMeta<E, K>.Property, v: V?): Deferred<Try<Unit>> =
+            setProp(id: K, prop: KIProperty<V>, v: V?): Deferred<Try<Unit>> =
             async(pool) {
                 Try {
                     buckets[E::class]!!.let { bucket ->
@@ -109,10 +110,10 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
             }
 
     inline fun <reified E : KIEntity<K>, K : Comparable<K>, reified V : Any>
-            setProp(id: K, prop: KIJvmEntityMeta<E, K>.Property, v: V?, version: Long): Deferred<Try<Unit>> =
+            setProp(id: K, prop: KIProperty<V>, v: V?, version: Long): Deferred<Try<Unit>> =
             prop(E::class, id, prop, v, version)
 
-    fun<E:KIEntity<K>,K:Comparable<K>,V:Any> prop(type:KClass<*>,id: K, prop: KIJvmEntityMeta<E, K>.Property, v: V?, version: Long): Deferred<Try<Unit>> = async(pool) {
+    fun<E:KIEntity<K>,K:Comparable<K>,V:Any> prop(type:KClass<*>,id: K, prop: KIProperty<V>, v: V?, version: Long): Deferred<Try<Unit>> = async(pool) {
         Try {
             buckets[type]!!.let { bucket: Bucket ->
                 log.trace { ">>> setProp $id in $bucket entity: ${bucket[id]} version: $version version current: ${bucket.version(id)}" }
