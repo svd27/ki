@@ -1,9 +1,10 @@
 package info.kinterest.core.jvm.filters.parser
 
 import info.kinterest.KIEntity
+import info.kinterest.Try
 import info.kinterest.cast
+import info.kinterest.getOrElse
 import info.kinterest.jvm.FilterError
-import info.kinterest.jvm.KIJvmEntityMeta
 import info.kinterest.jvm.MetaProvider
 import info.kinterest.jvm.filter.*
 import info.kinterest.meta.*
@@ -11,8 +12,9 @@ import norswap.autumn.Grammar
 import norswap.autumn.UncaughtException
 import norswap.autumn.UnexpectedChar
 import norswap.autumn.parsers.*
-import norswap.utils.cast
 import java.math.BigDecimal
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 sealed class FNode
 data class FilterNode(val entity: NameNode, val root:FNode) : FNode()
@@ -29,6 +31,11 @@ data class OpNode(val op:String) : Constituents()
 sealed class CombinationNode : FNode()
 data class Comparison(val op:OpNode, val op1:FNode, val op2:FNode) : CombinationNode()
 data class Logical(val op:OpNode, val ops:Iterable<FNode>) : CombinationNode()
+sealed class DateComponent(val content:String) : FNode()
+data class DateNode(val date: StringNode) : DateComponent(date.str)
+data class DateFormat(val format:StringNode) : DateComponent(format.str)
+sealed class DateOrTimeNodes<T:Comparable<T>>(content: T) : ValueNode<T>(content)
+data class Date(val d:String, val format:String?) : DateOrTimeNodes<String>(d)
 
 class FilterGrammar : Grammar() {
     fun uint() = repeat1 { digit() }
@@ -44,8 +51,36 @@ class FilterGrammar : Grammar() {
             value = {StringNode(it)}
     )
     fun astr() = seq { char_set("\"") &&  strcontent() && char_set("\"") }
+    fun datespec() = build  (
+            syntax = {word { astr() }},
+            effect = {DateNode(it(0))}
+    )
+    fun dateformat() = build(
+            syntax = {word { astr() }},
+            effect = {DateFormat(it(0))}
+    )
 
-    fun value() = choice { int() || astr() }
+    fun dateAndFormat() = build(
+            syntax = {seq { datespec() && word { char_set(",") } && dateformat() } },
+            effect = {
+                val d : DateNode = it(0)
+                val f : DateFormat = it(1)
+                Date(d.date.str, f.format.str)
+            }
+    )
+
+    fun dateonly() = build(
+            syntax = {datespec() },
+            effect = {
+                println("date: ${stack}");
+                val d : DateNode = it(0)
+                Date(d.date.str, null)
+            }
+    )
+
+    fun date() = seq { word { string("date") } && parens { choice { dateAndFormat() || dateonly() } }}
+
+    fun value() = word { choice { int() || astr() || date() } }
 
 
     fun name() = build_str(
@@ -123,8 +158,10 @@ fun<E:KIEntity<K>,K:Comparable<K>> parse(s:String, meta:MetaProvider) : EntityFi
         val c = Creator<E,K>(meta)
         c.create(root as FilterNode)
     } else {
+        val failure = grammar.failure
+        if(failure is UncaughtException) failure.e.printStackTrace()
         println("${grammar.stack}")
-        throw FilterError("cannot parse $s: ${grammar.failure}")
+        throw FilterError("cannot parse $s: $failure at ${grammar.fail_pos} with stack:\n${grammar.stack}")
     }
 }
 
@@ -150,11 +187,13 @@ class Creator<E:KIEntity<K>,K:Comparable<K>>(val metas: MetaProvider) {
         val first = n.op1
         val second = n.op2
         require(!(first is NameNode && second is NameNode))
+        fun createDate(d:Date) : LocalDate = if(d.format==null) LocalDate.parse(d.d) else LocalDate.parse(d.d, DateTimeFormatter.ofPattern(d.format))
         when(first) {
             is NameNode -> when(second) {
                 is ValueNode<*> -> when(second) {
                     is NumberNode -> cmp(n.op.op, first.name, second.value)
                     is StringNode -> cmp(n.op.op, first.name, second.value)
+                    is Date -> cmp(n.op.op, first.name, createDate(second))
                 }
                 else -> throw FilterError("not supported $n")
             }
@@ -162,6 +201,7 @@ class Creator<E:KIEntity<K>,K:Comparable<K>>(val metas: MetaProvider) {
                 is NameNode -> when(first) {
                     is NumberNode -> cmp(n.op.op, second.name, first.value).inverse()
                     is StringNode -> cmp(n.op.op, second.name, first.value).inverse()
+                    is Date -> cmp(n.op.op, second.name, createDate(first))
                 }
                 else -> throw FilterError("not supported $n")
             }

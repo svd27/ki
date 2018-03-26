@@ -39,7 +39,7 @@ class KIDoubleProperty(support: KIPropertySupport<Double>) : KINumberProperty<Do
 class KIIntProperty(support: KIPropertySupport<Int>) : KINumberProperty<Int>(support)
 class KILongProperty(support: KIPropertySupport<Long>) : KINumberProperty<Long>(support)
 sealed class KITypeProperty<T>(support: KIPropertySupport<T>) : KIProperty<T>(support)
-sealed class KISimpleTypeProperty<T>(support: KIPropertySupport<T>) : KITypeProperty<T>(support)
+class KISimpleTypeProperty<T>(support: KIPropertySupport<T>) : KITypeProperty<T>(support)
 class KIUUIDProperty(support: KIPropertySupport<UUID>) : KITypeProperty<UUID>(support)
 class KIEmbedProperty<T>(support: KIPropertySupport<T>) : KITypeProperty<T>(support)
 class KIReferenceProperty<T>(support: KIPropertySupport<T>) : KITypeProperty<T>(support)

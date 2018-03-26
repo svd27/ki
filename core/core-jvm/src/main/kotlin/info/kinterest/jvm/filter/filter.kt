@@ -3,6 +3,7 @@ package info.kinterest.jvm.filter
 import info.kinterest.KIEntity
 import info.kinterest.cast
 import info.kinterest.jvm.FilterError
+import info.kinterest.jvm.MetaProvider
 import info.kinterest.meta.KIEntityMeta
 import info.kinterest.meta.KIProperty
 
@@ -13,7 +14,12 @@ sealed class KIFilter<T> {
     }
 }
 
-fun<E:KIEntity<K>,K:Comparable<K>> filter(meta: KIEntityMeta<K>,cb:EntityFilter<E,K>.()-> EntityFilter<E, K>) : EntityFilter<E,K> = EntityFilter.WrapperFilter<E,K>(meta,null).run{
+inline fun<reified E:KIEntity<K>,K:Comparable<K>> filter(provider: MetaProvider,cb:EntityFilter<E,K>.()-> EntityFilter<E, K>) : EntityFilter<E,K> = run {
+    val meta = provider.meta(E::class) as KIEntityMeta<K>
+    filter<E,K>(meta, cb)
+}
+
+inline fun<E:KIEntity<K>,K:Comparable<K>> filter(meta: KIEntityMeta<K>,cb:EntityFilter<E,K>.()-> EntityFilter<E, K>) : EntityFilter<E,K> = EntityFilter.WrapperFilter<E,K>(meta,null).run{
     this.cb()
 }
 

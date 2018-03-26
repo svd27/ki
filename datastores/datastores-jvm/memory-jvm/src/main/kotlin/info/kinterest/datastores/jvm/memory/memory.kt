@@ -291,7 +291,7 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
         }
 
         fun <K:Comparable<K>> query(f: EntityFilter<*, K>): Iterable<K> = run {
-            bucket.iterator().asSequence().filter{f.matches(it as Map<String, Any?>)}.asIterable().cast()
+            bucket.iterator().asSequence().filter{entry -> f.matches(entry.value.apply { put("id", entry.key) } as Map<String, Any?>)}.asIterable().cast()
         }
     }
 

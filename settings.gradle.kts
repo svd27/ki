@@ -13,6 +13,7 @@ include("core:common",
         "core:annotations-processor-jvm",
         "core:core-jvm",
         "core:core-jvm:filters-parser-jvm",
+        "core:core-jvm:filters-utils-jvm",
         "datastores:datastores-jvm:memory-jvm",
         "datastores:datastores-jvm:mongo-jvm")
 

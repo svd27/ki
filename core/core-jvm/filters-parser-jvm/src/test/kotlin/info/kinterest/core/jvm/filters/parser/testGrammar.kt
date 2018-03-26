@@ -17,8 +17,9 @@ import org.jetbrains.spek.api.Spek
 import org.jetbrains.spek.api.dsl.given
 import org.jetbrains.spek.api.dsl.it
 import org.jetbrains.spek.api.dsl.on
+import java.time.LocalDate
 
-class TestFilter(override val id : String, val top:Int?) : KIEntity<String> {
+class TestFilter(override val id : String, val top:Int?, val date:LocalDate) : KIEntity<String> {
     override val _store: DataStore
         get() = TODO("not implemented")
 
@@ -46,9 +47,8 @@ class TestFilter(override val id : String, val top:Int?) : KIEntity<String> {
 val Metas = MetaProvider()
 
 object SimpleTest : Spek({
-
+    Metas.register(TestFilter.Companion.Meta)
     given("a string") {
-        val e = TestFilter("a", null)
         val f = parse<TestFilter,String>("TestFilter{top > 5}", Metas)
         on("parsing it") {
             it("should be parsed as a Filter") {
@@ -57,5 +57,17 @@ object SimpleTest : Spek({
             }
         }
         val f1 = parse<TestFilter,String>("TestFilter{(top < 2&&top>=0) || top<20}", Metas)
+    }
+
+    given("a string with a date") {
+        on("parsing") {
+            val f = parse<TestFilter,String>("TestFilter{date < date(\"12.3.2014\",\"d.M.yyyy\")}", Metas)
+            it("should not fail") {}
+            it("should be a proper filter") {
+                f `should be instance of` LTFilter::class
+            }
+        }
+
+
     }
 })

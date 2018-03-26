@@ -78,9 +78,9 @@ class EntityInfo(val type: TypeElement, env: ProcessingEnvironment) {
         }
         val typeName: String = type.toString().normalize() + if (nullable) "?" else ""
         val propMetaType = typeName.let {
-            if(typeName.endsWith("?")) typeName.dropLast(1) else typeName
+            if (typeName.endsWith("?")) typeName.dropLast(1) else typeName
         }.let {
-            when(it) {
+            when (it) {
                 Boolean::class.qualifiedName!! -> KIBooleanProperty::class
                 Byte::class.qualifiedName!! -> TODO()
                 Char::class.qualifiedName!! -> TODO()
@@ -92,7 +92,7 @@ class EntityInfo(val type: TypeElement, env: ProcessingEnvironment) {
 
                 String::class.qualifiedName!! -> KIStringProperty::class
 
-                else -> TODO()
+                else -> KISimpleTypeProperty::class
             }
         }
 
@@ -177,7 +177,7 @@ object JvmMemoryGenerator : Generator {
                         }
 
                         if (entity.versioned)
-                            property<Long>("_version", VAL+ OVERRIDE) {
+                            property<Long>("_version", VAL + OVERRIDE) {
                                 getter(KoModifierList.Empty, true) {
                                     append("""
                                         store.version<${entity.type.simpleName},${entity.idTypeStr}>(id)!!
@@ -191,9 +191,9 @@ object JvmMemoryGenerator : Generator {
                                 val typeStr = it.typeName.let { if (it.endsWith("?")) it.dropLast(1) else it }
                                 getter(KoModifierList.Empty, true) {
                                     append("""store.getProp<${entity.type.simpleName},${entity.idTypeStr},$typeStr>(id, Meta.${it.metaName})""")
-                                    if(!it.nullable) append("!!")
+                                    if (!it.nullable) append("!!")
                                 }
-                                if(!it.readOnly) {
+                                if (!it.readOnly) {
                                     setter(KoModifierList.Empty, true, "value") {
                                         val suffix = if (entity.versioned) ",_version" else ""
                                         append("""Unit.apply { store.setProp<${entity.type.simpleName},${entity.idTypeStr},$typeStr>(id, Meta.${it.metaName}, value$suffix) }""")
@@ -227,8 +227,14 @@ object JvmMemoryGenerator : Generator {
                                     initializer(entity.parent?.let { "${entity.parent}::class" } ?: "null")
                                 }
                                 entity.fields.forEach {
-                                    property(it.metaName, parseType(it.propMetaType.java), VAL) {
-                                        initializer("props[\"${it.name}\"] as ${it.propMetaType.qualifiedName}")
+                                    if (it.propMetaType == KISimpleTypeProperty::class)
+                                        property(it.metaName, parseType("${it.propMetaType.qualifiedName}<${it.typeName}>"), VAL) {
+                                            initializer("props[\"${it.name}\"] as ${it.propMetaType.qualifiedName}<${it.typeName}>")
+                                        }
+                                    else {
+                                        property(it.metaName, parseType(it.propMetaType.java), VAL) {
+                                            initializer("props[\"${it.name}\"] as ${it.propMetaType.qualifiedName}")
+                                        }
                                     }
                                 }
                             }

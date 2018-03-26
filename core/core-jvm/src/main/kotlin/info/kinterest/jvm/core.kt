@@ -91,7 +91,7 @@ abstract class KIJvmEntityMeta<E : KIEntity<K>, K : Comparable<K>>(override val 
         Boolean::class -> KIBooleanProperty(PropertySupport<Boolean>(p))
         Int::class -> KIIntProperty(PropertySupport<Int>(p))
         Long::class -> KILongProperty(PropertySupport<Long>(p))
-        else -> TODO("${p.name} ${p.returnType.classifier}")
+        else -> KISimpleTypeProperty<Any>(PropertySupport<Any>(p))
     }
 
     override fun <V> get(e: KIEntity<K>, property: KIProperty<V>): V? = propertySupport[property.name]?.get(e) as V?
@@ -113,7 +113,12 @@ abstract class KIJvmEntityMeta<E : KIEntity<K>, K : Comparable<K>>(override val 
 
 class MetaProvider() {
     private val metas : MutableMap<String,KIEntityMeta<*>> = mutableMapOf()
+    private val metaByClass : MutableMap<KClass<*>,KIEntityMeta<*>> = mutableMapOf()
     fun meta(entity:String) : KIEntityMeta<*>? = metas[entity]
-    fun register(meta:KIEntityMeta<*>) { metas[meta.name] = meta }
+    fun meta(klass:Klass<*>) = metaByClass[klass]
+    fun register(meta:KIEntityMeta<*>) {
+        metas[meta.name] = meta
+        metaByClass[meta.me] = meta
+    }
 }
 
