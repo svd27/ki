@@ -1,45 +1,19 @@
 package info.kinterest.jvm
 
+import com.github.salomonbrys.kodein.Kodein
+import com.github.salomonbrys.kodein.bind
+import com.github.salomonbrys.kodein.instance
+import com.github.salomonbrys.kodein.singleton
+import info.kinterest.*
 import info.kinterest.meta.*
-import info.kinterest.DataStore
-import info.kinterest.EntitySupport
-import info.kinterest.KIEntity
-import info.kinterest.cast
 import mu.KLogging
 import org.jetbrains.annotations.Nullable
 import kotlin.reflect.*
 import kotlin.reflect.full.memberProperties
-import info.kinterest.Klass
+import info.kinterest.jvm.events.Dispatcher
 import info.kinterest.jvm.filter.KIFilter
 
 
-sealed class KIError(msg: String, cause: Throwable?, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
-        Exception(msg, cause, enableSuppression, writeableStackTrace)
-
-class FilterError(msg: String, cause: Throwable? = null, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
-        KIError(msg, cause, enableSuppression, writeableStackTrace)
-
-sealed class DataStoreError(val ds: DataStore, msg: String, cause: Throwable?, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
-        KIError(msg, cause, enableSuppression, writeableStackTrace) {
-    class EntityNotFound(val kc: KClass<*>, val key: Comparable<*>, ds: DataStore, cause: Throwable? = null, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
-            DataStoreError(ds, "Entity ${kc.simpleName} with Key $key not found in DataStore ${ds.name}", cause, enableSuppression, writeableStackTrace)
-
-    class EntityExists(val kc: KClass<*>, val key: Comparable<*>, ds: DataStore, cause: Throwable? = null, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
-            DataStoreError(ds, "Entity ${kc.simpleName} with Key $key already exists in DataStore ${ds.name}", cause, enableSuppression, writeableStackTrace)
-
-    class MetaDataNotFound(val kc: KClass<*>, ds: DataStore, cause: Throwable? = null, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
-            DataStoreError(ds, "Metadata for Entity ${kc.qualifiedName} not found", cause, enableSuppression, writeableStackTrace)
-
-    class VersionNotFound(val kc: KClass<*>, val key: Comparable<*>, ds: DataStore, cause: Throwable? = null, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
-            DataStoreError(ds, "version for Entity ${kc.simpleName} with id $key not found", cause, enableSuppression, writeableStackTrace)
-
-    class VersionAlreadyExists(val kc: KClass<*>, val key: Comparable<*>, ds: DataStore, cause: Throwable? = null, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
-            DataStoreError(ds, "version for Entity ${kc.simpleName} with id $key not found", cause, enableSuppression, writeableStackTrace)
-
-    class OptimisticLockException(val kc: KClass<*>, val key: Comparable<*>, val expectedVersion: Any, val actualVersion: Any, ds: DataStore, cause: Throwable? = null, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
-            DataStoreError(ds, "wrong version for ${kc.simpleName} with id $key, expected: $expectedVersion, actual: $actualVersion", cause, enableSuppression, writeableStackTrace)
-    class BatchError(msg:String, val kc:KClass<*>,ds: DataStore, cause: Throwable? = null, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) : DataStoreError(ds, msg, cause, enableSuppression, writeableStackTrace)
-}
 
 @Suppress("UNCHECKED_CAST")
 abstract class KIJvmEntity<E : KIEntity<K>, K : Comparable<K>> : KIEntity<K> {
@@ -122,3 +96,8 @@ class MetaProvider() {
     }
 }
 
+val coreKodein = Kodein.Module {
+    bind<MetaProvider>() with singleton { MetaProvider() }
+    bind<Dispatcher<EntityEvent<*,*>>>("entities") with singleton { Dispatcher<EntityEvent<*,*>>() }
+    bind<Dispatcher<KIErrorEvent<*>>>("errors") with singleton { Dispatcher<KIErrorEvent<*>>() }
+}

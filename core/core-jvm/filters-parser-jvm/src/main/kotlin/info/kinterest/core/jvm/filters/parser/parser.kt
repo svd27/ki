@@ -1,10 +1,6 @@
 package info.kinterest.core.jvm.filters.parser
 
-import info.kinterest.KIEntity
-import info.kinterest.Try
-import info.kinterest.cast
-import info.kinterest.getOrElse
-import info.kinterest.jvm.FilterError
+import info.kinterest.*
 import info.kinterest.jvm.MetaProvider
 import info.kinterest.jvm.filter.*
 import info.kinterest.meta.*

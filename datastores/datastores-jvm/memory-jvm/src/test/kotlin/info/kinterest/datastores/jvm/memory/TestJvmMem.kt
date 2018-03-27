@@ -1,13 +1,16 @@
 package info.kinterest.datastores.jvm.memory
 
+import com.github.salomonbrys.kodein.Kodein
+import com.github.salomonbrys.kodein.instance
 import info.kinterest.*
 import info.kinterest.annotations.Entity
 import info.kinterest.annotations.StorageTypes
 import info.kinterest.datastores.jvm.DataStoreConfig
 import info.kinterest.datastores.jvm.DataStoreFactoryProvider
+import info.kinterest.datastores.jvm.datasourceKodein
 import info.kinterest.datastores.jvm.memory.jvm.mem.TestRootJvmMem
-import info.kinterest.jvm.DataStoreError
 import info.kinterest.jvm.KIJvmEntity
+import info.kinterest.jvm.coreKodein
 import kotlinx.coroutines.experimental.Deferred
 import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.runBlocking
@@ -37,8 +40,14 @@ interface TestVersioned : KIEntity<Long> {
 }
 
 
+
 object TestJvmMem : Spek({
-    val fac = DataStoreFactoryProvider()
+    val kodein = Kodein {
+        import(coreKodein)
+        import(datasourceKodein)
+    }
+    kodein.instance<DataStoreFactoryProvider>().inject(kodein)
+    val fac = kodein.instance<DataStoreFactoryProvider>()
 
     val cfg = object : DataStoreConfig {
         override val name: String
@@ -123,7 +132,7 @@ object TestJvmMem : Spek({
             val ex = tk!!.fold({ it }, { null })
             it("should have an exception of proper type") {
                 ex.`should not be null`()
-                ex `should be instance of` DataStoreError.EntityExists::class
+                ex `should be instance of` DataStoreError.EntityError.EntityExists::class
             }
         }
     }
@@ -131,7 +140,12 @@ object TestJvmMem : Spek({
 
 
 class TestVersion : Spek({
-    val fac = DataStoreFactoryProvider()
+    val kodein = Kodein {
+        import(coreKodein)
+        import(datasourceKodein)
+    }
+    kodein.instance<DataStoreFactoryProvider>().inject(kodein)
+    val fac = kodein.instance<DataStoreFactoryProvider>()
 
     val cfg = object : DataStoreConfig {
         override val name: String
@@ -216,7 +230,7 @@ class TestVersion : Spek({
                 val optimisticLockException = ex.cast<DataStoreError.OptimisticLockException>()
 
                 optimisticLockException.ds shouldBe mem
-                optimisticLockException.kc shouldBe entity.cast<KIJvmEntity<*,*>>()._me
+                optimisticLockException.meta shouldBe entity.cast<KIJvmEntity<*,*>>()._meta
                 optimisticLockException.key shouldBe k
             }
         }
@@ -227,7 +241,12 @@ class TestVersion : Spek({
 })
 
 object TestDelete : Spek({
-    val fac = DataStoreFactoryProvider()
+    val kodein = Kodein {
+        import(coreKodein)
+        import(datasourceKodein)
+    }
+    kodein.instance<DataStoreFactoryProvider>().inject(kodein)
+    val fac = kodein.instance<DataStoreFactoryProvider>()
 
     val cfg = object : DataStoreConfig {
         override val name: String
@@ -277,7 +296,7 @@ object TestDelete : Spek({
         it("should deliver a proper exception") {
             val ex = tret.fold({ it }, { null })
             ex.`should not be null`()
-            ex `should be instance of` DataStoreError.EntityNotFound::class
+            ex `should be instance of` DataStoreError.EntityError.EntityNotFound::class
         }
     }
 

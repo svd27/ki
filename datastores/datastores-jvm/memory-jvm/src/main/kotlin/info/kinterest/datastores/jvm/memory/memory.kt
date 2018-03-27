@@ -1,10 +1,11 @@
 package info.kinterest.datastores.jvm.memory
 
+import com.github.salomonbrys.kodein.Kodein
+import com.github.salomonbrys.kodein.KodeinInjector
 import info.kinterest.*
 import info.kinterest.datastores.jvm.DataStoreConfig
 import info.kinterest.datastores.jvm.DataStoreFactory
 import info.kinterest.datastores.jvm.DataStoreJvm
-import info.kinterest.jvm.DataStoreError
 import info.kinterest.jvm.KIJvmEntity
 import info.kinterest.jvm.KIJvmEntityMeta
 import info.kinterest.jvm.KIJvmEntitySupport
@@ -26,7 +27,15 @@ import kotlin.reflect.full.companionObjectInstance
 abstract class KIJvmMemEntity<E : KIEntity<T>, T : Comparable<T>>(override val _store: DataStore, override val id: T) : KIJvmEntity<E, T>()
 
 class JvmMemoryDataStoreFactory : DataStoreFactory {
-    override fun create(cfg: DataStoreConfig): DataStore = JvmMemoryDataStore(JvmMemCfg(cfg))
+    override lateinit var kodein: Kodein
+    override val injector: KodeinInjector = KodeinInjector()
+
+    init {
+        onInjected ({ k -> kodein = k })
+    }
+
+
+    override fun create(cfg: DataStoreConfig): DataStore = JvmMemoryDataStore(JvmMemCfg(cfg)).apply { inject(kodein) }
 }
 
 
@@ -38,7 +47,6 @@ class JvmMemCfg(cfg: DataStoreConfig) : DataStoreConfig by cfg {
 val log = KotlinLogging.logger { }
 
 class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
-
     @Suppress("MemberVisibilityCanBePrivate")
     val pool = CommonPool
     private val dir = cfg.dir
@@ -52,11 +60,14 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
                 assert(kc.companionObjectInstance is KIJvmEntitySupport<*, *>)
                 val meta = kc.companionObjectInstance!!.cast<KIJvmEntitySupport<*, *>>().meta
                 this[key] = meta
+                metaProvider.register(meta)
             }
             if (key !in this) throw DataStoreError.MetaDataNotFound(key, this@JvmMemoryDataStore)
             _metas[key]
         }
     }
+
+    inline fun<reified E:KIEntity<K>,K:Comparable<K>> check() = this[E::class]
 
     operator fun get(kc: KClass<*>): KIJvmEntityMeta<*, *> = run {
         metas[kc]!!
@@ -89,7 +100,7 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
                 Try {
                     ab.let { bucket ->
                         ids.map { id ->
-                            if (bucket[id] == null) throw DataStoreError.EntityNotFound(type.me.cast(), id, this@JvmMemoryDataStore)
+                            if (bucket[id] == null) throw DataStoreError.EntityError.EntityNotFound(type.me.cast(), id, this@JvmMemoryDataStore)
                             type.new(this@JvmMemoryDataStore, id) as E
                         }
                     }
@@ -104,8 +115,9 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
         async(pool) {
             Try {
                 buckets[E::class]!!.let { bucket ->
-                    if (bucket[id] == null) throw DataStoreError.EntityNotFound(E::class, id, this@JvmMemoryDataStore)
                     val meta = this@JvmMemoryDataStore[E::class]
+                    if (bucket[id] == null) throw DataStoreError.EntityError.EntityNotFound(meta, id, this@JvmMemoryDataStore)
+
                     meta.new(this@JvmMemoryDataStore, id) as E
                 }
             }
@@ -115,7 +127,7 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
 
     inline operator fun <reified E : KIEntity<K>, K : Comparable<K>, reified V : Any> get(id: K, prop: KIProperty<V>): Try<V?> = Try {
         buckets[E::class]!!.let { bucket ->
-            if (bucket[id] == null) throw DataStoreError.EntityNotFound(E::class, id, this)
+            if (bucket[id] == null) throw DataStoreError.EntityError.EntityNotFound(this[E::class]!!, id, this)
             bucket[id]?.get(prop.name)?.cast<V?>()
         }
     }
@@ -156,7 +168,7 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
         async {
             Try {
                 buckets[type.me as KClass<*>]!!.delete(entities)
-            }.fold({ ex -> Either.left<DataStoreError, Iterable<K>>(DataStoreError.BatchError("error deleting entities", type.me as KClass<*>, this@JvmMemoryDataStore, ex)) }, { res -> Either.right(res) })
+            }.fold({ ex -> Either.left<DataStoreError, Iterable<K>>(DataStoreError.BatchError("error deleting entities", type, this@JvmMemoryDataStore, ex)) }, { res -> Either.right(res) })
         }
     }
 
@@ -174,7 +186,7 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
             async {
                 bucket.create(entities).cast<Try<Iterable<K>>>()
             }
-        } ?: throw DataStoreError.MetaDataNotFound(type.me as KClass<*>, this)
+        } ?: throw DataStoreError.MetaDataNotFound(type.me, this)
     }
 
     fun <K : Comparable<K>> create(type: KClass<*>, id: K, values: Map<String, Any?>): Try<Deferred<Try<K>>> = Try {
@@ -186,7 +198,7 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
                 meta!!.let { m ->
                     buckets[m.me]!!.let { bucket ->
                         assert(bucket.bucket[id] == null)
-                        if (bucket[id] != null) throw DataStoreError.EntityExists(type, id, this@JvmMemoryDataStore)
+                        if (bucket[id] != null) throw DataStoreError.EntityError.EntityExists(meta, id, this@JvmMemoryDataStore)
                         bucket.create(id, values)
                         id
                     }
@@ -247,12 +259,12 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
 
         internal operator fun set(k: Comparable<*>, version: Long, values: Map<String, Any?>): Map<String, Any?> = db.run {
             assert(versioned)
-            if (bucket[k] == null) throw DataStoreError.EntityNotFound(meta.me, k, this@JvmMemoryDataStore)
+            if (bucket[k] == null) throw DataStoreError.EntityError.EntityNotFound(meta, k, this@JvmMemoryDataStore)
             val versionName = versionName(k)
-            val current = Try { db.atomicLong(versionName).open() }.getOrElse { throw DataStoreError.VersionNotFound(meta.me, k, this@JvmMemoryDataStore, cause = it) }
+            val current = Try { db.atomicLong(versionName).open() }.getOrElse { throw DataStoreError.EntityError.VersionNotFound(meta, k, this@JvmMemoryDataStore, cause = it) }
             if (current.compareAndSet(version, version + 1)) {
                 db.set(k, values)
-            } else throw DataStoreError.OptimisticLockException(meta.me, k, current, version, this@JvmMemoryDataStore)
+            } else throw DataStoreError.OptimisticLockException(meta, k, current, version, this@JvmMemoryDataStore)
         }
 
 
@@ -262,8 +274,8 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
             db.tx {
                 entites.map { (id, values) ->
                     val map = values.toMutableMap()
-                    Try { bucket[id] = map }.getOrElse { throw DataStoreError.EntityExists(meta.me, id, this@JvmMemoryDataStore) }
-                    if (versioned) Try { db.atomicLong(versionName(id), 0) }.getOrElse { throw DataStoreError.VersionAlreadyExists(meta.me, id, this@JvmMemoryDataStore, it) }
+                    Try { bucket[id] = map }.getOrElse { throw DataStoreError.EntityError.EntityExists(meta, id, this@JvmMemoryDataStore) }
+                    if (versioned) Try { db.atomicLong(versionName(id), 0) }.getOrElse { throw DataStoreError.EntityError.VersionAlreadyExists(meta, id, this@JvmMemoryDataStore, it) }
                     id
                 }
             }
@@ -272,7 +284,7 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
         fun create(id: Comparable<*>, values: Map<String, Any?>) = db.tx {
             val mutableMap = values.toMutableMap()
             if (versioned) {
-                Try { db.atomicLong(versionName(id), 0).create() }.getOrElse { throw DataStoreError.VersionAlreadyExists(meta.me, id, this@JvmMemoryDataStore, it) }
+                Try { db.atomicLong(versionName(id), 0).create() }.getOrElse { throw DataStoreError.EntityError.VersionAlreadyExists(meta, id, this@JvmMemoryDataStore, it) }
             }
             bucket[id] = mutableMap
 
