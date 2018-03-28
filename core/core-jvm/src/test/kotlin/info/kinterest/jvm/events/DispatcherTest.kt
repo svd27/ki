@@ -1,5 +1,8 @@
 package info.kinterest.jvm.events
 
+import info.kinterest.jvm.filter.log
+import kotlinx.coroutines.experimental.CommonPool
+import kotlinx.coroutines.experimental.Job
 import kotlinx.coroutines.experimental.channels.Channel
 import kotlinx.coroutines.experimental.launch
 import kotlinx.coroutines.experimental.runBlocking
@@ -16,21 +19,27 @@ class DispatcherTest : Spek({
     given("having a dispatcher") {
         on("sending to it ") {
             runBlocking { dispatcher.incoming.send(1) }
-            println("sent")
             it("should work") {}
 
         }
         val receiver = object {
             var sum = 0
             val received = Channel<Int>()
+            val launched : Job
+            val expect = 2
 
             init {
-                launch {
+                 launched = launch(CommonPool) {
                     for (r in received) {
                         sum += r
+                        log.debug { "received $r sum $sum" }
+                        if(sum==expect) received.close()
                     }
+
                 }
+
             }
+            fun close() = received.close()
         }
 
         on("adding a subscriber") {
@@ -39,6 +48,11 @@ class DispatcherTest : Spek({
                 dispatcher.incoming.send(1)
                 dispatcher.incoming.send(1)
             }
+
+            runBlocking {
+                receiver.launched.join()
+            }
+
 
             it("it should receive all events") {
                 receiver.sum `should be equal to` 2
