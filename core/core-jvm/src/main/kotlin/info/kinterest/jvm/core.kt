@@ -68,7 +68,7 @@ abstract class KIJvmEntityMeta<E : KIEntity<K>, K : Comparable<K>>(override val 
         else -> KISimpleTypeProperty<Any>(PropertySupport<Any>(p))
     }
 
-    override fun <V> get(e: KIEntity<K>, property: KIProperty<V>): V? = propertySupport[property.name]?.get(e) as V?
+    fun <V> get(e: KIEntity<K>, property: KIProperty<V>): V? = propertySupport[property.name]?.get(e) as V?
 
     private val ctor = findCtor()
     private fun findCtor() = run {
