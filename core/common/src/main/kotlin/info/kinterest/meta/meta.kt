@@ -5,14 +5,14 @@ import info.kinterest.KIEntity
 import info.kinterest.Klass
 import info.kinterest.UUID
 
-sealed class KIProperty<V>(support:KIPropertySupport<V>) {
+sealed class KIProperty<out V>(support:KIPropertySupport<V>) {
     val name: String = support.name
     val type: Klass<*> = support.type
     val readOnly: Boolean = support.readOnly
     val nullable: Boolean = support.nullable
     val transient: Boolean = support.transient
 }
-abstract class KIEntityMeta<K : Comparable<K>> {
+abstract class KIEntityMeta<out K : Comparable<K>> {
     abstract val impl: Klass<*>
     abstract val me: Klass<*>
     abstract val name: String
@@ -20,10 +20,9 @@ abstract class KIEntityMeta<K : Comparable<K>> {
     abstract val parent: Klass<*>?
     abstract val props : Map<String, KIProperty<*>>
     abstract fun new(ds: DataStore, id: Any) : KIEntity<K>
-    abstract fun<V> get(e:KIEntity<K>,property: KIProperty<V>) : V?
 }
 
-interface KIPropertySupport<V> {
+interface KIPropertySupport<out V> {
     val name: String
     val type: Klass<*>
     val readOnly: Boolean
