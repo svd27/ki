@@ -79,9 +79,10 @@ class StaticEntityFilter<E:KIEntity<K>, K:Comparable<K>>(val ids:Iterable<K>, me
 
 sealed class PropertyFilter<E:KIEntity<K>,K:Comparable<K>,P>(val prop:KIProperty<P>, meta: KIEntityMeta<K>) : EntityFilter<E, K>(meta)
 sealed class PropertyValueFilter<E:KIEntity<K>,K:Comparable<K>,P>(prop:KIProperty<P>, meta: KIEntityMeta<K>, val value: P) : PropertyFilter<E, K,P>(prop,meta) {
+    private val _meta = meta as KIJvmEntityMeta<K>
     fun match(p:P?) : Boolean = relate(p,value)
     abstract fun relate(value:P?, test:P) : Boolean
-    override fun matches(e: E): Boolean = match(meta.get<P>(e, prop))
+    override fun matches(e: E): Boolean = match(_meta.get<P>(e, prop))
     override fun matches(values: Map<String, Any?>): Boolean = match(values[prop.name] as P?)
 }
 class EQFilter<E:KIEntity<K>,K:Comparable<K>,P:Comparable<P>>(prop:KIProperty<P>, meta: KIEntityMeta<K>, value:P) : PropertyValueFilter<E, K, P>(prop, meta, value) {
