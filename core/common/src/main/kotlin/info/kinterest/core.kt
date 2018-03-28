@@ -10,7 +10,7 @@ expect interface Klass<T : Any> {
 
 expect class UUID
 
-interface Keyed<T : Comparable<T>> {
+interface Keyed<out T : Comparable<T>> {
     val id: T
 }
 
@@ -42,7 +42,7 @@ interface TransientEntity<T : Comparable<T>> : KIEntity<T> {
     val values: Map<String, Any?>
 }
 
-interface EntitySupport<E : KIEntity<K>, K : Comparable<K>> {
+interface EntitySupport<out E : KIEntity<K>, K : Comparable<K>> {
     /**
      * creates a new transient entity, requires that all properties are given in their ctor order
      */
@@ -51,7 +51,7 @@ interface EntitySupport<E : KIEntity<K>, K : Comparable<K>> {
     fun <DS : DataStore> create(ds: DS, id: K, values: Map<String, Any?>)
 }
 
-interface Versioned<V> {
+interface Versioned<out V> {
     val _version: V
 }
 
