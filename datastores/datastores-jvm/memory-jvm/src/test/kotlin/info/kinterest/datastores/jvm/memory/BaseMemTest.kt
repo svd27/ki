@@ -31,8 +31,8 @@ class BaseMemTest(cfg:DataStoreConfig)  {
         await.flatten()
     }
 
-    inline fun<reified E:KIEntity<K>, K:Comparable<K>> retrieve(ids:Iterable<K>) : Try<Iterable<E>> = run {
-        val meta = ds[E::class] as KIEntityMeta<K>
+    inline fun<reified E:KIEntity<K>, K:Any> retrieve(ids:Iterable<K>) : Try<Iterable<E>> = run {
+        val meta = ds[E::class]
         ds.retrieve<E,K>(meta, ids).map { runBlocking { it.await() } }.getOrElse { throw it }
     }
 }

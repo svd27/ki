@@ -12,15 +12,17 @@ sealed class KIProperty<V>(support:KIPropertySupport<V>) {
     val nullable: Boolean = support.nullable
     val transient: Boolean = support.transient
 }
-abstract class KIEntityMeta<K : Comparable<K>> {
+
+abstract class KIEntityMeta {
+    abstract fun <V> get(e: KIEntity<*>, prop: KIProperty<V>): V?
+    abstract fun <K:Any> new(ds: DataStore, id: K): KIEntity<K>
+
     abstract val impl: Klass<*>
     abstract val me: Klass<*>
     abstract val name: String
     abstract val root : Klass<*>
     abstract val parent: Klass<*>?
     abstract val props : Map<String, KIProperty<*>>
-    abstract fun new(ds: DataStore, id: Any) : KIEntity<K>
-    abstract fun<V> get(e:KIEntity<K>,property: KIProperty<V>) : V?
 }
 
 interface KIPropertySupport<V> {

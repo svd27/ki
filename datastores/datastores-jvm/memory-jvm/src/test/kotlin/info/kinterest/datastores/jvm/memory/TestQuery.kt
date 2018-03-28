@@ -41,7 +41,7 @@ class TestQuery : Spek( {
     })
     val provider = MetaProvider()
     @Suppress("UNCHECKED_CAST")
-    val meta = base.ds[QueryEntity::class] as KIEntityMeta<String>
+    val meta = base.ds[QueryEntity::class] as KIEntityMeta
     provider.register(meta)
 
     val keys = ('A'..'Z').map {

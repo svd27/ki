@@ -9,23 +9,23 @@ import info.kinterest.meta.KIProperty
 
 sealed class KIFilter<T> {
     abstract fun matches(e:T) : Boolean
-    inline fun<E:KIEntity<K>,K:Comparable<K>> entity(meta:KIEntityMeta<K>,cb: KIFilter<T>.()-> EntityFilter<E, K>) : EntityFilter<E, K> = EntityFilter.WrapperFilter<E,K>(meta,null).run {
+    inline fun<E:KIEntity<K>,K:Any> entity(meta:KIEntityMeta,cb: KIFilter<T>.()-> EntityFilter<E, K>) : EntityFilter<E, K> = EntityFilter.WrapperFilter<E,K>(meta,null).run {
         cb()
     }
 }
 
-inline fun<reified E:KIEntity<K>,K:Comparable<K>> filter(provider: MetaProvider,cb:EntityFilter<E,K>.()-> EntityFilter<E, K>) : EntityFilter<E,K> = run {
-    val meta = provider.meta(E::class) as KIEntityMeta<K>
+inline fun<reified E:KIEntity<K>,K:Any> filter(provider: MetaProvider,cb:EntityFilter<E,K>.()-> EntityFilter<E, K>) : EntityFilter<E,K> = run {
+    val meta = provider.meta(E::class) as KIEntityMeta
     filter<E,K>(meta, cb)
 }
 
-inline fun<E:KIEntity<K>,K:Comparable<K>> filter(meta: KIEntityMeta<K>,cb:EntityFilter<E,K>.()-> EntityFilter<E, K>) : EntityFilter<E,K> = EntityFilter.WrapperFilter<E,K>(meta,null).run{
+inline fun<E:KIEntity<K>,K:Any> filter(meta: KIEntityMeta,cb:EntityFilter<E,K>.()-> EntityFilter<E, K>) : EntityFilter<E,K> = EntityFilter.WrapperFilter<E,K>(meta,null).run{
     this.cb()
 }
 
-sealed class EntityFilter<E:KIEntity<K>,K:Comparable<K>>(val meta:KIEntityMeta<K>) : KIFilter<E>() {
+sealed class EntityFilter<E:KIEntity<K>, K:Any>(val meta:KIEntityMeta) : KIFilter<E>() {
     abstract fun matches(values:Map<String,Any?>) : Boolean
-    class WrapperFilter<E:KIEntity<K>,K:Comparable<K>>(meta:KIEntityMeta<K>, var f:EntityFilter<E,K>?) : EntityFilter<E,K>(meta) {
+    class WrapperFilter<E:KIEntity<K>,K:Any>(meta:KIEntityMeta, var f:EntityFilter<E,K>?) : EntityFilter<E,K>(meta) {
         override fun matches(e: E): Boolean = f!!.matches(e)
 
         override fun matches(values: Map<String, Any?>): Boolean = f!!.matches(values)
@@ -63,8 +63,8 @@ sealed class EntityFilter<E:KIEntity<K>,K:Comparable<K>>(val meta:KIEntityMeta<K
     abstract fun inverse() : EntityFilter<E, K>
 }
 
-abstract class IdFilter<E:KIEntity<K>,K:Comparable<K>>(meta: KIEntityMeta<K>) : EntityFilter<E, K>(meta)
-class StaticEntityFilter<E:KIEntity<K>, K:Comparable<K>>(val ids:Iterable<K>, meta: KIEntityMeta<K>) : IdFilter<E, K>(meta) {
+abstract class IdFilter<E:KIEntity<K>,K:Any>(meta: KIEntityMeta) : EntityFilter<E, K>(meta)
+class StaticEntityFilter<E:KIEntity<K>, K:Any>(val ids:Iterable<K>, meta: KIEntityMeta) : IdFilter<E, K>(meta) {
     override fun matches(e: E): Boolean = ids.any { e.id == it }
     override fun matches(values: Map<String, Any?>): Boolean = values["_id"]?.let { ids.any(it::equals) }?:false
 
@@ -77,33 +77,33 @@ class StaticEntityFilter<E:KIEntity<K>, K:Comparable<K>>(val ids:Iterable<K>, me
     }
 }
 
-sealed class PropertyFilter<E:KIEntity<K>,K:Comparable<K>,P>(val prop:KIProperty<P>, meta: KIEntityMeta<K>) : EntityFilter<E, K>(meta)
-sealed class PropertyValueFilter<E:KIEntity<K>,K:Comparable<K>,P>(prop:KIProperty<P>, meta: KIEntityMeta<K>, val value: P) : PropertyFilter<E, K,P>(prop,meta) {
+sealed class PropertyFilter<E:KIEntity<K>,K:Any,P>(val prop:KIProperty<P>, meta: KIEntityMeta) : EntityFilter<E, K>(meta)
+sealed class PropertyValueFilter<E:KIEntity<K>,K:Any,P>(prop:KIProperty<P>, meta: KIEntityMeta, val value: P) : PropertyFilter<E, K,P>(prop,meta) {
     fun match(p:P?) : Boolean = relate(p,value)
     abstract fun relate(value:P?, test:P) : Boolean
     override fun matches(e: E): Boolean = match(meta.get<P>(e, prop))
     override fun matches(values: Map<String, Any?>): Boolean = match(values[prop.name] as P?)
 }
-class EQFilter<E:KIEntity<K>,K:Comparable<K>,P:Comparable<P>>(prop:KIProperty<P>, meta: KIEntityMeta<K>, value:P) : PropertyValueFilter<E, K, P>(prop, meta, value) {
+class EQFilter<E:KIEntity<K>,K:Any,P:Comparable<P>>(prop:KIProperty<P>, meta: KIEntityMeta, value:P) : PropertyValueFilter<E, K, P>(prop, meta, value) {
     override fun relate(value: P?, test: P): Boolean = value == test
     override fun inverse(): NEQFilter<E, K, P> = NEQFilter(prop, meta, value)
 }
-class NEQFilter<E:KIEntity<K>,K:Comparable<K>,P:Comparable<P>>(prop:KIProperty<P>, meta: KIEntityMeta<K>, value:P) : PropertyValueFilter<E, K, P>(prop, meta, value) {
+class NEQFilter<E:KIEntity<K>,K:Any,P:Comparable<P>>(prop:KIProperty<P>, meta: KIEntityMeta, value:P) : PropertyValueFilter<E, K, P>(prop, meta, value) {
     override fun relate(value: P?, test: P): Boolean = value != test
     override fun inverse(): EQFilter<E, K, P> = EQFilter(prop, meta, value)
 }
 
 fun<A,B,R> B.let2(a:A,b:B, cb : (a:A,b:B) -> R) : R? = if(b!=null) cb(a,b) else null
-class GTFilter<E:KIEntity<K>,K:Comparable<K>,P:Comparable<P>> (prop:KIProperty<P>, meta: KIEntityMeta<K>, value:P) : PropertyValueFilter<E, K, P>(prop, meta, value) {
+class GTFilter<E:KIEntity<K>,K:Any,P:Comparable<P>> (prop:KIProperty<P>, meta: KIEntityMeta, value:P) : PropertyValueFilter<E, K, P>(prop, meta, value) {
     override fun relate(value: P?, test: P): Boolean = value?.let { v ->v>test }?:false
     override fun inverse(): LTEFilter<E, K, P> = LTEFilter(prop, meta, value)
 }
-class GTEFilter<E:KIEntity<K>,K:Comparable<K>,P:Comparable<P>> (prop:KIProperty<P>, meta: KIEntityMeta<K>, value:P) : PropertyValueFilter<E, K, P>(prop, meta, value) {
+class GTEFilter<E:KIEntity<K>,K:Any,P:Comparable<P>> (prop:KIProperty<P>, meta: KIEntityMeta, value:P) : PropertyValueFilter<E, K, P>(prop, meta, value) {
     override fun relate(value: P?, test: P): Boolean = value?.let { v ->v>=test }?:false
     override fun inverse(): LTFilter<E, K, P> = LTFilter(prop, meta, value)
 }
 
-class LTFilter<E:KIEntity<K>,K:Comparable<K>,P:Comparable<P>> (prop:KIProperty<P>, meta: KIEntityMeta<K>, value:P) : PropertyValueFilter<E, K, P>(prop, meta, value) {
+class LTFilter<E:KIEntity<K>,K:Any,P:Comparable<P>> (prop:KIProperty<P>, meta: KIEntityMeta, value:P) : PropertyValueFilter<E, K, P>(prop, meta, value) {
     override fun relate(value: P?, test: P): Boolean = value?.let { v ->
         v < test
     } ?: true
@@ -111,7 +111,7 @@ class LTFilter<E:KIEntity<K>,K:Comparable<K>,P:Comparable<P>> (prop:KIProperty<P
     override fun inverse(): GTEFilter<E, K, P> = GTEFilter(prop, meta, value)
 }
 
-class LTEFilter<E:KIEntity<K>,K:Comparable<K>,P:Comparable<P>> (prop:KIProperty<P>, meta: KIEntityMeta<K>, value:P) : PropertyValueFilter<E, K, P>(prop, meta, value) {
+class LTEFilter<E:KIEntity<K>,K:Any,P:Comparable<P>> (prop:KIProperty<P>, meta: KIEntityMeta, value:P) : PropertyValueFilter<E, K, P>(prop, meta, value) {
     override fun relate(value: P?, test: P): Boolean = value?.let { v ->
         v <= test
     } ?: true
@@ -119,15 +119,15 @@ class LTEFilter<E:KIEntity<K>,K:Comparable<K>,P:Comparable<P>> (prop:KIProperty<
     override fun inverse(): GTFilter<E, K, P> = GTFilter(prop, meta, value)
 }
 
-sealed class CombinationFilter<E:KIEntity<K>,K:Comparable<K>>(val operands:Iterable<EntityFilter<E,K>>, meta: KIEntityMeta<K>) : EntityFilter<E,K>(meta)
-class NotFilter<E:KIEntity<K>,K:Comparable<K>>(operands:Iterable<EntityFilter<E,K>>, meta: KIEntityMeta<K>) : CombinationFilter<E,K>(operands, meta) {
+sealed class CombinationFilter<E:KIEntity<K>,K:Any>(val operands:Iterable<EntityFilter<E,K>>, meta: KIEntityMeta) : EntityFilter<E,K>(meta)
+class NotFilter<E:KIEntity<K>,K:Any>(operands:Iterable<EntityFilter<E,K>>, meta: KIEntityMeta) : CombinationFilter<E,K>(operands, meta) {
     override fun matches(e: E): Boolean = !operands.any {it.matches(e)}
 
     override fun matches(values: Map<String, Any?>): Boolean = !operands.any { it.matches(values) }
 
     override fun inverse(): EntityFilter<E, K> = AndFilter(operands, meta)
 }
-class AndFilter<E:KIEntity<K>,K:Comparable<K>>(operands:Iterable<EntityFilter<E,K>>, meta: KIEntityMeta<K>) : CombinationFilter<E,K>(operands, meta) {
+class AndFilter<E:KIEntity<K>,K:Any>(operands:Iterable<EntityFilter<E,K>>, meta: KIEntityMeta) : CombinationFilter<E,K>(operands, meta) {
     override fun matches(e: E): Boolean = operands.all { it.matches(e) }
 
 
@@ -136,7 +136,7 @@ class AndFilter<E:KIEntity<K>,K:Comparable<K>>(operands:Iterable<EntityFilter<E,
     override fun inverse(): EntityFilter<E, K> = OrFilter(operands.map(EntityFilter<E,K>::inverse), meta)
 }
 
-class OrFilter<E:KIEntity<K>,K:Comparable<K>>(operands:Iterable<EntityFilter<E,K>>, meta: KIEntityMeta<K>) : CombinationFilter<E,K>(operands, meta) {
+class OrFilter<E:KIEntity<K>,K:Any>(operands:Iterable<EntityFilter<E,K>>, meta: KIEntityMeta) : CombinationFilter<E,K>(operands, meta) {
     override fun matches(e: E): Boolean = operands.any {it.matches(e)}
 
     override fun matches(values: Map<String, Any?>): Boolean = operands.any { it.matches(values) }

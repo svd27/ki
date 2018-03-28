@@ -217,7 +217,7 @@ object JvmMemoryGenerator : Generator {
                                 }
                             }
                             objectDeclaration("Meta") {
-                                val ext = parseType("info.kinterest.jvm.KIJvmEntityMeta<${entity.type.simpleName},${entity.idTypeStr}>")
+                                val ext = parseType("info.kinterest.jvm.KIJvmEntityMeta")
                                 extends(ext, "${entity.name}::class", "${entity.type}::class")
                                 parseType(entity.root.qualifiedName.toString())
                                 property("root", null, OVERRIDE + VAL) {
@@ -267,7 +267,7 @@ object JvmMemoryGenerator : Generator {
                                     }
                                 }
 
-                                property("_meta", parseType("${KIEntityMeta::class.qualifiedName}<${entity.idTypeStr}>"), VAL + OVERRIDE) {
+                                property("_meta", parseType("${KIEntityMeta::class.qualifiedName}"), VAL + OVERRIDE) {
                                     getter(KoModifierList.Empty, true) {
                                         append("TODO()")
                                     }

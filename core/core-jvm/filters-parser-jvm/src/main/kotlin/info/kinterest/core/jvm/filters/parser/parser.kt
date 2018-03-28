@@ -147,7 +147,7 @@ fun diagnose (grammar: Grammar, input: String)
     grammar.reset()
 }
 
-fun<E:KIEntity<K>,K:Comparable<K>> parse(s:String, meta:MetaProvider) : EntityFilter<E,K> = run {
+fun<E:KIEntity<K>,K:Any> parse(s:String, meta:MetaProvider) : EntityFilter<E,K> = run {
     val grammar = FilterGrammar()
     if(grammar.parse(s)) {
         val root = grammar.stack[0]
@@ -161,10 +161,10 @@ fun<E:KIEntity<K>,K:Comparable<K>> parse(s:String, meta:MetaProvider) : EntityFi
     }
 }
 
-class Creator<E:KIEntity<K>,K:Comparable<K>>(val metas: MetaProvider) {
-    var meta: KIEntityMeta<K>? = null
+class Creator<E:KIEntity<K>,K:Any>(val metas: MetaProvider) {
+    var meta: KIEntityMeta? = null
     fun create(fn:FilterNode) : EntityFilter<E,K> = metas.meta(fn.entity.name)?.let {
-        meta = it.cast()
+        meta = it
         val root = fn.root
         compose(root)
     }?: throw FilterError("metas for ${fn.entity.name} not found")

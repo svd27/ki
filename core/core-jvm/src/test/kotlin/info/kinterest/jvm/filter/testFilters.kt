@@ -17,7 +17,7 @@ import kotlin.reflect.KClass
 
 val log = KotlinLogging.logger {  }
 class TestFilter(override val id:String, val number:Long) : KIJvmEntity<TestFilter,String>() {
-    override val _meta: KIJvmEntityMeta<TestFilter, String>
+    override val _meta: KIJvmEntityMeta
         get() = Meta
     override val _me: KClass<*>
         get() = Meta.me
@@ -29,7 +29,7 @@ class TestFilter(override val id:String, val number:Long) : KIJvmEntity<TestFilt
     }
 
     companion object {
-        object Meta : KIJvmEntityMeta<TestFilter,String>(TestFilter::class, TestFilter::class) {
+        object Meta : KIJvmEntityMeta(TestFilter::class, TestFilter::class) {
             override val root: Klass<*>
                 get() = TestFilter::class
             override val parent: Klass<*>?
@@ -51,7 +51,6 @@ object TestSimpleFilter : Spek({
             entities += TestFilter("$c", c.toLong()-'A'.toLong())
         }
         val fids = filter<TestFilter,String>(TestFilter.Companion.Meta) {
-            StaticEntityFilter(listOf("A","B","C"), meta)
             ids("A","B","C")
         }
         val res =entities.filter(fids::matches)

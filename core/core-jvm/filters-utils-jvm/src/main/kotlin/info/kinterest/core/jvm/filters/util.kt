@@ -6,7 +6,7 @@ import info.kinterest.jvm.filter.EntityFilter
 import info.kinterest.jvm.filter.filter
 import info.kinterest.meta.KIEntityMeta
 
-inline fun<reified E:KIEntity<K>,K:Comparable<K>> parse(s:String, metaProvider: MetaProvider) = run {
+inline fun<reified E:KIEntity<K>,K:Any> parse(s:String, metaProvider: MetaProvider) = run {
     filter<E,K>(metaProvider) {
         val meta = metaProvider.meta(E::class)!!
         val q = if("${meta.name}\\s*\\{.*}".toRegex().matches(s.trim())) s else "${meta.name}{$s}"

@@ -23,7 +23,7 @@ class TestFilter(override val id : String, val top:Int?, val date:LocalDate) : K
     override val _store: DataStore
         get() = TODO("not implemented")
 
-    override val _meta: KIEntityMeta<String>
+    override val _meta: KIEntityMeta
         get() = Meta
 
     override fun asTransient(): TransientEntity<String> {
@@ -31,7 +31,7 @@ class TestFilter(override val id : String, val top:Int?, val date:LocalDate) : K
     }
 
     companion object {
-        object Meta : KIJvmEntityMeta<TestFilter,String>(TestFilter::class,TestFilter::class) {
+        object Meta : KIJvmEntityMeta(TestFilter::class,TestFilter::class) {
             override val root: Klass<*>
                 get() = TestFilter::class
             override val parent: Klass<*>?
