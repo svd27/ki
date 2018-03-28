@@ -65,7 +65,6 @@ class DispatcherTest : Spek({
                 dispatcher.incoming.isClosedForReceive.`should be true`()
                 dispatcher.incoming.isClosedForSend.`should be true`()
                 dispatcher.subscribing.isClosedForSend.`should be true`()
-                dispatcher.subscribing.isClosedForReceive.`should be true`()
             }
         }
     }
