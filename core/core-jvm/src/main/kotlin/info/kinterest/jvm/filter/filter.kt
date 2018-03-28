@@ -4,6 +4,7 @@ import info.kinterest.KIEntity
 import info.kinterest.cast
 import info.kinterest.FilterError
 import info.kinterest.jvm.MetaProvider
+import info.kinterest.jvm.KIJvmEntityMeta
 import info.kinterest.meta.KIEntityMeta
 import info.kinterest.meta.KIProperty
 
