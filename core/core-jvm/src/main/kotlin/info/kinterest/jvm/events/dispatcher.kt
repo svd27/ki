@@ -8,7 +8,7 @@ class Dispatcher<T> {
     private val _incoming = Channel<T>()
     val incoming : ReceiveChannel<T> get() =  _incoming
     private var outgoing : List<SendChannel<T>> = listOf()
-    val _subscribing = Channel<T>()
+    val _subscribing = Channel<SendChannel<T>>()
     val subscribing : ReceiveChannel<SendChannel<T>> get() = _subscribing
     
      init {
