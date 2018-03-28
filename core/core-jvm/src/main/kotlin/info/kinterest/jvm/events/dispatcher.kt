@@ -4,7 +4,7 @@ import kotlinx.coroutines.experimental.CommonPool
 import kotlinx.coroutines.experimental.channels.*
 import kotlinx.coroutines.experimental.launch
 
-class Dispatcher<out T> {
+class Dispatcher<T> {
     private val _incoming = Channel<T>()
     val incoming : ReceiveChannel<T> get() =  _incoming
     private var outgoing : List<SendChannel<T>> = listOf()
