@@ -57,7 +57,7 @@ class TestQuery : Spek( {
     val entities = base.retrieve<QueryEntity,String>(keys).getOrDefault { listOf() }.toList()
 
     given("some entities") {
-        val f = parse<QueryEntity,String>("QueryEntity{job < \"a\"}", provider)
+        val f = parse<QueryEntity,String>("QueryEntity{job < \"a\"}", provider, base.ds)
         val tq = base.ds.query(meta, f)
         on("a simple query") {
             it("a query succeed") {
@@ -74,7 +74,7 @@ class TestQuery : Spek( {
         on("a query on a different field") {
             entities[0].dob = LocalDate.of(1968, Month.SEPTEMBER, 27)
             runBlocking { delay(10.toLong()) }
-            val f = parse<QueryEntity, String>("dob < date(\"28.9.1968\", \"d.M.yyyy\")", provider)
+            val f = parse<QueryEntity, String>("dob < date(\"28.9.1968\", \"d.M.yyyy\")", provider, base.ds)
 
             it("a query should work for all fields") {
                 val filtered = entities.filter { f.matches(it) }
@@ -84,6 +84,4 @@ class TestQuery : Spek( {
             }
         }
     }
-
-
 })

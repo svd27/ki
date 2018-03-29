@@ -147,11 +147,11 @@ fun diagnose (grammar: Grammar, input: String)
     grammar.reset()
 }
 
-fun<E:KIEntity<K>,K:Any> parse(s:String, meta:MetaProvider) : EntityFilter<E,K> = run {
+fun<E:KIEntity<K>,K:Any> EntityFilter<E,K>.parse(s:String, meta:MetaProvider) : EntityFilter<E,K> = run {
     val grammar = FilterGrammar()
     if(grammar.parse(s)) {
         val root = grammar.stack[0]
-        val c = Creator<E,K>(meta)
+        val c = Creator(meta, this)
         c.create(root as FilterNode)
     } else {
         val failure = grammar.failure
@@ -161,7 +161,7 @@ fun<E:KIEntity<K>,K:Any> parse(s:String, meta:MetaProvider) : EntityFilter<E,K> 
     }
 }
 
-class Creator<E:KIEntity<K>,K:Any>(val metas: MetaProvider) {
+class Creator<E:KIEntity<K>,K:Any>(val metas: MetaProvider, val parent:EntityFilter<E,K>) {
     var meta: KIEntityMeta? = null
     fun create(fn:FilterNode) : EntityFilter<E,K> = metas.meta(fn.entity.name)?.let {
         meta = it
@@ -209,15 +209,16 @@ class Creator<E:KIEntity<K>,K:Any>(val metas: MetaProvider) {
         val prop = meta!!.props[name]!! as KIProperty<T>
         val v = if(value is BigDecimal) prop.cast(value) else value
         when(op) {
-            "<"  -> LTFilter<E,K,T>(prop, meta!!,v as T)
-            "<=" -> LTEFilter(prop, meta!!, v as T)
-            ">"  -> GTFilter<E,K,T>(prop, meta!!,v as T)
-            ">=" -> GTEFilter(prop, meta!!, v as T)
-            "="  -> EQFilter<E,K,T>(prop, meta!!,v as T)
-            "!=" -> NEQFilter(prop, meta!!, v as T)
+            "<"  -> LTFilter<E,K,T>(prop, meta!!,parent, v as T)
+            "<=" -> LTEFilter(prop, meta!!, parent, v as T)
+            ">"  -> GTFilter<E,K,T>(prop, meta!!,parent, v as T)
+            ">=" -> GTEFilter(prop, meta!!, parent, v as T)
+            "="  -> EQFilter<E,K,T>(prop, meta!!,parent, v as T)
+            "!=" -> NEQFilter(prop, meta!!, parent, v as T)
             else -> throw FilterError("not supported $op")
         }
     }
+
     private fun combine(n: Logical): EntityFilter<E,K> = run {
         val ops = n.ops.map(this::compose)
         when(ops.size){

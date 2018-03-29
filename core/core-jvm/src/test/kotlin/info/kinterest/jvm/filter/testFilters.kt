@@ -50,7 +50,7 @@ object TestSimpleFilter : Spek({
         for(c in 'A'..'Z') {
             entities += TestFilter("$c", c.toLong()-'A'.toLong())
         }
-        val fids = filter<TestFilter,String>(TestFilter.Companion.Meta) {
+        val fids = filter<TestFilter,String>(mock(), TestFilter.Companion.Meta) {
             ids("A","B","C")
         }
         val res =entities.filter(fids::matches)
@@ -72,7 +72,9 @@ object TestSimpleFilter : Spek({
             }
         }
 
-        val lt = parse<TestFilter,String>("TestFilter{number>24}", Metas)
+        val lt = filter<TestFilter,String>(mock(), TestFilter.Companion.Meta) {
+            parse("TestFilter{number>24}", Metas)
+        }
         val ltr = entities.filter { lt.matches(it) }
         on("filtering on a field") {
             it("should return the proper result") {
@@ -81,11 +83,15 @@ object TestSimpleFilter : Spek({
                 ltr.map { it.id }.toSet() `should equal`  setOf("Z")
             }
         }
-        val ids = parse<TestFilter,String>("TestFilter{id > \"W\"}", Metas)
+        val ids = filter<TestFilter,String>(mock(), TestFilter.Companion.Meta) {
+            parse("TestFilter{id > \"W\"}", Metas)
+        }
         on("filtering on ids") {
             it("should be a propert filter") {
-                ids `should be instance of` GTFilter::class
-                val gt = ids as GTFilter<TestFilter,String,String>
+                ids `should be instance of` EntityFilter.WrapperFilter::class
+                val wrapperFilter = ids as EntityFilter.WrapperFilter
+                wrapperFilter.f `should be instance of` GTFilter::class
+                val gt = wrapperFilter.f as GTFilter<TestFilter,String,String>
                 gt.prop.name `should equal` "id"
                 gt.value `should equal` "W"
             }
@@ -99,7 +105,9 @@ object TestSimpleFilter : Spek({
             }
         }
         on("another id filter") {
-            val ids = parse<TestFilter,String>("TestFilter{id >=\"W\"}", Metas)
+            val ids =  filter<TestFilter, String>(mock(), TestFilter.Companion.Meta) {
+                parse("TestFilter{id >=\"W\"}", Metas)
+            }
             it("should filter") {
                 val idF = entities.filter { ids.matches(it) }
                 idF.size `should equal` 4
@@ -107,7 +115,7 @@ object TestSimpleFilter : Spek({
         }
 
         on("reversed id filter") {
-            val ids = parse<TestFilter,String>("TestFilter{\"W\"<=id}", Metas)
+            val ids = filter<TestFilter,String>(mock(), TestFilter.Companion.Meta) { parse("TestFilter{\"W\"<=id}", Metas) }
             it("should filter") {
                 val idF = entities.filter { ids.matches(it) }
                 idF.size `should equal` 3
