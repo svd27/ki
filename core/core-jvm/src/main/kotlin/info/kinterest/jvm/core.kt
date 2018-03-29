@@ -1,84 +1,103 @@
 package info.kinterest.jvm
 
-import info.kinterest.DataStore
-import info.kinterest.EntitySupport
-import info.kinterest.KIEntity
-import info.kinterest.cast
+import com.github.salomonbrys.kodein.Kodein
+import com.github.salomonbrys.kodein.bind
+import com.github.salomonbrys.kodein.instance
+import com.github.salomonbrys.kodein.singleton
+import info.kinterest.*
+import info.kinterest.meta.*
+import mu.KLogging
 import org.jetbrains.annotations.Nullable
 import kotlin.reflect.*
 import kotlin.reflect.full.memberProperties
+import info.kinterest.jvm.events.Dispatcher
+import info.kinterest.jvm.filter.KIFilter
 
 
-sealed class KIError(msg:String, cause:Throwable?, enableSuppression:Boolean=false, writeableStackTrace:Boolean=true) :
-        Exception(msg,cause,enableSuppression, writeableStackTrace)
-sealed class DataStoreError(val ds: DataStore, msg:String, cause:Throwable?, enableSuppression:Boolean=false, writeableStackTrace:Boolean=true) :
-  KIError(msg, cause, enableSuppression, writeableStackTrace) {
-    class EntityNotFound(val kc: KClass<*>, val key: Comparable<*>, ds: DataStore, cause: Throwable? = null, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
-            DataStoreError(ds, "Entity ${kc.simpleName} with Key $key not found in DataStore ${ds.name}", cause, enableSuppression, writeableStackTrace)
-    class EntityExists(val kc: KClass<*>, val key: Comparable<*>, ds: DataStore, cause: Throwable? = null, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
-            DataStoreError(ds, "Entity ${kc.simpleName} with Key $key already exists in DataStore ${ds.name}", cause, enableSuppression, writeableStackTrace)
-
-    class MetaDataNotFound(val kc: KClass<*>, ds: DataStore, cause: Throwable? = null, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
-            DataStoreError(ds, "Metadata for Entity ${kc.qualifiedName} not found", cause, enableSuppression, writeableStackTrace)
-    class VersionNotFound(val kc:KClass<*>, val key:Comparable<*>, ds:DataStore, cause: Throwable? = null, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
-            DataStoreError(ds, "version for Entity ${kc.simpleName} with id $key not found", cause, enableSuppression, writeableStackTrace)
-    class VersionAlreadyExists(val kc:KClass<*>, val key:Comparable<*>, ds:DataStore, cause: Throwable? = null, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
-            DataStoreError(ds, "version for Entity ${kc.simpleName} with id $key not found", cause, enableSuppression, writeableStackTrace)
-    class OptimisticLockException(val kc:KClass<*>, val key:Comparable<*>, val expectedVersion:Any, val actualVersion:Any, ds:DataStore,cause: Throwable? = null, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
-            DataStoreError(ds, "wrong version for ${kc.simpleName} with id $key, expected: $expectedVersion, actual: $actualVersion", cause, enableSuppression, writeableStackTrace)
-}
 
 @Suppress("UNCHECKED_CAST")
-abstract class KIJvmEntity<E:KIEntity<K>,K:Comparable<K>> : KIEntity<K> {
-    abstract val _meta : KIJvmEntityMeta<E,K>
-    abstract val _me : KClass<*>
-    inline fun<reified V:Any> get(p:String) : V? = _meta.get<V>(this as E, p)
-    inline fun<reified V:Any> set(p:String, v:V?) = _meta.set<V>(this  as E, p, v)
+abstract class KIJvmEntity<out E : KIEntity<K>, out K:Any> : KIEntity<K> {
+    abstract override val _meta: KIJvmEntityMeta
+    abstract val _me: KClass<*>
+
+    override fun equals(other: Any?): Boolean = if(other is KIJvmEntity<*,*>) {
+        if(other==this) true else
+        if(other._me==_me) {
+            other.id == id
+        } else false
+    } else false
+
+    override fun hashCode(): Int = id.hashCode()
+
+    override fun toString(): String = "${_meta.name}($id)"
 }
 
-interface KIJvmEntitySupport<E:KIEntity<K>,K:Comparable<K>> : EntitySupport<E,K> {
-    val meta : KIJvmEntityMeta<E,K>
+interface KIJvmEntitySupport<E : KIEntity<K>, K:Any> : EntitySupport<E, K> {
+    val meta: KIJvmEntityMeta
 }
 
 
-abstract class KIJvmEntityMeta<E:KIEntity<K>,K:Comparable<K>>(val impl:KClass<*>, val me: KClass<*>) {
-    val name = me.simpleName!!
-    abstract val root : KClass<*>
-    abstract val parent: KClass<*>?
+abstract class KIJvmEntityMeta(override val impl: Klass<*>, override val me: Klass<*>) : KIEntityMeta() {
+    override val name = me.simpleName!!
 
-    private val props : Map<String,Property> = me.memberProperties.associate { it.name to Property(it.cast()) }
-    operator fun get(n:String) : Property? = props[n]
-    inner class Property(val kProperty: KProperty1<E,*>) {
-        val name:String = kProperty.name
-        val type:KClass<*> = kProperty.returnType.classifier!!.cast()
-        val readOnly:Boolean = kProperty !is KMutableProperty1
-        val nullable:Boolean = kProperty.annotations.any { it is Nullable }
-        val transient:Boolean = kProperty.annotations.any { it is Transient }
+    private val propertySupport: MutableMap<String, PropertySupport<*>> = mutableMapOf()
+    override val props: Map<String, KIProperty<*>> = me.memberProperties.filter { !it.name.startsWith("_") }.associate { it.name to create(it.cast()) }
 
-        inline fun<reified V:Any> get(e:E) : V? = kProperty.get(e)?.cast()
-        inline fun<reified V:Any> set(e:E, v:V?) = run {
-            require(!readOnly)
-            require(nullable || v!=null)
-            kProperty.cast<KMutableProperty1<E,V?>>().set(e, v)
+    override fun <V> get(e: KIEntity<*>, prop: KIProperty<V>): V? = propertySupport[prop.name]?.getter?.call(e) as V?
+
+    operator fun get(n: String): KIProperty<*>? = props[n]
+    inner class PropertySupport<V : Any>(val kProperty: KProperty1<*, *>) : KIPropertySupport<V> {
+        val getter = kProperty.getter
+        @Suppress("UNCHECKED_CAST")
+        fun get(e: KIEntity<*>): V? = getter.call(e) as V?
+
+        override val name: String = kProperty.name
+        override val type: Klass<*> = kProperty.returnType.classifier!! as Klass<*>
+        override val readOnly: Boolean = kProperty !is KMutableProperty1
+        override val nullable: Boolean = kProperty.annotations.any { it is Nullable }
+        override val transient: Boolean = kProperty.annotations.any { it is Transient }
+
+        init {
+            propertySupport[name] = this
         }
     }
 
-    @Suppress("UNCHECKED_CAST")
-    inline fun<reified V:Any> get(e:E, p:String) : V? = this[p]?.get(e) as V?
-    @Suppress("UNCHECKED_CAST")
-    inline fun<reified V:Any> set(e:E, p:String,v:V?) = this[p]?.let {
-        require(!it.readOnly)
-        it.set(e, v)
+    fun create(p: KProperty1<*, *>): KIProperty<*> = when (p.returnType.classifier) {
+        String::class -> KIStringProperty(PropertySupport<String>(p))
+        Boolean::class -> KIBooleanProperty(PropertySupport<Boolean>(p))
+        Int::class -> KIIntProperty(PropertySupport<Int>(p))
+        Long::class -> KILongProperty(PropertySupport<Long>(p))
+        else -> KISimpleTypeProperty<Any>(PropertySupport<Any>(p))
     }
 
     private val ctor = findCtor()
     private fun findCtor() = run {
         val ctor = impl.constructors.first()
-        println("ctor $ctor ${ctor.parameters.size}")
-        assert(ctor.parameters.size==2)
+        logger.trace { "ctor $ctor ${ctor.parameters.size}" }
+        assert(ctor.parameters.size == 2)
         ctor
     }
 
-    fun new(ds: DataStore, id:Any) : KIEntity<K> = ctor.call(ds, id).cast()
+    override fun<K:Any> new(ds: DataStore, id: K): KIEntity<K> = ctor.call(ds, id) as KIEntity<K>
 
+    companion object : KLogging() {
+
+    }
+}
+
+class MetaProvider() {
+    private val metas : MutableMap<String,KIEntityMeta> = mutableMapOf()
+    private val metaByClass : MutableMap<KClass<*>,KIEntityMeta> = mutableMapOf()
+    fun meta(entity:String) : KIEntityMeta? = metas[entity]
+    fun meta(klass:Klass<*>) = metaByClass[klass]
+    fun register(meta:KIEntityMeta) {
+        metas[meta.name] = meta
+        metaByClass[meta.me] = meta
+    }
+}
+
+val coreKodein = Kodein.Module {
+    bind<MetaProvider>() with instance(MetaProvider())
+    bind<Dispatcher<EntityEvent<*,*>>>("entities") with instance(Dispatcher())
+    bind<Dispatcher<KIErrorEvent<*>>>("errors") with instance(Dispatcher())
 }

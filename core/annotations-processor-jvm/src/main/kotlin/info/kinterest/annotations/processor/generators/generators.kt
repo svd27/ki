@@ -4,6 +4,7 @@ import info.kinterest.*
 import info.kinterest.annotations.Entity
 import info.kinterest.datastores.jvm.memory.JvmMemoryDataStore
 import info.kinterest.datastores.jvm.memory.KIJvmMemEntity
+import info.kinterest.meta.*
 import org.jetbrains.annotations.Nullable
 import org.yanex.takenoko.*
 import javax.annotation.processing.ProcessingEnvironment
@@ -76,6 +77,26 @@ class EntityInfo(val type: TypeElement, env: ProcessingEnvironment) {
             else -> throw IllegalStateException("wrong type ${_type} ${_type::class}")
         }
         val typeName: String = type.toString().normalize() + if (nullable) "?" else ""
+        val propMetaType = typeName.let {
+            if (typeName.endsWith("?")) typeName.dropLast(1) else typeName
+        }.let {
+            when (it) {
+                Boolean::class.qualifiedName!! -> KIBooleanProperty::class
+                Byte::class.qualifiedName!! -> TODO()
+                Char::class.qualifiedName!! -> TODO()
+                Double::class.qualifiedName!! -> KIDoubleProperty::class
+                Float::class.qualifiedName -> TODO()
+                Int::class.qualifiedName -> KIIntProperty::class
+                Long::class.qualifiedName -> KILongProperty::class
+                Short::class.qualifiedName!! -> TODO()
+
+                String::class.qualifiedName!! -> KIStringProperty::class
+
+                else -> KISimpleTypeProperty::class
+            }
+        }
+
+        val metaName = "PROP_${name.toUpperCase()}"
 
 
         val koType = when (type) {
@@ -156,7 +177,7 @@ object JvmMemoryGenerator : Generator {
                         }
 
                         if (entity.versioned)
-                            property<Long>("_version", VAL+ OVERRIDE) {
+                            property<Long>("_version", VAL + OVERRIDE) {
                                 getter(KoModifierList.Empty, true) {
                                     append("""
                                         store.version<${entity.type.simpleName},${entity.idTypeStr}>(id)!!
@@ -167,14 +188,15 @@ object JvmMemoryGenerator : Generator {
                         entity.fields.forEach {
                             val mod = if (it.readOnly) VAL else VAR
                             property(it.name, it.koType, OVERRIDE + mod) {
+                                val typeStr = it.typeName.let { if (it.endsWith("?")) it.dropLast(1) else it }
                                 getter(KoModifierList.Empty, true) {
-                                    append("""store.getProp(id, meta["${it.name}"]!!)""")
-                                    if(!it.nullable) append("!!")
+                                    append("""store.getProp<${entity.type.simpleName},${entity.idTypeStr},$typeStr>(id, Meta.${it.metaName})""")
+                                    if (!it.nullable) append("!!")
                                 }
-                                if(!it.readOnly) {
+                                if (!it.readOnly) {
                                     setter(KoModifierList.Empty, true, "value") {
                                         val suffix = if (entity.versioned) ",_version" else ""
-                                        append("""Unit.apply { store.setProp(id, meta["${it.name}"]!!, value$suffix) }""")
+                                        append("""Unit.apply { store.setProp<${entity.type.simpleName},${entity.idTypeStr},$typeStr>(id, Meta.${it.metaName}, value$suffix) }""")
                                     }
                                 }
                             }
@@ -195,7 +217,7 @@ object JvmMemoryGenerator : Generator {
                                 }
                             }
                             objectDeclaration("Meta") {
-                                val ext = parseType("info.kinterest.jvm.KIJvmEntityMeta<${entity.type.simpleName},${entity.idTypeStr}>")
+                                val ext = parseType("info.kinterest.jvm.KIJvmEntityMeta")
                                 extends(ext, "${entity.name}::class", "${entity.type}::class")
                                 parseType(entity.root.qualifiedName.toString())
                                 property("root", null, OVERRIDE + VAL) {
@@ -203,6 +225,17 @@ object JvmMemoryGenerator : Generator {
                                 }
                                 property("parent", parseType("${KClass::class.qualifiedName}<*>").nullable, OVERRIDE + VAL) {
                                     initializer(entity.parent?.let { "${entity.parent}::class" } ?: "null")
+                                }
+                                entity.fields.forEach {
+                                    if (it.propMetaType == KISimpleTypeProperty::class)
+                                        property(it.metaName, parseType("${it.propMetaType.qualifiedName}<${it.typeName}>"), VAL) {
+                                            initializer("props[\"${it.name}\"] as ${it.propMetaType.qualifiedName}<${it.typeName}>")
+                                        }
+                                    else {
+                                        property(it.metaName, parseType(it.propMetaType.java), VAL) {
+                                            initializer("props[\"${it.name}\"] as ${it.propMetaType.qualifiedName}")
+                                        }
+                                    }
                                 }
                             }
 
@@ -229,6 +262,12 @@ object JvmMemoryGenerator : Generator {
                                 }
 
                                 property("_store", parseType("${DataStore::class.qualifiedName}"), VAL + OVERRIDE) {
+                                    getter(KoModifierList.Empty, true) {
+                                        append("TODO()")
+                                    }
+                                }
+
+                                property("_meta", parseType("${KIEntityMeta::class.qualifiedName}"), VAL + OVERRIDE) {
                                     getter(KoModifierList.Empty, true) {
                                         append("TODO()")
                                     }

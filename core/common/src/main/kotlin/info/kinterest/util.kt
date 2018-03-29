@@ -39,6 +39,7 @@ sealed class Try<out R> {
     }
 }
 
+fun<T> Try<Try<T>>.flatten()  : Try<T> = this.fold({ex -> Try.raise(ex)}, {it})
 fun <B> Try<B>.getOrElse(default: (Throwable) -> B): B = fold(default, { it })
 fun<R> Try<R>.getOrDefault(cb:(Exception)->R) : R = fold(cb, {it})
 

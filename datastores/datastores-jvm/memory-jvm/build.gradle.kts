@@ -5,6 +5,7 @@ dependencies {
     "compile"(project(":datastores:datastores-jvm"))
     "compile"("org.mapdb:mapdb:3.0.5")
     "kaptTest"(project(":core:annotations-processor-jvm"))
+    "testCompile"(project(":core:core-jvm:filters-utils-jvm"))
 }
 
 plugins {

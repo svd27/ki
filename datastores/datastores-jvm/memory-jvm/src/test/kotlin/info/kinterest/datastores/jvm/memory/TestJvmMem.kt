@@ -1,13 +1,18 @@
 package info.kinterest.datastores.jvm.memory
 
+import com.github.salomonbrys.kodein.Kodein
+import com.github.salomonbrys.kodein.instance
 import info.kinterest.*
 import info.kinterest.annotations.Entity
 import info.kinterest.annotations.StorageTypes
 import info.kinterest.datastores.jvm.DataStoreConfig
 import info.kinterest.datastores.jvm.DataStoreFactoryProvider
+import info.kinterest.datastores.jvm.datasourceKodein
 import info.kinterest.datastores.jvm.memory.jvm.mem.TestRootJvmMem
-import info.kinterest.jvm.DataStoreError
+import info.kinterest.datastores.jvm.memory.jvm.mem.TestVersionedJvmMem
 import info.kinterest.jvm.KIJvmEntity
+import info.kinterest.jvm.MetaProvider
+import info.kinterest.jvm.coreKodein
 import kotlinx.coroutines.experimental.Deferred
 import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.runBlocking
@@ -37,8 +42,15 @@ interface TestVersioned : KIEntity<Long> {
 }
 
 
+
 object TestJvmMem : Spek({
-    val fac = DataStoreFactoryProvider()
+    val kodein = Kodein {
+        import(coreKodein)
+        import(datasourceKodein)
+    }
+    kodein.instance<DataStoreFactoryProvider>().inject(kodein)
+    val fac = kodein.instance<DataStoreFactoryProvider>()
+    val metaProvider = kodein.instance<MetaProvider>()
 
     val cfg = object : DataStoreConfig {
         override val name: String
@@ -59,25 +71,26 @@ object TestJvmMem : Spek({
         }
 
         val mem = ds.cast<JvmMemoryDataStore>()
+        mem[TestRoot::class]
         val kdef = mem.create(TestRoot::class, "a", mapOf("name" to "aname"))
         val deferred = kdef.getOrDefault { null }
         val tryk = runBlocking { deferred?.await()  }
         val k = tryk?.getOrDefault { null }
-        val da = mem.retrieve<TestRoot,String>(k!!)
-        val atry = runBlocking { da.await() }
+        val da = mem.retrieve<TestRoot,String>(metaProvider.meta(TestRoot::class)!!, listOf(k!!))
+        val atry = da.map { runBlocking { it.await() } }.flatten()
         atry.isSuccess shouldBe true
-        val e = atry.getOrElse { null}!!
+        val e = atry.getOrElse { null}!!.first()
 
         on("creating an entity") {
 
-            if (tryk?.isFailure == true) {
+            if (tryk.isFailure) {
                 tryk.getOrElse { t -> log.error(t) { tryk }; "" }
             }
 
             it("should work") {
                 kdef.isFailure `should not be` true
                 deferred `should not be` null
-                tryk?.isSuccess `should be` true
+                tryk.isSuccess `should be` true
             }
         }
 
@@ -93,13 +106,13 @@ object TestJvmMem : Spek({
 
 
         fun create(k:String) : TestRoot = run {
-            val kdef = mem.create(TestRoot::class, k, mapOf("name" to "aname"))
-            val deferred = kdef.getOrDefault { null }
-            val tryk = runBlocking { deferred?.await()  }
-            val k = tryk?.getOrDefault { null }
-            val da = mem.retrieve<TestRoot,String>(k!!)
-            val atry = runBlocking { da.await() }
-            atry.getOrElse { null}!!
+            val kd = mem.create(TestRoot::class, k, mapOf("name" to "aname"))
+            val def = kd.getOrDefault { null }
+            val tk = runBlocking { def?.await()  }
+            val key = tk?.getOrDefault { null }
+            val dret = mem.retrieve<TestRoot,String>(TestRootJvmMem.meta, listOf(key!!))
+            val tryret = dret.map { runBlocking { it.await() } }.flatten()
+            tryret.getOrElse { listOf()}.first()
         }
 
         val e1 = create("b")
@@ -114,16 +127,16 @@ object TestJvmMem : Spek({
         }
 
         on("creating an entity with an existing id") {
-            val kdef = mem.create(TestRoot::class, "a", mapOf("name" to "aname"))
-            val deferred = kdef.getOrDefault { null }
-            val tryk = runBlocking { deferred?.await()  }
+            val kd = mem.create(TestRoot::class, "a", mapOf("name" to "aname"))
+            val def = kd.getOrDefault { null }
+            val tk = runBlocking { def?.await()  }
             it("should fail") {
-                tryk!!.isSuccess.`should be false`()
+                tk!!.isSuccess.`should be false`()
             }
-            val ex = tryk!!.fold({ it }, { null })
+            val ex = tk!!.fold({ it }, { null })
             it("should have an exception of proper type") {
                 ex.`should not be null`()
-                ex `should be instance of` DataStoreError.EntityExists::class
+                ex `should be instance of` DataStoreError.EntityError.EntityExists::class
             }
         }
     }
@@ -131,7 +144,12 @@ object TestJvmMem : Spek({
 
 
 class TestVersion : Spek({
-    val fac = DataStoreFactoryProvider()
+    val kodein = Kodein {
+        import(coreKodein)
+        import(datasourceKodein)
+    }
+    kodein.instance<DataStoreFactoryProvider>().inject(kodein)
+    val fac = kodein.instance<DataStoreFactoryProvider>()
 
     val cfg = object : DataStoreConfig {
         override val name: String
@@ -149,18 +167,18 @@ class TestVersion : Spek({
     val kdefer = tryDefer.getOrElse { null }!!
     val tryk = runBlocking { kdefer.await() }
     val k = tryk.getOrDefault { log.error(it) { it }; (-1).toLong() }
-    val retrDeferred = mem.retrieve<TestVersioned, Long>(k)
-    val tryVersioned = runBlocking { retrDeferred.await() }
-    val entity = tryVersioned.getOrDefault { null }
+    val retrDeferred = mem.retrieve<TestVersioned, Long>(TestVersionedJvmMem.meta, listOf(k))
+    val tryVersioned = retrDeferred.map { runBlocking { it.await() } }.flatten()
+    val entity = tryVersioned.getOrDefault { listOf() }.first()
 
-    fun create() : TestVersioned = run {
-        val tryDefer = mem.create(TestVersioned::class, 0.toLong(), mapOf("name" to "aname", "someone" to "not me"))
-        val kdefer = tryDefer.getOrElse { null }!!
-        val tryk = runBlocking { kdefer.await() }
-        val k = tryk.getOrDefault { log.error(it) { it }; (-1).toLong() }
-        val retrDeferred = mem.retrieve<TestVersioned, Long>(k)
-        val tryVersioned = runBlocking { retrDeferred.await() }
-        tryVersioned.getOrDefault { null }!!
+    fun create(id:Long) : TestVersioned = run {
+        val td = mem.create(TestVersioned::class, id, mapOf("name" to "aname", "someone" to "not me"))
+        val kd = td.getOrElse { null }!!
+        val tk = runBlocking { kd.await() }
+        val key = tk.getOrDefault { log.error(it) { it }; (-1).toLong() }
+        val rd = mem.retrieve<TestVersioned, Long>(TestVersionedJvmMem.meta, listOf(key))
+        val tv = rd.map { runBlocking { it.await() } }.flatten()
+        tv.getOrDefault { listOf() }.first()
     }
     given("an entity") {
         on("checking the result") {
@@ -216,7 +234,7 @@ class TestVersion : Spek({
                 val optimisticLockException = ex.cast<DataStoreError.OptimisticLockException>()
 
                 optimisticLockException.ds shouldBe mem
-                optimisticLockException.kc shouldBe entity.cast<KIJvmEntity<*,*>>()._me
+                optimisticLockException.meta shouldBe entity.cast<KIJvmEntity<*,*>>()._meta
                 optimisticLockException.key shouldBe k
             }
         }
@@ -227,7 +245,12 @@ class TestVersion : Spek({
 })
 
 object TestDelete : Spek({
-    val fac = DataStoreFactoryProvider()
+    val kodein = Kodein {
+        import(coreKodein)
+        import(datasourceKodein)
+    }
+    kodein.instance<DataStoreFactoryProvider>().inject(kodein)
+    val fac = kodein.instance<DataStoreFactoryProvider>()
 
     val cfg = object : DataStoreConfig {
         override val name: String
@@ -246,10 +269,10 @@ object TestDelete : Spek({
         val deferred = kdef.getOrDefault { null }
         val tryk = runBlocking { deferred?.await()  }
         val k = tryk?.getOrDefault { null }
-        val da = mem.retrieve<TestRoot,String>(k!!)
-        val atry = runBlocking { da.await() }
+        val da = mem.retrieve<TestRoot,String>(TestRootJvmMem.meta, listOf(k!!))
+        val atry = da.map { runBlocking { it.await() } }.flatten()
         atry.isSuccess shouldBe true
-        atry.getOrElse { null}!!
+        atry.getOrElse { listOf()}.first()
     }
 
     val entity = create("k")
@@ -258,9 +281,9 @@ object TestDelete : Spek({
             entity.`should not be null`()
         }
     }
-    val tdel = mem.delete<TestRoot,String>(listOf("k"))
+    val tdel = mem.delete(TestRootJvmMem.meta, listOf("k"))
     val res = tdel.map { runBlocking { it.await() } }.fold({ null }, { it })?.fold({null}, {it})
-    val tret = mem.retrieve<TestRoot, String>("k").let { runBlocking { it.await() } }
+    val tret = mem.retrieve<TestRoot, String>(TestRootJvmMem.meta, listOf("k")).let { it.map { runBlocking { it.await() } } }.flatten()
     on("deleting the entity") {
         it("can be called") {
             tdel.isSuccess.`should be true`()
@@ -277,7 +300,7 @@ object TestDelete : Spek({
         it("should deliver a proper exception") {
             val ex = tret.fold({ it }, { null })
             ex.`should not be null`()
-            ex `should be instance of` DataStoreError.EntityNotFound::class
+            ex `should be instance of` DataStoreError.EntityError.EntityNotFound::class
         }
     }
 
