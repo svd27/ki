@@ -13,10 +13,11 @@ import org.jetbrains.spek.api.Spek
 import org.jetbrains.spek.api.dsl.given
 import org.jetbrains.spek.api.dsl.it
 import org.jetbrains.spek.api.dsl.on
+import java.time.LocalDate
 import kotlin.reflect.KClass
 
 val log = KotlinLogging.logger {  }
-class TestFilter(override val id:String, val number:Long) : KIJvmEntity<TestFilter,String>() {
+class TestFilter(override val id:String, val number:Long, val date:LocalDate) : KIJvmEntity<TestFilter,String>() {
     override val _meta: KIJvmEntityMeta
         get() = Meta
     override val _me: KClass<*>
@@ -48,7 +49,7 @@ object TestSimpleFilter : Spek({
     given("a simple set of entities") {
         val entities = mutableListOf<TestFilter>()
         for(c in 'A'..'Z') {
-            entities += TestFilter("$c", c.toLong()-'A'.toLong())
+            entities += TestFilter("$c", c.toLong()-'A'.toLong(), LocalDate.now())
         }
         val fids = filter<TestFilter,String>(mock(), TestFilter.Companion.Meta) {
             ids("A","B","C")

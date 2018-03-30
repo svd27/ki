@@ -96,8 +96,15 @@ class FilterGrammar : Grammar() {
             value = {OpNode(it)}
     )
 
-    fun logical() = build(
-            syntax = {seq {opt { whitespace() } && term() && combiner()  && opt { whitespace() } && term()}},
+    fun logical() = choice {
+            logicalBuild()
+                    || term()
+        }
+
+    fun logicalBuild() = build(
+            syntax = {
+                seq { opt { whitespace() } && term() && combiner() && opt { whitespace() } && term() }
+            },
             effect = {
                 println("logical: ${it.toList()}")
                 Logical(it(1), listOf(it(0), it(2)))
@@ -147,17 +154,21 @@ fun diagnose (grammar: Grammar, input: String)
     grammar.reset()
 }
 
-fun<E:KIEntity<K>,K:Any> EntityFilter<E,K>.parse(s:String, meta:MetaProvider) : EntityFilter<E,K> = run {
+
+inline fun<reified E:KIEntity<K>,K:Any> EntityFilter<E,K>.parse(s:String, metaProvider:MetaProvider) : EntityFilter<E,K> = run {
+    val meta = metaProvider.meta(E::class)
+    val rgx = "${meta?.name}\\s*\\{.*}".toRegex()
+    val f = if(s.matches(rgx)) s else "${meta?.name}{$s}"
     val grammar = FilterGrammar()
-    if(grammar.parse(s)) {
+    if(grammar.parse(f)) {
         val root = grammar.stack[0]
-        val c = Creator(meta, this)
+        val c = Creator(metaProvider, this)
         c.create(root as FilterNode)
     } else {
         val failure = grammar.failure
         if(failure is UncaughtException) failure.e.printStackTrace()
         println("${grammar.stack}")
-        throw FilterError("cannot parse $s: $failure at ${grammar.fail_pos} with stack:\n${grammar.stack}")
+        throw FilterError("cannot parse $f: $failure at ${grammar.fail_pos} with stack:\n${grammar.stack}")
     }
 }
 
