@@ -3,8 +3,8 @@ package info.kinterest
 import info.kinterest.meta.KIEntityMeta
 import info.kinterest.meta.KIProperty
 
-val NULL: Any? = null
 
+@Suppress("unused")
 expect interface Klass<T : Any> {
     val simpleName: String?
 }
@@ -34,7 +34,7 @@ interface TransientEntity<out T:Any> : KIEntity<T> {
     val values: Map<String, Any?>
 }
 
-interface EntitySupport<out E : KIEntity<K>, K:Any> {
+interface EntitySupport<K : Any> {
     /**
      * creates a new transient entity, requires that all properties are given in their ctor order
      */
@@ -43,39 +43,43 @@ interface EntitySupport<out E : KIEntity<K>, K:Any> {
     fun <DS : DataStore> create(ds: DS, id: K, values: Map<String, Any?>)
 }
 
-interface Versioned<V> {
+interface Versioned<out V> {
+    @Suppress("PropertyName")
     val _version: V
 }
 
 sealed class KIError(msg: String, cause: Throwable?) : Exception(msg, cause)
 class KIFatalError(msg: String, cause: Throwable?) : KIError(msg, cause)
 
-sealed class KIRecoverableError(msg: String, cause: Throwable?, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
+sealed class KIRecoverableError(msg: String, cause: Throwable?) :
         KIError(msg, cause)
 
-class FilterError(msg: String, cause: Throwable? = null, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
-        KIRecoverableError(msg, cause, enableSuppression, writeableStackTrace)
+class FilterError(msg: String, cause: Throwable? = null) :
+        KIRecoverableError(msg, cause)
 
-sealed class DataStoreError(val ds: DataStore, msg: String, cause: Throwable?, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
-        KIRecoverableError(msg, cause, enableSuppression, writeableStackTrace) {
+sealed class DataStoreError(val ds: DataStore, msg: String, cause: Throwable?) :
+        KIRecoverableError(msg, cause) {
+    @Suppress("unused")
     sealed class EntityError(val meta: KIEntityMeta, val key: Any, ds: DataStore, msg: String, cause: Throwable? = null) : DataStoreError(ds, msg, cause) {
-        class EntityNotFound(meta: KIEntityMeta, key: Any, ds: DataStore, cause: Throwable? = null, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
+        class EntityNotFound(meta: KIEntityMeta, key: Any, ds: DataStore, cause: Throwable? = null) :
                 EntityError(meta, key, ds, "Entity ${meta.name} with Key $key not found in DataStore ${ds.name}", cause)
 
-        class EntityExists(meta: KIEntityMeta, key: Any, ds: DataStore, cause: Throwable? = null, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
+        class EntityExists(meta: KIEntityMeta, key: Any, ds: DataStore, cause: Throwable? = null) :
                 EntityError(meta, key, ds, "Entity ${meta.name} with Key $key already exists in DataStore ${ds.name}", cause)
-        class VersionNotFound(meta: KIEntityMeta, key: Any, ds: DataStore, cause: Throwable? = null, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
+
+        class VersionNotFound(meta: KIEntityMeta, key: Any, ds: DataStore, cause: Throwable? = null) :
                 EntityError(meta, key, ds,"version for Entity ${meta.name} with id $key not found", cause)
 
         class VersionAlreadyExists(meta: KIEntityMeta, key: Any, ds: DataStore, cause: Throwable? = null) :
                 EntityError(meta, key, ds, "version for Entity ${meta.name} with id $key not found", cause)
     }
 
-    class MetaDataNotFound(val kc: Klass<*>, ds: DataStore, cause: Throwable? = null, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
-            DataStoreError(ds, "Metadata for Entity ${kc} not found", cause, enableSuppression, writeableStackTrace)
+    class MetaDataNotFound(@Suppress("CanBeParameter", "MemberVisibilityCanBePrivate") val kc: Klass<*>, ds: DataStore, cause: Throwable? = null) :
+            DataStoreError(ds, "Metadata for Entity $kc not found", cause)
 
-    class OptimisticLockException(val meta: KIEntityMeta, val key: Any, val expectedVersion: Any, val actualVersion: Any, ds: DataStore, cause: Throwable? = null, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
-            DataStoreError(ds, "wrong version for ${meta.name} with id $key, expected: $expectedVersion, actual: $actualVersion", cause, enableSuppression, writeableStackTrace)
+    @Suppress("MemberVisibilityCanBePrivate", "CanBeParameter")
+    class OptimisticLockException(val meta: KIEntityMeta, val key: Any, val expectedVersion: Any, val actualVersion: Any, ds: DataStore, cause: Throwable? = null) :
+            DataStoreError(ds, "wrong version for ${meta.name} with id $key, expected: $expectedVersion, actual: $actualVersion", cause)
 
-    class BatchError(msg: String, val meta: KIEntityMeta, ds: DataStore, cause: Throwable? = null, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) : DataStoreError(ds, msg, cause, enableSuppression, writeableStackTrace)
+    class BatchError(msg: String, val meta: KIEntityMeta, ds: DataStore, cause: Throwable? = null) : DataStoreError(ds, msg, cause)
 }

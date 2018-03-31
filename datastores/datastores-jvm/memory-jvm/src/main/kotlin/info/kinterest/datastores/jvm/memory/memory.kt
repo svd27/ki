@@ -67,8 +67,8 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
                 val pck = key.qualifiedName!!.split('.').dropLast(1).joinToString(".", postfix = ".jvm.mem.")
                 val cn = "$pck${key.simpleName}JvmMem"
                 val kc = java.lang.Class.forName(cn).kotlin
-                assert(kc.companionObjectInstance is KIJvmEntitySupport<*, *>)
-                val meta = kc.companionObjectInstance!!.cast<KIJvmEntitySupport<*, *>>().meta
+                assert(kc.companionObjectInstance is KIJvmEntitySupport<*>)
+                val meta = kc.companionObjectInstance!!.cast<KIJvmEntitySupport<*>>().meta
                 this[key] = meta
                 metaProvider.register(meta)
             }

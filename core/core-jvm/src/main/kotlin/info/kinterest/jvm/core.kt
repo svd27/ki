@@ -15,7 +15,7 @@ import kotlin.reflect.full.memberProperties
 import kotlin.reflect.full.superclasses
 
 
-@Suppress("UNCHECKED_CAST")
+@Suppress("UNCHECKED_CAST", "unused", "PropertyName")
 abstract class KIJvmEntity<out E : KIEntity<K>, out K:Any> : KIEntity<K> {
     abstract override val _meta: KIJvmEntityMeta
     abstract val _me: KClass<*>
@@ -32,7 +32,7 @@ abstract class KIJvmEntity<out E : KIEntity<K>, out K:Any> : KIEntity<K> {
     override fun toString(): String = "${_meta.name}($id)"
 }
 
-interface KIJvmEntitySupport<E : KIEntity<K>, K:Any> : EntitySupport<E, K> {
+interface KIJvmEntitySupport<K : Any> : EntitySupport<K> {
     val meta: KIJvmEntityMeta
 }
 
@@ -46,7 +46,7 @@ abstract class KIJvmEntityMeta(override val impl: Klass<*>, final override val m
     override val props: Map<String, KIProperty<*>> = me.memberProperties.filter { !it.name.startsWith("_") }.associate { it.name to create(it.cast()) }
 
     operator fun get(n: String): KIProperty<*>? = props[n]
-    inner class PropertySupport<V : Any>(val kProperty: KProperty1<*, *>) : KIPropertySupport<V> {
+    inner class PropertySupport<V : Any>(kProperty: KProperty1<*, *>) : KIPropertySupport<V> {
         val getter = kProperty.getter
         @Suppress("UNCHECKED_CAST")
         fun get(e: KIEntity<*>): V? = getter.call(e) as V?
@@ -91,6 +91,7 @@ abstract class KIJvmEntityMeta(override val impl: Klass<*>, final override val m
         ctor
     }
 
+    @Suppress("UNCHECKED_CAST")
     override fun<K:Any> new(ds: DataStore, id: K): KIEntity<K> = ctor.call(ds, id) as KIEntity<K>
 
     companion object : KLogging() {
