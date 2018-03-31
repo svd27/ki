@@ -1,5 +1,6 @@
 package info.kinterest.jvm.filter
 
+import info.kinterest.DONTDOTHIS
 import info.kinterest.DataStore
 import info.kinterest.Klass
 import info.kinterest.TransientEntity
@@ -7,6 +8,7 @@ import info.kinterest.core.jvm.filters.parser.parse
 import info.kinterest.jvm.KIJvmEntity
 import info.kinterest.jvm.KIJvmEntityMeta
 import info.kinterest.jvm.MetaProvider
+import info.kinterest.meta.KIProperty
 import mu.KotlinLogging
 import org.amshove.kluent.*
 import org.jetbrains.spek.api.Spek
@@ -24,6 +26,22 @@ class TestFilter(override val id:String, val number:Long, val date:LocalDate) : 
         get() = Meta.me
     override val _store: DataStore
         get() = TODO("not implemented")
+
+    @Suppress("UNCHECKED_CAST", "IMPLICIT_CAST_TO_ANY")
+    override fun <V> getValue(prop: KIProperty<V>): V? = when (prop.name) {
+        "number" -> number
+        "date" -> date
+        "id" -> id
+        else -> DONTDOTHIS("unknown prop ${prop.name}")
+    } as V?
+
+    override fun <V> setValue(prop: KIProperty<V>, v: V?) {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun <V> setValue(prop: KIProperty<V>, version: Any, v: V?) {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
 
     override fun asTransient(): TransientEntity<String> {
         TODO("not implemented")
@@ -89,10 +107,11 @@ object TestSimpleFilter : Spek({
         }
         on("filtering on ids") {
             it("should be a propert filter") {
-                ids `should be instance of` EntityFilter.WrapperFilter::class
-                val wrapperFilter = ids as EntityFilter.WrapperFilter
-                wrapperFilter.f `should be instance of` GTFilter::class
-                val gt = wrapperFilter.f as GTFilter<TestFilter,String,String>
+                ids `should be instance of` EntityFilter.FilterWrapper::class
+                val wrapperFilter = ids as EntityFilter.FilterWrapper
+                wrapperFilter.f `should be instance of` IdComparisonFilter::class
+                val idf = wrapperFilter.f as IdComparisonFilter
+                val gt = idf.f as GTFilter<TestFilter, String, String>
                 gt.prop.name `should equal` "id"
                 gt.value `should equal` "W"
             }

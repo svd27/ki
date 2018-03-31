@@ -13,7 +13,6 @@ import info.kinterest.datastores.jvm.memory.jvm.mem.TestVersionedJvmMem
 import info.kinterest.jvm.KIJvmEntity
 import info.kinterest.jvm.MetaProvider
 import info.kinterest.jvm.coreKodein
-import kotlinx.coroutines.experimental.Deferred
 import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.runBlocking
 import org.amshove.kluent.*
@@ -44,24 +43,26 @@ interface TestVersioned : KIEntity<Long> {
 
 
 object TestJvmMem : Spek({
-    val kodein = Kodein {
-        import(coreKodein)
-        import(datasourceKodein)
-    }
-    kodein.instance<DataStoreFactoryProvider>().inject(kodein)
-    val fac = kodein.instance<DataStoreFactoryProvider>()
-    val metaProvider = kodein.instance<MetaProvider>()
 
-    val cfg = object : DataStoreConfig {
-        override val name: String
-            get() = "test"
-        override val type: String
-            get() = "jvm.mem"
-        override val config: Map<String, Any?>
-            get() = emptyMap()
-    }
-    val ds = fac.factories[cfg.type]!!.create(cfg)
     given("a datasore") {
+        val kodein = Kodein {
+            import(coreKodein)
+            import(datasourceKodein)
+        }
+        kodein.instance<DataStoreFactoryProvider>().inject(kodein)
+        val fac = kodein.instance<DataStoreFactoryProvider>()
+        val metaProvider = kodein.instance<MetaProvider>()
+
+        val cfg = object : DataStoreConfig {
+            override val name: String
+                get() = "test"
+            override val type: String
+                get() = "jvm.mem"
+            override val config: Map<String, Any?>
+                get() = emptyMap()
+        }
+        val ds = fac.factories[cfg.type]!!.create(cfg)
+
         on("its type") {
             it("should have the proper type and name") {
                 ds `should be instance of` JvmMemoryDataStore::class
@@ -144,43 +145,45 @@ object TestJvmMem : Spek({
 
 
 class TestVersion : Spek({
-    val kodein = Kodein {
-        import(coreKodein)
-        import(datasourceKodein)
-    }
-    kodein.instance<DataStoreFactoryProvider>().inject(kodein)
-    val fac = kodein.instance<DataStoreFactoryProvider>()
 
-    val cfg = object : DataStoreConfig {
-        override val name: String
-            get() = "test"
-        override val type: String
-            get() = "jvm.mem"
-        override val config: Map<String, Any?>
-            get() = emptyMap()
-    }
-
-    val ds = fac.factories[cfg.type]!!.create(cfg);
-
-    val mem = ds.cast<JvmMemoryDataStore>()
-    val tryDefer = mem.create(TestVersioned::class, 0.toLong(), mapOf("name" to "aname", "someone" to "not me"))
-    val kdefer = tryDefer.getOrElse { null }!!
-    val tryk = runBlocking { kdefer.await() }
-    val k = tryk.getOrDefault { log.error(it) { it }; (-1).toLong() }
-    val retrDeferred = mem.retrieve<TestVersioned, Long>(TestVersionedJvmMem.meta, listOf(k))
-    val tryVersioned = retrDeferred.map { runBlocking { it.await() } }.flatten()
-    val entity = tryVersioned.getOrDefault { listOf() }.first()
-
-    fun create(id:Long) : TestVersioned = run {
-        val td = mem.create(TestVersioned::class, id, mapOf("name" to "aname", "someone" to "not me"))
-        val kd = td.getOrElse { null }!!
-        val tk = runBlocking { kd.await() }
-        val key = tk.getOrDefault { log.error(it) { it }; (-1).toLong() }
-        val rd = mem.retrieve<TestVersioned, Long>(TestVersionedJvmMem.meta, listOf(key))
-        val tv = rd.map { runBlocking { it.await() } }.flatten()
-        tv.getOrDefault { listOf() }.first()
-    }
     given("an entity") {
+        val kodein = Kodein {
+            import(coreKodein)
+            import(datasourceKodein)
+        }
+        kodein.instance<DataStoreFactoryProvider>().inject(kodein)
+        val fac = kodein.instance<DataStoreFactoryProvider>()
+
+        val cfg = object : DataStoreConfig {
+            override val name: String
+                get() = "test"
+            override val type: String
+                get() = "jvm.mem"
+            override val config: Map<String, Any?>
+                get() = emptyMap()
+        }
+
+        val ds = fac.factories[cfg.type]!!.create(cfg)
+
+        val mem = ds.cast<JvmMemoryDataStore>()
+        val tryDefer = mem.create(TestVersioned::class, 0.toLong(), mapOf("name" to "aname", "someone" to "not me"))
+        val kdefer = tryDefer.getOrElse { null }!!
+        val tryk = runBlocking { kdefer.await() }
+        val k = tryk.getOrDefault { log.error(it) { it }; (-1).toLong() }
+        val retrDeferred = mem.retrieve<TestVersioned, Long>(TestVersionedJvmMem.meta, listOf(k))
+        val tryVersioned = retrDeferred.map { runBlocking { it.await() } }.flatten()
+        val entity = tryVersioned.getOrDefault { listOf() }.first()
+
+        @Suppress("unused")
+        fun create(id: Long): TestVersioned = run {
+            val td = mem.create(TestVersioned::class, id, mapOf("name" to "aname", "someone" to "not me"))
+            val kd = td.getOrElse { null }!!
+            val tk = runBlocking { kd.await() }
+            val key = tk.getOrDefault { log.error(it) { it }; (-1).toLong() }
+            val rd = mem.retrieve<TestVersioned, Long>(TestVersionedJvmMem.meta, listOf(key))
+            val tv = rd.map { runBlocking { it.await() } }.flatten()
+            tv.getOrDefault { listOf() }.first()
+        }
         on("checking the result") {
             it("should be fine") {
                 tryDefer.isSuccess `should be equal to`  true
@@ -203,17 +206,17 @@ class TestVersion : Spek({
             }
         }
 
-        entity?.someone = "not me, but someone else"
+        entity.someone = "not me, but someone else"
         runBlocking { delay(100, TimeUnit.MILLISECONDS) }
 
         on("setting a property") {
             it("should reflect the value") {
-                entity?.someone.`should not be null or blank`()
-                entity?.someone!! `should be equal to`  "not me, but someone else"
+                entity.someone.`should not be null or blank`()
+                entity.someone `should be equal to` "not me, but someone else"
             }
-            val versionInc = entity?.cast<Versioned<Long>>()?._version
+            val versionInc = entity.cast<Versioned<Long>>()._version
             it("should have a new version") {
-                versionInc!! `should be equal to` 1.toLong()
+                versionInc `should be equal to` 1.toLong()
             }
 
         }
@@ -221,7 +224,7 @@ class TestVersion : Spek({
 
 
         on("attempting to set a values with the wrong version") {
-            val deferSet = mem.setProp<TestVersioned, Long, String>(entity!!.id, entity.cast<KIJvmEntity<*, *>>()._meta["someone"]!!.cast(), "oh no", 0)
+            val deferSet = mem.setValues(TestVersionedJvmMem.meta, entity.id, 0.toLong(), mapOf(TestVersionedJvmMem.Companion.Meta.PROP_SOMEONE to "oh no"))
             val trySet = runBlocking { deferSet.await() }
             val ex = trySet.toEither().swap().getOrElse { null }!!
             trySet.getOrElse { log.trace(it) { } }
@@ -245,62 +248,64 @@ class TestVersion : Spek({
 })
 
 object TestDelete : Spek({
-    val kodein = Kodein {
-        import(coreKodein)
-        import(datasourceKodein)
-    }
-    kodein.instance<DataStoreFactoryProvider>().inject(kodein)
-    val fac = kodein.instance<DataStoreFactoryProvider>()
-
-    val cfg = object : DataStoreConfig {
-        override val name: String
-            get() = "test"
-        override val type: String
-            get() = "jvm.mem"
-        override val config: Map<String, Any?>
-            get() = emptyMap()
-    }
-
-    val ds = fac.factories[cfg.type]!!.create(cfg);
-
-    val mem = ds.cast<JvmMemoryDataStore>()
-    fun create(k:String) : TestRoot = run {
-        val kdef = mem.create(TestRoot::class, k, mapOf("name" to "aname"))
-        val deferred = kdef.getOrDefault { null }
-        val tryk = runBlocking { deferred?.await()  }
-        val k = tryk?.getOrDefault { null }
-        val da = mem.retrieve<TestRoot,String>(TestRootJvmMem.meta, listOf(k!!))
-        val atry = da.map { runBlocking { it.await() } }.flatten()
-        atry.isSuccess shouldBe true
-        atry.getOrElse { listOf()}.first()
-    }
-
-    val entity = create("k")
-    on("a created entity") {
-        it("should really exist") {
-            entity.`should not be null`()
+    given("") {
+        val kodein = Kodein {
+            import(coreKodein)
+            import(datasourceKodein)
         }
-    }
-    val tdel = mem.delete(TestRootJvmMem.meta, listOf("k"))
-    val res = tdel.map { runBlocking { it.await() } }.fold({ null }, { it })?.fold({null}, {it})
-    val tret = mem.retrieve<TestRoot, String>(TestRootJvmMem.meta, listOf("k")).let { it.map { runBlocking { it.await() } } }.flatten()
-    on("deleting the entity") {
-        it("can be called") {
-            tdel.isSuccess.`should be true`()
-        }
-        it("the result should be correct") {
-            res `should equal` listOf("k")
-        }
-    }
+        kodein.instance<DataStoreFactoryProvider>().inject(kodein)
+        val fac = kodein.instance<DataStoreFactoryProvider>()
 
-    on("retrieving a deleted entity") {
-        it("should not succeed") {
-            tret.isFailure.`should be true`()
+        val cfg = object : DataStoreConfig {
+            override val name: String
+                get() = "test"
+            override val type: String
+                get() = "jvm.mem"
+            override val config: Map<String, Any?>
+                get() = emptyMap()
         }
-        it("should deliver a proper exception") {
-            val ex = tret.fold({ it }, { null })
-            ex.`should not be null`()
-            ex `should be instance of` DataStoreError.EntityError.EntityNotFound::class
+
+        val ds = fac.factories[cfg.type]!!.create(cfg)
+
+        val mem = ds.cast<JvmMemoryDataStore>()
+        fun create(k: String): TestRoot = run {
+            val kdef = mem.create(TestRoot::class, k, mapOf("name" to "aname"))
+            val deferred = kdef.getOrDefault { null }
+            val tryk = runBlocking { deferred?.await() }
+            val key = tryk?.getOrDefault { null }
+            val da = mem.retrieve<TestRoot, String>(TestRootJvmMem.meta, listOf(key!!))
+            val atry = da.map { runBlocking { it.await() } }.flatten()
+            atry.isSuccess shouldBe true
+            atry.getOrElse { listOf() }.first()
+        }
+
+        val entity = create("k")
+        on("a created entity") {
+            it("should really exist") {
+                entity.`should not be null`()
+            }
+        }
+        val tdel = mem.delete(TestRootJvmMem.meta, listOf("k"))
+        val res = tdel.map { runBlocking { it.await() } }.fold({ null }, { it })?.fold({ null }, { it })
+        val tret = mem.retrieve<TestRoot, String>(TestRootJvmMem.meta, listOf("k")).let { it.map { runBlocking { it.await() } } }.flatten()
+        on("deleting the entity") {
+            it("can be called") {
+                tdel.isSuccess.`should be true`()
+            }
+            it("the result should be correct") {
+                res `should equal` listOf("k")
+            }
+        }
+
+        on("retrieving a deleted entity") {
+            it("should not succeed") {
+                tret.isFailure.`should be true`()
+            }
+            it("should deliver a proper exception") {
+                val ex = tret.fold({ it }, { null })
+                ex.`should not be null`()
+                ex `should be instance of` DataStoreError.EntityError.EntityNotFound::class
+            }
         }
     }
 

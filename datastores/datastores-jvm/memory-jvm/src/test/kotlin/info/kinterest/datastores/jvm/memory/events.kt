@@ -1,14 +1,10 @@
 package info.kinterest.datastores.jvm.memory
 
-import com.github.salomonbrys.kodein.Kodein
 import com.github.salomonbrys.kodein.instance
 import info.kinterest.*
 import info.kinterest.annotations.Entity
 import info.kinterest.annotations.StorageTypes
 import info.kinterest.datastores.jvm.DataStoreConfig
-import info.kinterest.datastores.jvm.DataStoreFactoryProvider
-import info.kinterest.datastores.jvm.datasourceKodein
-import info.kinterest.jvm.coreKodein
 import info.kinterest.jvm.events.Dispatcher
 import kotlinx.coroutines.experimental.Job
 import kotlinx.coroutines.experimental.channels.Channel
@@ -30,19 +26,21 @@ interface TestEventsEntity : KIEntity<UUID> {
     val dob : LocalDate
 }
 object TestEvents : Spek ({
-    val cfg = object : DataStoreConfig {
-        override val name: String
-            get() = "test"
-        override val type: String
-            get() = "jvm.mem"
-        override val config: Map<String, Any?>
-            get() = emptyMap()
-    }
-    val base = BaseMemTest(cfg)
-    val dispatcher : Dispatcher<EntityEvent<*,*>> = base.kodein.instance("entities")
 
-    val mem = base.ds
     given("a dispatcher") {
+        val cfg = object : DataStoreConfig {
+            override val name: String
+                get() = "test"
+            override val type: String
+                get() = "jvm.mem"
+            override val config: Map<String, Any?>
+                get() = emptyMap()
+        }
+        val base = BaseMemTest(cfg)
+        val dispatcher: Dispatcher<EntityEvent<*, *>> = base.kodein.instance("entities")
+
+        val mem = base.ds
+
         val listener = object {
             val ch : Channel<EntityEvent<*,*>> = Channel()
             var events = 0

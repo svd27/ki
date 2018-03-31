@@ -68,3 +68,5 @@ sealed class Either<out L,out R>() {
 }
 
 fun<L,R> Either<L,R>.getOrElse(f:(L)->R) : R = fold(f, {it})
+
+fun DONTDOTHIS(msg: String = "Don't do this"): Nothing = throw Exception(msg)

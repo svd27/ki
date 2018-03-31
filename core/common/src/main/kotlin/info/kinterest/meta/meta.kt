@@ -1,28 +1,44 @@
 package info.kinterest.meta
 
-import info.kinterest.DataStore
-import info.kinterest.KIEntity
-import info.kinterest.Klass
-import info.kinterest.UUID
+import info.kinterest.*
 
-sealed class KIProperty<V>(support:KIPropertySupport<V>) {
-    val name: String = support.name
-    val type: Klass<*> = support.type
-    val readOnly: Boolean = support.readOnly
-    val nullable: Boolean = support.nullable
-    val transient: Boolean = support.transient
+sealed class KIProperty<V>(private val support: KIPropertySupport<V>, val order: Int) {
+    val name: String get() = support.name
+    val type: Klass<*> get() = support.type
+    val readOnly: Boolean get() = support.readOnly
+    val nullable: Boolean get() = support.nullable
+    val transient: Boolean get() = support.transient
+    val comparable: Boolean get() = support.comparable
+
+    val minmax: Pair<V, V> get() = support.minmax
+    fun minMax(v1: V, v2: V) = support.minMax(v1, v2)
+
+    override fun equals(other: Any?): Boolean = if (other === this) true else {
+        if (other is KIProperty<*>) {
+            other.name == name && other.type == type && other.readOnly == readOnly && other.nullable == nullable && other.transient == transient
+        } else false
+    }
+
+    override fun hashCode(): Int = name.hashCode()
 }
 
 abstract class KIEntityMeta {
-    abstract fun <V> get(e: KIEntity<*>, prop: KIProperty<V>): V?
-    abstract fun <K:Any> new(ds: DataStore, id: K): KIEntity<K>
-
+    abstract val root: Klass<*>
     abstract val impl: Klass<*>
     abstract val me: Klass<*>
-    abstract val name: String
-    abstract val root : Klass<*>
     abstract val parent: Klass<*>?
+    abstract val name: String
+
+    abstract val idProperty: KIProperty<*>
     abstract val props : Map<String, KIProperty<*>>
+
+    abstract fun <K : Any> new(ds: DataStore, id: K): KIEntity<K>
+
+    override fun equals(other: Any?): Boolean = if (other === this) true else {
+        if (other is KIEntityMeta) other.name == name else false
+    }
+
+    override fun hashCode(): Int = name.hashCode()
 }
 
 interface KIPropertySupport<V> {
@@ -31,17 +47,30 @@ interface KIPropertySupport<V> {
     val readOnly: Boolean
     val nullable: Boolean
     val transient: Boolean
+    val comparable: Boolean
+    val minmax: Pair<V, V>
+    fun minMax(v1: V, v2: V): Pair<V, V>
 }
 
-class KIEnumProperty<E>(support: KIPropertySupport<E>) : KIProperty<E>(support)
-class KIBooleanProperty(support: KIPropertySupport<Boolean>) : KIProperty<Boolean>(support)
-class KIStringProperty(support: KIPropertySupport<String>) : KIProperty<String>(support)
-sealed class KINumberProperty<N:Number>(support: KIPropertySupport<N>) : KIProperty<N>(support)
-class KIDoubleProperty(support: KIPropertySupport<Double>) : KINumberProperty<Double>(support)
-class KIIntProperty(support: KIPropertySupport<Int>) : KINumberProperty<Int>(support)
-class KILongProperty(support: KIPropertySupport<Long>) : KINumberProperty<Long>(support)
-sealed class KITypeProperty<T>(support: KIPropertySupport<T>) : KIProperty<T>(support)
-class KISimpleTypeProperty<T>(support: KIPropertySupport<T>) : KITypeProperty<T>(support)
-class KIUUIDProperty(support: KIPropertySupport<UUID>) : KITypeProperty<UUID>(support)
-class KIEmbedProperty<T>(support: KIPropertySupport<T>) : KITypeProperty<T>(support)
-class KIReferenceProperty<T>(support: KIPropertySupport<T>) : KITypeProperty<T>(support)
+
+class KIBooleanProperty(support: KIPropertySupport<Boolean>) : KIProperty<Boolean>(support, 0)
+class KIEnumProperty<E : Enum<*>>(support: KIPropertySupport<E>) : KIProperty<E>(support, 1)
+sealed class KINumberProperty<N : Number>(support: KIPropertySupport<N>, order: Int) : KIProperty<N>(support, order)
+class KIByteProperty(support: KIPropertySupport<Byte>) : KINumberProperty<Byte>(support, 2)
+//short
+//char
+class KIIntProperty(support: KIPropertySupport<Int>) : KINumberProperty<Int>(support, 5)
+
+class KILongProperty(support: KIPropertySupport<Long>) : KINumberProperty<Long>(support, 6)
+//float
+class KIDoubleProperty(support: KIPropertySupport<Double>) : KINumberProperty<Double>(support, 8)
+
+class KIStringProperty(support: KIPropertySupport<String>) : KIProperty<String>(support, 9)
+sealed class KITypeProperty<T>(support: KIPropertySupport<T>, order: Int) : KIProperty<T>(support, order)
+class KIEmbedProperty<T>(support: KIPropertySupport<T>) : KITypeProperty<T>(support, Int.MAX_VALUE)
+class KIReferenceProperty<T>(support: KIPropertySupport<T>) : KITypeProperty<T>(support, Int.MAX_VALUE - 1)
+sealed class KISimpleTypeProperty<T>(support: KIPropertySupport<T>, order: Int) : KITypeProperty<T>(support, order)
+class KIUUIDProperty(support: KIPropertySupport<UUID>) : KISimpleTypeProperty<UUID>(support, 12)
+sealed class KIDateOrTimePropertyclass<T>(support: KIPropertySupport<T>, order: Int) : KISimpleTypeProperty<T>(support, order)
+class KILocalDateProperty(support: KIPropertySupport<LocalDate>) : KISimpleTypeProperty<LocalDate>(support, 10)
+class KIUnknownTypeProperty<T>(support: KIPropertySupport<T>) : KISimpleTypeProperty<T>(support, Int.MAX_VALUE)

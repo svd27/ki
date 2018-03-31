@@ -9,7 +9,6 @@ import info.kinterest.flatten
 import info.kinterest.getOrDefault
 import info.kinterest.getOrElse
 import info.kinterest.jvm.MetaProvider
-import info.kinterest.meta.KIEntityMeta
 import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.runBlocking
 import org.amshove.kluent.`should be before`
@@ -31,32 +30,31 @@ interface QueryEntity : KIEntity<String> {
 }
 
 class TestQuery : Spek( {
-    val base = BaseMemTest(object : DataStoreConfig {
-        override val name: String
-            get() = "test"
-        override val type: String
-            get() = "jvm.mem"
-        override val config: Map<String, Any?>
-            get() = mapOf()
-    })
-    val provider = MetaProvider()
-    @Suppress("UNCHECKED_CAST")
-    val meta = base.ds[QueryEntity::class] as KIEntityMeta
-    provider.register(meta)
-
-    val keys = ('A'..'Z').map {
-        id ->
-        base.create<QueryEntity,String>("$id",
-                mapOf(
-                        "name" to "sasa",
-                        "job" to null,
-                        "dob" to LocalDate.now()
-                        )
-        )
-    }.map { it.getOrElse { throw it } }
-    val entities = base.retrieve<QueryEntity,String>(keys).getOrDefault { listOf() }.toList()
-
     given("some entities") {
+        val base = BaseMemTest(object : DataStoreConfig {
+            override val name: String
+                get() = "test"
+            override val type: String
+                get() = "jvm.mem"
+            override val config: Map<String, Any?>
+                get() = mapOf()
+        })
+        val provider = MetaProvider()
+        @Suppress("UNCHECKED_CAST")
+        val meta = base.ds[QueryEntity::class]
+        provider.register(meta)
+
+        val keys = ('A'..'Z').map { id ->
+            base.create<QueryEntity, String>("$id",
+                    mapOf(
+                            "name" to "sasa",
+                            "job" to null,
+                            "dob" to LocalDate.now()
+                    )
+            )
+        }.map { it.getOrElse { throw it } }
+        val entities = base.retrieve<QueryEntity, String>(keys).getOrDefault { listOf() }.toList()
+
         val f = parse<QueryEntity,String>("QueryEntity{job < \"a\"}", provider, base.ds)
         val tq = base.ds.query(meta, f)
         on("a simple query") {

@@ -1,6 +1,7 @@
 package info.kinterest
 
 import info.kinterest.meta.KIEntityMeta
+import info.kinterest.meta.KIProperty
 
 val NULL: Any? = null
 
@@ -18,24 +19,15 @@ expect interface DataStore {
     val name: String
 }
 
-interface DataStoreManager {
-    val type: String
-    val dataStores: Map<String, DataStore>
-    fun add(ds: DataStore)
-}
-
-/**
- * this will be a singleton on any platform instance
- */
-interface DataStores {
-    val types: Map<String, DataStoreManager>
-    fun add(type: String, m: DataStoreManager)
-}
-
 interface KIEntity<out T:Any> : Keyed<T> {
+    @Suppress("PropertyName")
     val _store: DataStore
+    @Suppress("PropertyName")
     val _meta: KIEntityMeta
     fun asTransient(): TransientEntity<T>
+    fun <V> getValue(prop: KIProperty<V>): V?
+    fun <V> setValue(prop: KIProperty<V>, v: V?)
+    fun <V> setValue(prop: KIProperty<V>, version: Any, v: V?)
 }
 
 interface TransientEntity<out T:Any> : KIEntity<T> {

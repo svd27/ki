@@ -1,6 +1,9 @@
 package info.kinterest.annotations.processor.generators
 
-import info.kinterest.*
+import info.kinterest.DONTDOTHIS
+import info.kinterest.DataStore
+import info.kinterest.TransientEntity
+import info.kinterest.Versioned
 import info.kinterest.annotations.Entity
 import info.kinterest.datastores.jvm.memory.JvmMemoryDataStore
 import info.kinterest.datastores.jvm.memory.KIJvmMemEntity
@@ -10,7 +13,10 @@ import org.yanex.takenoko.*
 import javax.annotation.processing.ProcessingEnvironment
 import javax.annotation.processing.RoundEnvironment
 import javax.lang.model.element.*
-import javax.lang.model.type.*
+import javax.lang.model.type.DeclaredType
+import javax.lang.model.type.ExecutableType
+import javax.lang.model.type.PrimitiveType
+import javax.lang.model.type.TypeMirror
 import javax.tools.Diagnostic
 import kotlin.reflect.KClass
 
@@ -137,7 +143,19 @@ sealed class Typing {
     }
 
     class Primitive(val type: PrimitiveType) : Typing() {
-        override fun toString(): String = type.toString()
+        override fun toString(): String = type.normalise()
+    }
+
+    fun PrimitiveType.normalise() = when (toString()) {
+        "boolean" -> "kotlin.Boolean"
+        "byte" -> "kotlin.Byte"
+        "char" -> "kotlin.Char"
+        "short" -> "kotlin.Short"
+        "int" -> "kotlin.Int"
+        "long" -> "kotlin.Long"
+        "float" -> "kotlin.FLoar"
+        "double" -> "kotlin.Double"
+        else -> DONTDOTHIS("unknown type $this")
     }
 }
 
@@ -154,6 +172,7 @@ object JvmMemoryGenerator : Generator {
         entity.name to
                 kotlinFile(packageName = entity.targetPkg) {
                     import(parseType(Versioned::class.java))
+                    import(parseType(KIProperty::class.java))
                     classDeclaration(entity.name) {
                         primaryConstructor() {
                             property("store", parseType(JvmMemoryDataStore::class.qualifiedName!!), VAL)
@@ -190,13 +209,17 @@ object JvmMemoryGenerator : Generator {
                             property(it.name, it.koType, OVERRIDE + mod) {
                                 val typeStr = it.typeName.let { if (it.endsWith("?")) it.dropLast(1) else it }
                                 getter(KoModifierList.Empty, true) {
-                                    append("""store.getProp<${entity.type.simpleName},${entity.idTypeStr},$typeStr>(id, Meta.${it.metaName})""")
+                                    append("""getValue<$typeStr>(Meta.${it.metaName})""")
                                     if (!it.nullable) append("!!")
                                 }
                                 if (!it.readOnly) {
                                     setter(KoModifierList.Empty, true, "value") {
-                                        val suffix = if (entity.versioned) ",_version" else ""
-                                        append("""Unit.apply { store.setProp<${entity.type.simpleName},${entity.idTypeStr},$typeStr>(id, Meta.${it.metaName}, value$suffix) }""")
+                                        if (entity.versioned) {
+                                            //setValue(Meta.PROP_ADAPT, value)
+                                            append("setValue(Meta.${it.metaName}, _version, value)")
+                                        } else {
+                                            append("setValue(Meta.${it.metaName}, value)")
+                                        }
                                     }
                                 }
                             }
@@ -227,6 +250,7 @@ object JvmMemoryGenerator : Generator {
                                     initializer(entity.parent?.let { "${entity.parent}::class" } ?: "null")
                                 }
                                 entity.fields.forEach {
+                                    env.note("${it.name} ${it.propMetaType} ${it.typeName} ${it.type}")
                                     if (it.propMetaType == KISimpleTypeProperty::class)
                                         property(it.metaName, parseType("${it.propMetaType.qualifiedName}<${it.typeName}>"), VAL) {
                                             initializer("props[\"${it.name}\"] as ${it.propMetaType.qualifiedName}<${it.typeName}>")
@@ -289,6 +313,28 @@ object JvmMemoryGenerator : Generator {
 
                                 function("asTransient", OVERRIDE) {
                                     body(true) { append("this") }
+                                }
+
+                                function("getValue", OVERRIDE) {
+                                    typeParam("V")
+                                    param("p", "KIProperty<V>")
+                                    returnType("V?")
+                                    body(true, "TODO()")
+                                }
+
+                                function("setValue", OVERRIDE) {
+                                    typeParam("V")
+                                    param("p", "KIProperty<V>")
+                                    param("v", "V?")
+                                    body(true, "TODO()")
+                                }
+
+                                function("setValue", OVERRIDE) {
+                                    typeParam("V")
+                                    param("p", "KIProperty<V>")
+                                    param("version", "Any")
+                                    param("v", "V?")
+                                    body(true, "TODO()")
                                 }
 
                             }
