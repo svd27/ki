@@ -233,7 +233,7 @@ object JvmMemoryGenerator : Generator {
                         }
 
                         companionDeclaration("") {
-                            implements(parseType("info.kinterest.jvm.KIJvmEntitySupport<${entity.type.simpleName},${entity.idTypeStr}>"))
+                            implements(parseType("info.kinterest.jvm.KIJvmEntitySupport<${entity.idTypeStr}>"))
                             property("meta", null, VAL + OVERRIDE) {
                                 getter(KoModifierList.Empty, true) {
                                     append("Meta")
