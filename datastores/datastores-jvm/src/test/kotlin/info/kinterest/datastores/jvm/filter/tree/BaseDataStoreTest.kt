@@ -12,6 +12,7 @@ import info.kinterest.functional.flatten
 import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.MetaProvider
 import info.kinterest.jvm.coreKodein
+import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.runBlocking
 import kotlinx.coroutines.experimental.withTimeout
 import kotlinx.coroutines.experimental.yield
@@ -39,6 +40,6 @@ class BaseDataStoreTest(cfg: DataStoreConfig) {
 
     inline fun <reified E : KIEntity<K>, K : Any> retrieve(ids: Iterable<K>): Try<Iterable<E>> = run {
         val meta = ds[E::class]
-        ds.retrieve<E, K>(meta, ids).map { runBlocking { yield(); withTimeout(300) { it.await() } } }.getOrElse { throw it }
+        ds.retrieve<E, K>(meta, ids).map { runBlocking { yield(); delay(200); withTimeout(300) { it.await() } } }.getOrElse { throw it }
     }
 }
