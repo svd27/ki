@@ -147,11 +147,14 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
 
     override fun <E : KIEntity<K>, K : Any> retrieve(type: KIEntityMeta, ids: Iterable<K>): Try<Deferred<Try<Iterable<E>>>> = Try {
         val b = buckets[type]
+        log.debug { "retrieving $ids" }
         b?.let { ab ->
             async(pool) {
                 Try {
                     ab.let { bucket ->
+                        log.debug { "async retrieving $ids" }
                         ids.map { id ->
+                            log.debug { "retrieving $id" }
                             if (bucket[id] == null) throw DataStoreError.EntityError.EntityNotFound(type, id, this@JvmMemoryDataStore)
                             @Suppress("UNCHECKED_CAST")
                             type.new(this@JvmMemoryDataStore, id) as E
@@ -159,7 +162,7 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
                     }
                 }
             }
-        } ?: throw DataStoreError.BatchError("failure to retrieve", type.me.cast(), this)
+        } ?: throw DataStoreError.BatchError("failure to retrieve $ids", type.me.cast(), this)
 
     }
 
