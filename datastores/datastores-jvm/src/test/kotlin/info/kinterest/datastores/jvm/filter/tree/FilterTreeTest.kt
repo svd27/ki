@@ -105,31 +105,39 @@ class FilterTreeTest : Spek({
         }
         f.listener = listener.ch
         filterTree += f
+        logger.debug { "first" }
         on("creating a non-matching entity") {
             val idA = base.create<SomeEntity, Long>(1, mapOf("name" to "A")).getOrElse { throw it }
             val e = base.retrieve<SomeEntity, Long>(listOf(idA)).getOrElse { throw it }.first()
             it("should not hit our filter") {
+                runBlocking { delay(200) }
                 listener.total `should equal` 0
             }
         }
+        logger.debug { "second" }
 
         on("creating a matching entity") {
             val idX = base.create<SomeEntity, Long>(2, mapOf("name" to "X")).getOrElse { throw it }
             val e = base.retrieve<SomeEntity, Long>(listOf(idX)).getOrElse { throw it }.first()
             logger.debug { e.name }
             it("should hit our filter") {
+                runBlocking { delay(200) }
                 listener.total `should equal` 1
             }
         }
 
+        logger.debug { "third" }
         on("changing a property") {
             val e = base.retrieve<SomeEntity, Long>(listOf(2)).getOrElse { throw it }.first()
             e.dob = LocalDate.now()
             logger.debug { e.dob }
             it("should not hit our filter") {
+                runBlocking { delay(200) }
                 listener.total `should equal` 1
             }
         }
+
+        logger.debug { "fourth" }
         on("another filter which reacts to that property") {
             val f1 = filter<SomeEntity, Long>(base.ds, SomeEntityJvmMem.meta) {
                 val ds = LocalDate.now().minusDays(1).format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))
@@ -146,7 +154,10 @@ class FilterTreeTest : Spek({
             }
             f1.listener = null
         }
-        afterGroup { listener.close() }
+        afterGroup {
+            logger.debug { "after" }
+            listener.close()
+        }
     }
 }) {
     companion object : KLogging()
