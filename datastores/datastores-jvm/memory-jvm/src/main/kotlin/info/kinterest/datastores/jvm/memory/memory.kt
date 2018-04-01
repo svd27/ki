@@ -65,7 +65,7 @@ val log = KotlinLogging.logger { }
 
 class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
     @Suppress("MemberVisibilityCanBePrivate")
-    val pool = CommonPool
+    val pool: CoroutineDispatcher = newFixedThreadPoolContext(8, "jvm.mem")
     private val dir = cfg.dir
     private val _metas = mutableMapOf<KClass<*>, KIJvmEntityMeta>()
     private val metas: MutableMap<KClass<*>, KIJvmEntityMeta> = object : MutableMap<KClass<*>, KIJvmEntityMeta> by _metas {

@@ -161,8 +161,9 @@ class FilterTreeTest : Spek({
             f1.listener = null
         }
         afterGroup {
-            logger.debug { "after" }
+            logger.debug { "after ${Runtime.getRuntime().availableProcessors()}" }
             listener.close()
+
         }
     }
 }) {

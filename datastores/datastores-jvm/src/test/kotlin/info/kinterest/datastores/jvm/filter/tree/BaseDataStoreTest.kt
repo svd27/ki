@@ -16,6 +16,7 @@ import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.runBlocking
 import kotlinx.coroutines.experimental.withTimeout
 import kotlinx.coroutines.experimental.yield
+import mu.KLogging
 
 class BaseDataStoreTest(cfg: DataStoreConfig) {
     val kodein = Kodein {
@@ -42,4 +43,6 @@ class BaseDataStoreTest(cfg: DataStoreConfig) {
         val meta = ds[E::class]
         ds.retrieve<E, K>(meta, ids).map { runBlocking { yield(); delay(200); withTimeout(300) { it.await() } } }.getOrElse { throw it }
     }
+
+    companion object : KLogging()
 }
