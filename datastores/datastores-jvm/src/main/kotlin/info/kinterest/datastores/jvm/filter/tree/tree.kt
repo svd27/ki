@@ -34,6 +34,7 @@ class FilterTree(events: Dispatcher<EntityEvent<*, *>>, val load: Int) {
                             }
                         }
                     }.getOrElse { logger.error(it) { } }
+                    logger.debug { "Done: $ev collected $collect" }
                 }
             }
         }
