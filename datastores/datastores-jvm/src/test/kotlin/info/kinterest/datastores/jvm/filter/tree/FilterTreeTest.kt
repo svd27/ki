@@ -7,11 +7,8 @@ import info.kinterest.datastores.jvm.DataStoreConfig
 import info.kinterest.datastores.jvm.filter.tree.jvm.mem.SomeEntityJvmMem
 import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.filter.filter
-import kotlinx.coroutines.experimental.Job
+import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.channels.Channel
-import kotlinx.coroutines.experimental.delay
-import kotlinx.coroutines.experimental.launch
-import kotlinx.coroutines.experimental.runBlocking
 import mu.KLogging
 import org.amshove.kluent.`should equal`
 import org.amshove.kluent.`should have key`
@@ -119,8 +116,13 @@ class FilterTreeTest : Spek({
 
         on("creating a matching entity") {
             logger.debug { "second" }
-            val idX = base.create<SomeEntity, Long>(2, mapOf("name" to "X")).getOrElse { throw it }
-            val e = base.retrieve<SomeEntity, Long>(listOf(idX)).getOrElse { throw it }.first()
+            val idX = runBlocking {
+                withTimeout(300) {
+                    base.create<SomeEntity, Long>(2, mapOf("name" to "X")).getOrElse { throw it }
+                }
+            }
+            logger.debug { "created" }
+            val e = runBlocking { withTimeout(300) { base.retrieve<SomeEntity, Long>(listOf(idX)).getOrElse { throw it }.first() } }
             logger.debug { e.name }
             it("should hit our filter") {
                 runBlocking { delay(200) }
