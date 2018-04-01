@@ -5,9 +5,9 @@ import info.kinterest.annotations.Entity
 import info.kinterest.annotations.StorageTypes
 import info.kinterest.core.jvm.filters.parse
 import info.kinterest.datastores.jvm.DataStoreConfig
-import info.kinterest.flatten
-import info.kinterest.getOrDefault
-import info.kinterest.getOrElse
+import info.kinterest.functional.flatten
+import info.kinterest.functional.getOrDefault
+import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.MetaProvider
 import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.runBlocking

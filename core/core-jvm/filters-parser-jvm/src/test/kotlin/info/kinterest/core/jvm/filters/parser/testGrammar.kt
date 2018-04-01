@@ -31,17 +31,17 @@ class TestFilter(override val id: String, val top: Int?, val date: LocalDate) : 
         get() = Meta
 
     @Suppress("UNCHECKED_CAST", "IMPLICIT_CAST_TO_ANY")
-    override fun <V> getValue(prop: KIProperty<V>): V? = when (prop.name) {
+    override fun <V, P : KIProperty<V>> getValue(prop: P): V? = when (prop.name) {
         "top" -> top
         "date" -> date
         else -> DONTDOTHIS()
     } as V?
 
-    override fun <V> setValue(prop: KIProperty<V>, v: V?) {
+    override fun <V, P : KIProperty<V>> setValue(prop: P, v: V?) {
         DONTDOTHIS("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
-    override fun <V> setValue(prop: KIProperty<V>, version: Any, v: V?) {
+    override fun <V, P : KIProperty<V>> setValue(prop: P, version: Any, v: V?) {
         DONTDOTHIS("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
@@ -76,11 +76,11 @@ object SimpleTest : Spek({
             it("should be parsed as a Filter") {
                 f `should be instance of` KIFilter::class
                 f `should be instance of` EntityFilter.FilterWrapper::class
-                (f as EntityFilter.FilterWrapper).f `should be instance of` GTFilter::class
+                f.f `should be instance of` GTFilter::class
             }
         }
         val f1 = filter<TestFilter, String>(mock(), TestFilter.Companion.Meta) {
-            parse<TestFilter, String>("TestFilter{(top < 2&&top>=0) || top<20}", Metas)
+            parse("TestFilter{(top < 2&&top>=0) || top<20}", Metas)
         }
     }
 

@@ -209,13 +209,12 @@ object JvmMemoryGenerator : Generator {
                             property(it.name, it.koType, OVERRIDE + mod) {
                                 val typeStr = it.typeName.let { if (it.endsWith("?")) it.dropLast(1) else it }
                                 getter(KoModifierList.Empty, true) {
-                                    append("""getValue<$typeStr>(Meta.${it.metaName})""")
+                                    append("""getValue(Meta.${it.metaName})""")
                                     if (!it.nullable) append("!!")
                                 }
                                 if (!it.readOnly) {
                                     setter(KoModifierList.Empty, true, "value") {
                                         if (entity.versioned) {
-                                            //setValue(Meta.PROP_ADAPT, value)
                                             append("setValue(Meta.${it.metaName}, _version, value)")
                                         } else {
                                             append("setValue(Meta.${it.metaName}, value)")
@@ -317,21 +316,31 @@ object JvmMemoryGenerator : Generator {
 
                                 function("getValue", OVERRIDE) {
                                     typeParam("V")
-                                    param("p", "KIProperty<V>")
+                                    typeParam("P:KIProperty<V>")
+                                    param("p", "P")
                                     returnType("V?")
-                                    body(true, "TODO()")
+                                    body(true) {
+                                        append("""
+                                            when(p) {
+                                              ${entity.fields.map { "Meta.${it.metaName} -> ${it.name}" }.joinToString("\n")}
+                                              else -> TODO()
+                                            } as V?
+                                        """.trimIndent())
+                                    }
                                 }
 
                                 function("setValue", OVERRIDE) {
                                     typeParam("V")
-                                    param("p", "KIProperty<V>")
+                                    typeParam("P:KIProperty<V>")
+                                    param("p", "P")
                                     param("v", "V?")
                                     body(true, "TODO()")
                                 }
 
                                 function("setValue", OVERRIDE) {
                                     typeParam("V")
-                                    param("p", "KIProperty<V>")
+                                    typeParam("P:KIProperty<V>")
+                                    param("p", "P")
                                     param("version", "Any")
                                     param("v", "V?")
                                     body(true, "TODO()")

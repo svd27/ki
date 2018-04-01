@@ -25,9 +25,9 @@ interface KIEntity<out T:Any> : Keyed<T> {
     @Suppress("PropertyName")
     val _meta: KIEntityMeta
     fun asTransient(): TransientEntity<T>
-    fun <V> getValue(prop: KIProperty<V>): V?
-    fun <V> setValue(prop: KIProperty<V>, v: V?)
-    fun <V> setValue(prop: KIProperty<V>, version: Any, v: V?)
+    fun <V : Any?, P : KIProperty<V>> getValue(prop: P): V?
+    fun <V : Any?, P : KIProperty<V>> setValue(prop: P, v: V?)
+    fun <V : Any?, P : KIProperty<V>> setValue(prop: P, version: Any, v: V?)
 }
 
 interface TransientEntity<out T:Any> : KIEntity<T> {

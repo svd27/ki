@@ -1,14 +1,34 @@
 package info.kinterest.datastores.jvm.filter.tree
 
 import info.kinterest.*
-import info.kinterest.datastores.jvm.DataStoreJvm
+import info.kinterest.jvm.events.Dispatcher
 import info.kinterest.jvm.filter.*
 import info.kinterest.meta.KIEntityMeta
 import info.kinterest.meta.KIProperty
+import kotlinx.coroutines.experimental.CommonPool
+import kotlinx.coroutines.experimental.channels.Channel
+import kotlinx.coroutines.experimental.launch
+import kotlinx.coroutines.experimental.runBlocking
+import mu.KLogging
 
-class FilterTree(val ds: DataStoreJvm, val load: Int) {
+class FilterTree(events: Dispatcher<EntityEvent<*, *>>, val load: Int) {
     internal var root: Node.Root = Node.Root(load)
     fun collect(ev: EntityEvent<*, *>) = root.collect(ev)
+
+    init {
+        val listener = Channel<EntityEvent<*, *>>()
+        runBlocking {
+            logger.debug { "subscribing" }
+            events.subscribing.send(listener)
+            launch(CommonPool) {
+                for (ev in listener) {
+                    val collect = collect(ev)
+                    logger.debug { "$ev collected $collect" }
+                    for (dest in collect) dest.digest(ev.cast())
+                }
+            }
+        }
+    }
 
     internal sealed class Node(val load: Int) {
         abstract operator fun plus(f: FilterWrapper<*, *>): Node
@@ -108,16 +128,24 @@ class FilterTree(val ds: DataStoreJvm, val load: Int) {
             }
 
 
-            fun collect(ev: EntityEvent<*, *>): Set<FilterWrapper<*, *>> = this[ev.entity._meta].collect(ev)
+            fun collect(ev: EntityEvent<*, *>): Set<FilterWrapper<*, *>> =
+                    this[ev.entity._meta].collect(ev)
 
         }
     }
 
 
-    operator fun plus(filter: FilterWrapper<*, *>): FilterTree = this.apply {
+    operator fun plusAssign(filter: FilterWrapper<*, *>): Unit = this.let {
         root += filter
+        Unit
     }
 
+    operator fun minusAssign(filter: FilterWrapper<*, *>): Unit = this.let {
+        root -= filter
+        Unit
+    }
+
+    companion object : KLogging()
 
 }
 

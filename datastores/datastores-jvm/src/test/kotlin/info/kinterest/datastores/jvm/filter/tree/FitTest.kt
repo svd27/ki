@@ -1,12 +1,9 @@
 package info.kinterest.datastores.jvm.filter.tree
 
-import info.kinterest.KIEntity
-import info.kinterest.LocalDate
-import info.kinterest.annotations.Entity
-import info.kinterest.annotations.StorageTypes
 import info.kinterest.core.jvm.filters.parser.parse
 import info.kinterest.datastores.jvm.filter.tree.jvm.mem.SomeEntityJvmMem
 import info.kinterest.jvm.MetaProvider
+import info.kinterest.jvm.events.Dispatcher
 import info.kinterest.jvm.filter.EQFilter
 import info.kinterest.jvm.filter.GTFilter
 import info.kinterest.jvm.filter.LTFilter
@@ -20,19 +17,10 @@ import org.jetbrains.spek.api.dsl.given
 import org.jetbrains.spek.api.dsl.it
 import org.jetbrains.spek.api.dsl.on
 
-@Entity
-@StorageTypes(["jvm.mem"])
-interface SomeEntity : KIEntity<Long> {
-    override val id: Long
-    val name: String
-    val online: Boolean
-    val dob: LocalDate
-}
-
 
 class FitTest : Spek({
     given("filter tree") {
-        val tree = FilterTree(mock(), 2)
+        val tree = FilterTree(Dispatcher(), 2)
         val metaProvider = MetaProvider()
         metaProvider.register(SomeEntityJvmMem.meta)
         on("creating s simple && filter") {

@@ -4,7 +4,7 @@ import info.kinterest.cast
 import info.kinterest.core.jvm.filters.parser.parse
 import info.kinterest.datastores.jvm.DataStoreConfig
 import info.kinterest.datastores.jvm.memory.jvm.mem.QueryEntityJvmMem
-import info.kinterest.getOrElse
+import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.filter.filter
 import info.kinterest.paging.Paging
 import info.kinterest.query.Query

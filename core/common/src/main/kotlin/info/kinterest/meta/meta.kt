@@ -2,26 +2,6 @@ package info.kinterest.meta
 
 import info.kinterest.*
 
-sealed class KIProperty<V>(private val support: KIPropertySupport<V>, val order: Int) {
-    val name: String get() = support.name
-    val type: Klass<*> get() = support.type
-    val readOnly: Boolean get() = support.readOnly
-    val nullable: Boolean get() = support.nullable
-    val transient: Boolean get() = support.transient
-    val comparable: Boolean get() = support.comparable
-
-    val minmax: Pair<V, V> get() = support.minmax
-    fun minMax(v1: V, v2: V) = support.minMax(v1, v2)
-
-    override fun equals(other: Any?): Boolean = if (other === this) true else {
-        if (other is KIProperty<*>) {
-            other.name == name && other.type == type && other.readOnly == readOnly && other.nullable == nullable && other.transient == transient
-        } else false
-    }
-
-    override fun hashCode(): Int = name.hashCode()
-}
-
 abstract class KIEntityMeta {
     abstract val root: Klass<*>
     abstract val impl: Klass<*>
@@ -40,6 +20,26 @@ abstract class KIEntityMeta {
 
     override fun hashCode(): Int = name.hashCode()
 }
+
+sealed class KIProperty<out V>(private val support: KIPropertySupport<V>, val order: Int) {
+    val name: String get() = support.name
+    val type: Klass<*> get() = support.type
+    val readOnly: Boolean get() = support.readOnly
+    val nullable: Boolean get() = support.nullable
+    val transient: Boolean get() = support.transient
+    val comparable: Boolean get() = support.comparable
+
+    val minmax: Pair<V, V> get() = support.minmax
+
+    override fun equals(other: Any?): Boolean = if (other === this) true else {
+        if (other is KIProperty<*>) {
+            other.name == name && other.type == type && other.readOnly == readOnly && other.nullable == nullable && other.transient == transient
+        } else false
+    }
+
+    override fun hashCode(): Int = name.hashCode()
+}
+
 
 interface KIPropertySupport<V> {
     val name: String

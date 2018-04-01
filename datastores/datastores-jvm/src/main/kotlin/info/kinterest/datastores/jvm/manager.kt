@@ -1,7 +1,12 @@
 package info.kinterest.datastores.jvm
 
 import com.github.salomonbrys.kodein.*
-import info.kinterest.*
+import info.kinterest.DataStore
+import info.kinterest.DataStoreError
+import info.kinterest.EntityEvent
+import info.kinterest.KIEntity
+import info.kinterest.functional.Either
+import info.kinterest.functional.Try
 import info.kinterest.jvm.MetaProvider
 import info.kinterest.jvm.events.Dispatcher
 import info.kinterest.jvm.filter.EntityFilter
@@ -51,7 +56,7 @@ abstract class DataStoreJvm(override val name : String) : DataStore, KodeinInjec
     abstract fun <E : KIEntity<K>, K : Any> query(query: Query<E, K>): Try<Deferred<Try<Page<E, K>>>>
     abstract fun<E:KIEntity<K>,K:Any> retrieve(type:KIEntityMeta,ids:Iterable<K>) : Try<Deferred<Try<Iterable<E>>>>
     abstract fun<K:Any> create(type:KIEntityMeta, entities:Iterable<Pair<K,Map<String, Any?>>>) : Try<Deferred<Try<Iterable<K>>>>
-    abstract fun<K:Any> delete(type:KIEntityMeta, entities:Iterable<K>) : Try<Deferred<Either<DataStoreError,Iterable<K>>>>
+    abstract fun <K : Any> delete(type: KIEntityMeta, entities: Iterable<K>): Try<Deferred<Either<DataStoreError, Iterable<K>>>>
     abstract fun getValues(type: KIEntityMeta, id: Any): Deferred<Try<Map<String, Any?>?>>
     abstract fun getValues(type: KIEntityMeta, id: Any, vararg props: KIProperty<*>): Deferred<Try<Map<String, Any?>?>>
     abstract fun getValues(type: KIEntityMeta, id: Any, props: Iterable<KIProperty<*>>): Deferred<Try<Map<String, Any?>?>>

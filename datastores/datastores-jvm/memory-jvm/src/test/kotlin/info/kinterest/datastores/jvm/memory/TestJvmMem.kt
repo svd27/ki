@@ -2,14 +2,20 @@ package info.kinterest.datastores.jvm.memory
 
 import com.github.salomonbrys.kodein.Kodein
 import com.github.salomonbrys.kodein.instance
-import info.kinterest.*
+import info.kinterest.DataStoreError
+import info.kinterest.KIEntity
+import info.kinterest.Versioned
 import info.kinterest.annotations.Entity
 import info.kinterest.annotations.StorageTypes
+import info.kinterest.cast
 import info.kinterest.datastores.jvm.DataStoreConfig
 import info.kinterest.datastores.jvm.DataStoreFactoryProvider
 import info.kinterest.datastores.jvm.datasourceKodein
 import info.kinterest.datastores.jvm.memory.jvm.mem.TestRootJvmMem
 import info.kinterest.datastores.jvm.memory.jvm.mem.TestVersionedJvmMem
+import info.kinterest.functional.flatten
+import info.kinterest.functional.getOrDefault
+import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.KIJvmEntity
 import info.kinterest.jvm.MetaProvider
 import info.kinterest.jvm.coreKodein

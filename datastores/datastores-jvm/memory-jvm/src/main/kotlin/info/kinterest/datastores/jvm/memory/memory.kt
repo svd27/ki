@@ -6,6 +6,9 @@ import info.kinterest.*
 import info.kinterest.datastores.jvm.DataStoreConfig
 import info.kinterest.datastores.jvm.DataStoreFactory
 import info.kinterest.datastores.jvm.DataStoreJvm
+import info.kinterest.functional.Either
+import info.kinterest.functional.Try
+import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.KIJvmEntity
 import info.kinterest.jvm.KIJvmEntityMeta
 import info.kinterest.jvm.KIJvmEntitySupport
@@ -25,15 +28,17 @@ import java.nio.file.Paths
 import kotlin.reflect.KClass
 import kotlin.reflect.full.companionObjectInstance
 
+
 abstract class KIJvmMemEntity<out E : KIEntity<T>, T : Comparable<T>>(override val _store: DataStoreJvm, override val id: T) : KIJvmEntity<E, T>() {
     @Suppress("UNCHECKED_CAST")
-    override fun <V> getValue(prop: KIProperty<V>): V? = if (prop == _meta.idProperty) id as V? else runBlocking { _store.getValues(_meta, id, prop).await().getOrElse { throw it }?.get(prop.name) } as V?
+    override fun <V, P : KIProperty<V>> getValue(prop: P): V? = if (prop == _meta.idProperty) id as V? else
+        runBlocking { _store.getValues(_meta, id, prop).await().getOrElse { throw it }?.get(prop.name) } as V?
 
-    override fun <V> setValue(prop: KIProperty<V>, v: V?) {
+    override fun <V, P : KIProperty<V>> setValue(prop: P, v: V?) {
         _store.setValues(_meta, id, mapOf(prop to v))
     }
 
-    override fun <V> setValue(prop: KIProperty<V>, version: Any, v: V?) {
+    override fun <V, P : KIProperty<V>> setValue(prop: P, version: Any, v: V?) {
         _store.setValues(_meta, id, version, mapOf(prop to v))
     }
 }

@@ -47,10 +47,6 @@ abstract class KIJvmEntityMeta(override val impl: Klass<*>, final override val m
 
     operator fun get(n: String): KIProperty<*>? = props[n]
     inner class PropertySupport<V : Any>(kProperty: KProperty1<*, *>) : KIPropertySupport<V> {
-        val getter = kProperty.getter
-        @Suppress("UNCHECKED_CAST")
-        fun get(e: KIEntity<*>): V? = getter.call(e) as V?
-
         override val name: String = kProperty.name
         override val type: Klass<*> = kProperty.returnType.classifier!! as Klass<*>
         override val readOnly: Boolean = kProperty !is KMutableProperty1

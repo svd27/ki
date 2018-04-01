@@ -1,5 +1,7 @@
 package info.kinterest
 
+import info.kinterest.functional.Either
+import info.kinterest.functional.Try
 import info.kinterest.jvm.filter.EntityFilter
 import info.kinterest.meta.KIEntityMeta
 import info.kinterest.meta.KIProperty

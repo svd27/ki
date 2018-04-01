@@ -28,18 +28,19 @@ class TestFilter(override val id:String, val number:Long, val date:LocalDate) : 
         get() = TODO("not implemented")
 
     @Suppress("UNCHECKED_CAST", "IMPLICIT_CAST_TO_ANY")
-    override fun <V> getValue(prop: KIProperty<V>): V? = when (prop.name) {
+    override fun <V, P : KIProperty<V>> getValue(prop: P): V? = when (prop.name) {
         "number" -> number
         "date" -> date
         "id" -> id
         else -> DONTDOTHIS("unknown prop ${prop.name}")
     } as V?
 
-    override fun <V> setValue(prop: KIProperty<V>, v: V?) {
+
+    override fun <V, P : KIProperty<V>> setValue(prop: P, v: V?) {
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
-    override fun <V> setValue(prop: KIProperty<V>, version: Any, v: V?) {
+    override fun <V, P : KIProperty<V>> setValue(prop: P, version: Any, v: V?) {
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 

@@ -10,6 +10,7 @@ configure(common) {
     }
 
     dependencies {
+        "compile"("com.github.svd27:functional-stuff:v0.1.1")
         "compile"(kotlin("stdlib-common"))
         "testCompile"(kotlin("test-annotations-common"))
         "testCompile"(kotlin("test-common"))
@@ -17,5 +18,6 @@ configure(common) {
 
     repositories {
         jcenter()
+        maven("https://jitpack.io")
     }
 }

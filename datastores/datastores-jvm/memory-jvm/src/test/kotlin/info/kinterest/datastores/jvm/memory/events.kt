@@ -1,10 +1,14 @@
 package info.kinterest.datastores.jvm.memory
 
 import com.github.salomonbrys.kodein.instance
-import info.kinterest.*
+import info.kinterest.EntityCreateEvent
+import info.kinterest.EntityEvent
+import info.kinterest.KIEntity
+import info.kinterest.UUID
 import info.kinterest.annotations.Entity
 import info.kinterest.annotations.StorageTypes
 import info.kinterest.datastores.jvm.DataStoreConfig
+import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.events.Dispatcher
 import kotlinx.coroutines.experimental.Job
 import kotlinx.coroutines.experimental.channels.Channel

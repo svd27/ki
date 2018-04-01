@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.dsl.Coroutines
+
 dependencies {
     "expectedBy"(project(":core:common"))
     compile(project(":core:core-jvm"))
@@ -10,6 +12,10 @@ plugins { idea }
 
 kapt {
     arguments { arg("targets", "jvm.memory") }
+}
+
+kotlin {
+    experimental.coroutines = Coroutines.ENABLE
 }
 
 idea {
