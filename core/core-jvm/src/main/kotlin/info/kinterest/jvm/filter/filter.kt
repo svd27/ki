@@ -81,8 +81,8 @@ sealed class EntityFilter<E : KIEntity<K>, K : Any>(val meta: KIEntityMeta) : KI
                                 is EntityCreateEvent, is EntityDeleteEvent -> matches(ev.entity)
                                 is EntityUpdatedEvent -> wants(ev)
                             }
-                            withTimeout(500) { if (send) it.send(ev) }
                             logger.debug { "digest \n$ev \nsending $send\nfilter: ${this@FilterWrapper}" }
+                            withTimeout(500) { if (send) it.send(ev) }
                         }
                     }.getOrElse { logger.error(it) { } }
                 }
