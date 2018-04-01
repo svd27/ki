@@ -13,6 +13,8 @@ import info.kinterest.jvm.filter.EntityFilter
 import info.kinterest.jvm.map
 import info.kinterest.meta.KIEntityMeta
 import info.kinterest.meta.KIProperty
+import info.kinterest.paging.Page
+import info.kinterest.query.Query
 import kotlinx.coroutines.experimental.*
 import mu.KotlinLogging
 import org.mapdb.DB
@@ -117,10 +119,19 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
         }
     }
 
+    override fun <E : KIEntity<K>, K : Any> query(query: Query<E, K>): Try<Deferred<Try<Page<E, K>>>> = Try {
+        val bucket = buckets[query.f.meta]!!
+        async(pool) {
+            Try {
+                bucket.query(query)
+            }
+        }
+    }
+
     override fun <E : KIEntity<K>, K : Any> query(type: KIEntityMeta, f: EntityFilter<E, K>): Try<Deferred<Try<Iterable<K>>>> = Try {
         val bucket = buckets[type]
         bucket?.let {
-            async {
+            async(pool) {
                 Try {
                     @Suppress("UNCHECKED_CAST")
                     bucket.query(f as EntityFilter<KIEntity<K>, K>)
@@ -318,6 +329,16 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
             bucket.iterator().asSequence().filter { entry ->
                 f.matches(meta.new(this@JvmMemoryDataStore, entry.key as K))
             }.map { it.key as K }.asIterable()
+        }
+
+        @Suppress("UNCHECKED_CAST")
+        fun <E : KIEntity<K>, K : Any> query(query: Query<E, K>): Page<E, K> = run {
+            val fs = bucket.iterator().asSequence().map { entry -> meta.new(this@JvmMemoryDataStore, entry.key as K) as E }.filter {
+                query.f.matches(it)
+            }
+            val windowed = fs.sortedWith(query.ordering as Comparator<in E>).windowed(query.page.size, query.page.size, true)
+            val entites = windowed.drop(query.page.offset / query.page.size).firstOrNull() ?: listOf()
+            Page(query.page, entites, if (entites.size == query.page.size) 1 else 0)
         }
     }
 

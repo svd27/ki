@@ -7,6 +7,8 @@ import info.kinterest.jvm.events.Dispatcher
 import info.kinterest.jvm.filter.EntityFilter
 import info.kinterest.meta.KIEntityMeta
 import info.kinterest.meta.KIProperty
+import info.kinterest.paging.Page
+import info.kinterest.query.Query
 import kotlinx.coroutines.experimental.Deferred
 import java.util.*
 
@@ -46,6 +48,7 @@ abstract class DataStoreJvm(override val name : String) : DataStore, KodeinInjec
     val metaProvider by instance<MetaProvider>()
 
     abstract fun <E : KIEntity<K>, K : Any> query(type: KIEntityMeta, f: EntityFilter<E, K>): Try<Deferred<Try<Iterable<K>>>>
+    abstract fun <E : KIEntity<K>, K : Any> query(query: Query<E, K>): Try<Deferred<Try<Page<E, K>>>>
     abstract fun<E:KIEntity<K>,K:Any> retrieve(type:KIEntityMeta,ids:Iterable<K>) : Try<Deferred<Try<Iterable<E>>>>
     abstract fun<K:Any> create(type:KIEntityMeta, entities:Iterable<Pair<K,Map<String, Any?>>>) : Try<Deferred<Try<Iterable<K>>>>
     abstract fun<K:Any> delete(type:KIEntityMeta, entities:Iterable<K>) : Try<Deferred<Either<DataStoreError,Iterable<K>>>>

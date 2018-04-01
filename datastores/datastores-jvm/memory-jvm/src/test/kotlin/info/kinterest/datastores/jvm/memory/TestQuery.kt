@@ -25,7 +25,7 @@ import java.time.Month
 interface QueryEntity : KIEntity<String> {
     override val id : String
     val name : String
-    val job : String?
+    var job: String?
     var dob : LocalDate
 }
 
