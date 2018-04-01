@@ -144,6 +144,7 @@ class FilterTreeTest : Spek({
                 runBlocking { delay(200) }
                 listener.total `should equal` 2
             }
+            f1.listener = null
         }
         afterGroup { listener.close() }
     }
