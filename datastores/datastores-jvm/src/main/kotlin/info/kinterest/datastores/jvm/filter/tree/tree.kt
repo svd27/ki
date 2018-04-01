@@ -5,9 +5,10 @@ import info.kinterest.jvm.events.Dispatcher
 import info.kinterest.jvm.filter.*
 import info.kinterest.meta.KIEntityMeta
 import info.kinterest.meta.KIProperty
-import kotlinx.coroutines.experimental.CommonPool
+import kotlinx.coroutines.experimental.CoroutineDispatcher
 import kotlinx.coroutines.experimental.channels.Channel
 import kotlinx.coroutines.experimental.launch
+import kotlinx.coroutines.experimental.newFixedThreadPoolContext
 import kotlinx.coroutines.experimental.runBlocking
 import mu.KLogging
 
@@ -17,15 +18,16 @@ class FilterTree(events: Dispatcher<EntityEvent<*, *>>, val load: Int) {
 
     init {
         val listener = Channel<EntityEvent<*, *>>()
+        val context: CoroutineDispatcher = newFixedThreadPoolContext(4, "filter.tree")
         runBlocking {
-            logger.debug { "subscribing" }
-            events.subscribing.send(listener)
-            launch(CommonPool) {
+            launch(context) {
                 for (ev in listener) {
                     val collect = collect(ev)
                     logger.debug { "$ev collected $collect" }
                     for (dest in collect) dest.digest(ev.cast())
                 }
+                logger.debug { "subscribing" }
+                events.subscribing.send(listener)
             }
         }
     }
