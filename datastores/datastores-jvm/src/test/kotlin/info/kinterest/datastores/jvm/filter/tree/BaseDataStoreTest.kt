@@ -12,10 +12,7 @@ import info.kinterest.functional.flatten
 import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.MetaProvider
 import info.kinterest.jvm.coreKodein
-import kotlinx.coroutines.experimental.delay
-import kotlinx.coroutines.experimental.runBlocking
-import kotlinx.coroutines.experimental.withTimeout
-import kotlinx.coroutines.experimental.yield
+import kotlinx.coroutines.experimental.*
 import mu.KLogging
 
 class BaseDataStoreTest(cfg: DataStoreConfig) {
@@ -28,6 +25,7 @@ class BaseDataStoreTest(cfg: DataStoreConfig) {
         kodein.instance<DataStoreFactoryProvider>().inject(kodein)
     }
 
+    val context: CoroutineDispatcher = newFixedThreadPoolContext(4, "base.test")
 
     val provider = kodein.instance<DataStoreFactoryProvider>()
     val fac = provider.factories[cfg.type]
@@ -39,9 +37,11 @@ class BaseDataStoreTest(cfg: DataStoreConfig) {
         await.flatten()
     }
 
-    inline fun <reified E : KIEntity<K>, K : Any> retrieve(ids: Iterable<K>): Try<Iterable<E>> = run {
-        val meta = ds[E::class]
-        ds.retrieve<E, K>(meta, ids).map { runBlocking { yield(); delay(200); withTimeout(300) { it.await() } } }.getOrElse { throw it }
+    inline fun <reified E : KIEntity<K>, K : Any> retrieve(ids: Iterable<K>): Try<Iterable<E>> {
+        return run {
+            val meta = ds[E::class]
+            ds.retrieve<E, K>(meta, ids).map { runBlocking(context) { yield(); delay(200); withTimeout(300) { it.await() } } }.getOrElse { throw it }
+        }
     }
 
     companion object : KLogging()

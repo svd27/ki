@@ -90,7 +90,7 @@ class FilterTreeTest : Spek({
             val job: Job
 
             init {
-                job = launch {
+                job = launch(base.context) {
                     for (ev in ch) {
                         logger.debug { "event: $ev" }
                         total++
@@ -108,7 +108,7 @@ class FilterTreeTest : Spek({
             val idA = base.create<SomeEntity, Long>(1, mapOf("name" to "A")).getOrElse { throw it }
             val e = base.retrieve<SomeEntity, Long>(listOf(idA)).getOrElse { throw it }.first()
             it("should not hit our filter") {
-                runBlocking { delay(200) }
+                runBlocking(base.context) { delay(200) }
                 listener.total `should equal` 0
             }
         }
@@ -125,7 +125,7 @@ class FilterTreeTest : Spek({
             val e = runBlocking { withTimeout(300) { base.retrieve<SomeEntity, Long>(listOf(idX)).getOrElse { throw it }.first() } }
             logger.debug { e.name }
             it("should hit our filter") {
-                runBlocking { delay(200) }
+                runBlocking(base.context) { delay(200) }
                 listener.total `should equal` 1
             }
         }
@@ -137,7 +137,7 @@ class FilterTreeTest : Spek({
             e.dob = LocalDate.now()
             logger.debug { e.dob }
             it("should not hit our filter") {
-                runBlocking { delay(200) }
+                runBlocking(base.context) { delay(200) }
                 listener.total `should equal` 1
             }
         }
@@ -155,7 +155,7 @@ class FilterTreeTest : Spek({
             e.dob = LocalDate.now().minusDays(2)
             it("should hit our filter") {
                 e.dob `should equal` LocalDate.now().minusDays(2)
-                runBlocking { delay(200) }
+                runBlocking(base.context) { delay(200) }
                 listener.total `should equal` 2
             }
             f1.listener = null
