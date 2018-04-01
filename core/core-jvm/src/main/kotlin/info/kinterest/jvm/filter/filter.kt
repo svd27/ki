@@ -1,15 +1,11 @@
 package info.kinterest.jvm.filter
 
 import info.kinterest.*
-import info.kinterest.functional.Try
-import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.MetaProvider
 import info.kinterest.meta.KIEntityMeta
 import info.kinterest.meta.KIProperty
 import kotlinx.coroutines.experimental.channels.SendChannel
 import kotlinx.coroutines.experimental.launch
-import kotlinx.coroutines.experimental.runBlocking
-import kotlinx.coroutines.experimental.withTimeout
 import mu.KLogging
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -75,16 +71,12 @@ sealed class EntityFilter<E : KIEntity<K>, K : Any>(val meta: KIEntityMeta) : KI
         fun digest(ev: EntityEvent<E, K>) {
             listener?.let {
                 launch {
-                    Try {
-                        runBlocking {
-                            val send = when (ev) {
-                                is EntityCreateEvent, is EntityDeleteEvent -> matches(ev.entity)
-                                is EntityUpdatedEvent -> wants(ev)
-                            }
-                            logger.debug { "digest \n$ev \nsending $send\nfilter: ${this@FilterWrapper}" }
-                            withTimeout(500) { if (send) it.send(ev) }
-                        }
-                    }.getOrElse { logger.error(it) { } }
+                    val send = when (ev) {
+                        is EntityCreateEvent, is EntityDeleteEvent -> matches(ev.entity)
+                        is EntityUpdatedEvent -> wants(ev)
+                    }
+                    logger.debug { "digest \n$ev \nsending $send\nfilter: ${this@FilterWrapper}" }
+                    if (send) it.send(ev)
                 }
             }
         }

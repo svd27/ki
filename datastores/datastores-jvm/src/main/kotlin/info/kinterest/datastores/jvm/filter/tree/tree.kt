@@ -1,8 +1,6 @@
 package info.kinterest.datastores.jvm.filter.tree
 
 import info.kinterest.*
-import info.kinterest.functional.Try
-import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.events.Dispatcher
 import info.kinterest.jvm.filter.*
 import info.kinterest.meta.KIEntityMeta
@@ -11,7 +9,6 @@ import kotlinx.coroutines.experimental.CommonPool
 import kotlinx.coroutines.experimental.channels.Channel
 import kotlinx.coroutines.experimental.launch
 import kotlinx.coroutines.experimental.runBlocking
-import kotlinx.coroutines.experimental.withTimeout
 import mu.KLogging
 
 class FilterTree(events: Dispatcher<EntityEvent<*, *>>, val load: Int) {
@@ -27,14 +24,7 @@ class FilterTree(events: Dispatcher<EntityEvent<*, *>>, val load: Int) {
                 for (ev in listener) {
                     val collect = collect(ev)
                     logger.debug { "$ev collected $collect" }
-                    Try {
-                        runBlocking {
-                            withTimeout(500) {
-                                for (dest in collect) dest.digest(ev.cast())
-                            }
-                        }
-                    }.getOrElse { logger.error(it) { } }
-                    logger.debug { "Done: $ev collected $collect" }
+                    for (dest in collect) dest.digest(ev.cast())
                 }
             }
         }

@@ -13,6 +13,7 @@ import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.MetaProvider
 import info.kinterest.jvm.coreKodein
 import kotlinx.coroutines.experimental.runBlocking
+import kotlinx.coroutines.experimental.withTimeout
 
 class BaseDataStoreTest(cfg: DataStoreConfig) {
     val kodein = Kodein {
@@ -30,13 +31,13 @@ class BaseDataStoreTest(cfg: DataStoreConfig) {
     val ds = fac!!.create(cfg) as JvmMemoryDataStore
     val metaProvider = kodein.instance<MetaProvider>()
     inline fun <reified E : KIEntity<K>, K : Comparable<K>> create(id: K, values: Map<String, Any?>): Try<K> = run {
-        val tryC = ds.create<K>(E::class, id, values)
-        val await = tryC.map { runBlocking { it.await() } }
+        val tryC = ds.create(E::class, id, values)
+        val await = tryC.map { runBlocking { withTimeout(300) { it.await() } } }
         await.flatten()
     }
 
     inline fun <reified E : KIEntity<K>, K : Any> retrieve(ids: Iterable<K>): Try<Iterable<E>> = run {
         val meta = ds[E::class]
-        ds.retrieve<E, K>(meta, ids).map { runBlocking { it.await() } }.getOrElse { throw it }
+        ds.retrieve<E, K>(meta, ids).map { runBlocking { withTimeout(300) { it.await() } } }.getOrElse { throw it }
     }
 }
