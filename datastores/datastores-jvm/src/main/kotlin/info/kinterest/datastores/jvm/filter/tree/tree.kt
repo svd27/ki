@@ -24,11 +24,14 @@ class FilterTree(events: Dispatcher<EntityEvent<*, *>>, val load: Int) {
                 for (ev in listener) {
                     val collect = collect(ev)
                     logger.debug { "$ev collected $collect" }
-                    for (dest in collect) dest.digest(ev.cast())
+                    for (dest in collect) {
+                        logger.debug { "$dest digest" }
+                        dest.digest(ev.cast())
+                    }
                 }
-                logger.debug { "subscribing" }
-                events.subscribing.send(listener)
             }
+            logger.debug { "subscribing" }
+            events.subscribing.send(listener)
         }
     }
 

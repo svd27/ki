@@ -86,6 +86,7 @@ class FilterTreeTest : Spek({
         }
         val listener = object {
             val ch = Channel<EntityEvent<*, *>>()
+            val ping = Channel<Int>()
             var total = 0
             val job: Job
 
@@ -94,11 +95,13 @@ class FilterTreeTest : Spek({
                     for (ev in ch) {
                         logger.debug { "event: $ev" }
                         total++
+                        ping.send(total)
                     }
                 }
             }
 
             fun close() = runBlocking { f.listener = null; ch.close(); job.join() }
+            fun wait(): Int = runBlocking(base.context) { withTimeout(1000) { ping.receive() } }
         }
         f.listener = listener.ch
         filterTree += f
@@ -126,6 +129,7 @@ class FilterTreeTest : Spek({
             logger.debug { e.name }
             it("should hit our filter") {
                 runBlocking(base.context) { delay(200) }
+                listener.wait()
                 listener.total `should equal` 1
             }
         }
@@ -155,10 +159,9 @@ class FilterTreeTest : Spek({
             e.dob = LocalDate.now().minusDays(2)
             it("should hit our filter") {
                 e.dob `should equal` LocalDate.now().minusDays(2)
-                runBlocking(base.context) { delay(200) }
+                listener.wait()
                 listener.total `should equal` 2
             }
-            f1.listener = null
         }
         afterGroup {
             logger.debug { "after ${Runtime.getRuntime().availableProcessors()}" }
