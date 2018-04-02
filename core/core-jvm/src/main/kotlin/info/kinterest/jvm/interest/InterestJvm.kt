@@ -15,18 +15,18 @@ import kotlinx.coroutines.experimental.newFixedThreadPoolContext
 import kotlinx.coroutines.experimental.runBlocking
 
 class InterestJvm<E : KIEntity<K>, K : Any>(override val id: Any, q: Query<E, K>) : Interest<E, K> {
-    private var page: MutableList<E> = mutableListOf()
+    private var page: Page<E, K> = Page(paging, emptyList(), 1)
         set(value) {
             field = value
-            fire(InterestPaged(this, Page(paging, page, if (page.size >= paging.size) 1 else 0)))
+            fire(InterestPaged(this, value))
         }
-    override val entities: Iterable<E> get() = page.toList()
+    override val entities: Page<E, K> get() = page
     private val events: Channel<EntityEvent<E, K>> = Channel()
     @Suppress("UNCHECKED_CAST")
     private val filter = (q.f as EntityFilter.FilterWrapper<E, K>)
     private var query: Query<E, K> = Query.NOQUERY.cast()
         set(value) {
-            page.clear()
+            page = Page(paging, emptyList(), 0)
             runBlocking(pool) {
                 page = query(value).getOrElse {
                     throw InterestError.InterestQueryError(this@InterestJvm, it.message ?: "", it)
@@ -60,12 +60,12 @@ class InterestJvm<E : KIEntity<K>, K : Any>(override val id: Any, q: Query<E, K>
     private suspend fun digest(vararg evts: EntityEvent<E, K>) = page.let { p ->
         val ordering = this.ordering
         val paging = this.paging
-        val oldsize = p.size
+        val oldsize = p.entites.size
 
         class Match {
             val added: MutableList<E> = mutableListOf()
             val removed: MutableList<E> = mutableListOf()
-            val page = p
+            val page = p.entites.toMutableList()
             val addevts: MutableList<E> = mutableListOf()
             val remevts: MutableList<E> = mutableListOf()
             operator fun plus(e: E) {
@@ -126,7 +126,7 @@ class InterestJvm<E : KIEntity<K>, K : Any>(override val id: Any, q: Query<E, K>
             }
         }
         if (match.page.size < oldsize && oldsize >= paging.size) {
-            match.page + query(Query(filter.cast(), ordering, Paging(paging.offset + match.page.size, paging.size - match.page.size))).map { it }.getOrElse { mutableListOf() }
+            match.page + query(Query(filter.cast(), ordering, Paging(paging.offset + match.page.size, paging.size - match.page.size))).map { it }.getOrElse { Page(paging, emptyList(), 0) }
         }
         match.page.sortWith(ordering.cast())
         val adds = match.added.map { match.page.indexOf(it) to it }.filter { it.first < 0 }
@@ -139,11 +139,9 @@ class InterestJvm<E : KIEntity<K>, K : Any>(override val id: Any, q: Query<E, K>
     }
 
 
-    private suspend fun query(query: Query<E, K>): Try<MutableList<E>> = filter.ds.query(query).getOrElse {
+    private suspend fun query(query: Query<E, K>): Try<Page<E, K>> = filter.ds.query(query).getOrElse {
         throw InterestError.InterestQueryError(this, it.message ?: "", it)
-    }.await().map { list ->
-        list.toMutableList()
-    }
+    }.await()
 
 
     private fun fire(vararg evts: InterestEvent<InterestJvm<E, K>, E, K>?) {
@@ -166,12 +164,15 @@ class InterestJvm<E : KIEntity<K>, K : Any>(override val id: Any, q: Query<E, K>
         subscibers -= s
     }
 
-    override fun get(k: K): E? = filter.ds.retrieve<E, K>(filter.meta, listOf(k)).map {
-        runBlocking(pool) { it.await() }.getOrElse { throw it }.firstOrNull()
-    }.getOrElse { throw it }
+    override fun get(k: K): E? = page.let { page ->
+        val e = page.entites.filter { it.id == k }
+        if (e.isEmpty()) filter.ds.retrieve<E, K>(filter.meta, listOf(k)).map {
+            runBlocking(pool) { it.await() }.getOrElse { throw it }.firstOrNull()
+        }.getOrElse { throw it } else e.first()
+    }
 
     override fun get(idx: Int): E? = page.let { p ->
-        if (idx < 0 || idx >= p.size) null else p[idx]
+        p[idx]
     }
 
     companion object {

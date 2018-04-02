@@ -1,11 +1,12 @@
 package info.kinterest
 
+import info.kinterest.paging.Page
 import info.kinterest.paging.Paging
 import info.kinterest.sorting.Ordering
 
 interface Interest<E : KIEntity<K>, K : Any> {
     val id: Any
-    val entities: Iterable<E>
+    val entities: Page<E, K>
     var ordering: Ordering<E, K>
     var paging: Paging
     /**
