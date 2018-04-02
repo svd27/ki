@@ -22,12 +22,12 @@ buildscript {
         maven("https://dl.bintray.com/kotlin/kotlin-eap/")
     }
 
-    val dokka_version = "0.9.16-eap-3"
+    val dokkaVersion = "0.9.16-eap-3"
     dependencies {
         classpath ("org.jetbrains.kotlin:kotlin-gradle-plugin:1.2.30")
         classpath("org.junit.platform:junit-platform-gradle-plugin:1.1.0")
         classpath("com.kncept.junit5.reporter:junit-reporter:1.1.0")
-        classpath("org.jetbrains.dokka:dokka-gradle-plugin:${dokka_version}")
+        classpath("org.jetbrains.dokka:dokka-gradle-plugin:${dokkaVersion}")
     }
 }
 
@@ -51,12 +51,6 @@ apply {
     plugin("org.jetbrains.dokka")
 }
 
-afterEvaluate {
-    configure<KotlinProjectExtension> {
-        experimental.coroutines = Coroutines.ENABLE
-    }
-}
-
 
 buildScan {
     setLicenseAgreementUrl("https://gradle.com/terms-of-service")
@@ -70,6 +64,11 @@ apply {
 allprojects {
     group = "info.kinterest"
     plugins { maven }
+    afterEvaluate {
+        configure<KotlinProjectExtension> {
+            experimental.coroutines = Coroutines.ENABLE
+        }
+    }
 }
 
 
@@ -77,6 +76,7 @@ allprojects {
 apply {
     from("common.gradle.kts")
     from("jvm.gradle.kts")
+    from("js.gradle.kts")
 }
 
 repositories {

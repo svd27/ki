@@ -29,7 +29,7 @@ configure(jvm) {
         plugin("com.kncept.junit5.reporter")
     }
 
-    val arrowVersion = "0.6.1"
+
     dependencies {
         "expectedBy"(project(":core:common"))
         "compile"(kotlin("reflect"))
@@ -51,42 +51,8 @@ configure(jvm) {
         }
 
         "testImplementation"("org.amshove.kluent:kluent:1.35")
-        /*
-        "compile"("io.arrow-kt:arrow-core:$arrowVersion")
-        "compile"("io.arrow-kt:arrow-typeclasses:$arrowVersion")
-        "compile"("io.arrow-kt:arrow-instances:$arrowVersion")
-        "compile"("io.arrow-kt:arrow-data:$arrowVersion")
-        "compile"("io.arrow-kt:arrow-syntax:$arrowVersion")
-        "kapt"("io.arrow-kt:arrow-annotations-processor:$arrowVersion")
-        */
-
-        /*
-        "testCompile"("io.kotlintest:kotlintest:2.0.7")
-        "testCompileOnly"("junit:junit:4.12")
-        "testRuntimeOnly"("org.junit.vintage:junit-vintage-engine:5.1.0")
-        "testImplementation"("org.junit.jupiter:junit-jupiter-api:5.1.0")
-        "testRuntimeOnly"("org.junit.jupiter:junit-jupiter-engine:5.1.0")
-        */
     }
 
-
-    /*
-    tasks.withType<Test>() {
-        useJUnitPlatform()
-        System.setProperty("idea.io.use.fallback", "true")
-        beforeTest( closureOf<Any>{
-            logger.lifecycle("Running Test: $this")
-        })
-        doFirst {
-            useJUnitPlatform()
-            System.setProperty("idea.io.use.fallback", "true")
-            systemProperties = systemProperties + ("projectConfigScan" to "false")
-            testLogging {
-                showStandardStreams = true
-            }
-        }
-    }
-    */
 
     repositories {
         jcenter()

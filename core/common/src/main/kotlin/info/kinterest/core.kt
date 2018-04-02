@@ -83,3 +83,8 @@ sealed class DataStoreError(val ds: DataStore, msg: String, cause: Throwable?) :
 
     class BatchError(msg: String, val meta: KIEntityMeta, ds: DataStore, cause: Throwable? = null) : DataStoreError(ds, msg, cause)
 }
+
+sealed class InterestError(msg: String, cause: Throwable?) : KIRecoverableError(msg, cause) {
+    class InterestCreatiopError(msg: String, cause: Throwable?) : InterestError(msg, cause)
+    class InterestQueryError(val i: Interest<*, *>, msg: String, cause: Throwable?) : InterestError(msg, cause)
+}

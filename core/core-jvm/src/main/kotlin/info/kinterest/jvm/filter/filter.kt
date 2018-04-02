@@ -32,8 +32,16 @@ inline fun <E : KIEntity<K>, K : Any> filter(ds: DataStore, meta: KIEntityMeta, 
 
 typealias FilterWrapper<E, K> = EntityFilter.FilterWrapper<E, K>
 
+
+interface IFilterWrapper<E : KIEntity<K>, K : Any> {
+    val meta: KIEntityMeta
+    fun matches(e: E): Boolean
+    fun wants(upd: EntityUpdatedEvent<E, K>): Boolean
+    fun inverse(): IFilterWrapper<E, K>
+}
+
 @Suppress("EqualsOrHashCode")
-sealed class EntityFilter<E : KIEntity<K>, K : Any>(val meta: KIEntityMeta) : KIFilter<E>() {
+sealed class EntityFilter<E : KIEntity<K>, K : Any>(override val meta: KIEntityMeta) : KIFilter<E>(), IFilterWrapper<E, K> {
     abstract val parent: EntityFilter<E, K>
     open val ds: DataStore
         get() = parent.ds
@@ -50,7 +58,7 @@ sealed class EntityFilter<E : KIEntity<K>, K : Any>(val meta: KIEntityMeta) : KI
      */
     abstract val affectedByAll: Set<KIProperty<*>>
 
-    abstract fun wants(upd: EntityUpdatedEvent<E, K>): Boolean
+    abstract override fun wants(upd: EntityUpdatedEvent<E, K>): Boolean
 
     class Empty<E : KIEntity<K>, K : Any>(meta: KIEntityMeta) : EntityFilter<E, K>(meta) {
         override lateinit var parent: EntityFilter<E, K>
@@ -66,7 +74,7 @@ sealed class EntityFilter<E : KIEntity<K>, K : Any>(val meta: KIEntityMeta) : KI
         override fun wants(upd: EntityUpdatedEvent<E, K>) = DONTDOTHIS()
     }
 
-    class FilterWrapper<E : KIEntity<K>, K : Any>(override val ds: DataStore, meta: KIEntityMeta) : EntityFilter<E, K>(meta) {
+    class FilterWrapper<E : KIEntity<K>, K : Any>(override val ds: DataStore, meta: KIEntityMeta) : EntityFilter<E, K>(meta), IFilterWrapper<E, K> {
         lateinit var f: EntityFilter<E, K>
         var listener: SendChannel<EntityEvent<E, K>>? = null
 
@@ -162,10 +170,10 @@ sealed class EntityFilter<E : KIEntity<K>, K : Any>(val meta: KIEntityMeta) : KI
     }
 
     @Suppress("UNUSED_PARAMETER")
-    private fun <R, P> withProp(name: String, value: P, cb: (KIProperty<P>) -> R) = meta.props[name]?.let { cb(it.cast()) }
+    private fun <R, P> withProp(name: String, value: P, cb: (KIProperty<P>) -> R): R = meta.props[name]?.let { cb(it.cast()) }
             ?: throw FilterError("property $this not found in ${meta.me}")
 
-    abstract fun inverse(): EntityFilter<E, K>
+    abstract override fun inverse(): EntityFilter<E, K>
 
     override fun equals(other: Any?): Boolean = if (other === this) true else {
         if (other is EntityFilter<*, *>) {

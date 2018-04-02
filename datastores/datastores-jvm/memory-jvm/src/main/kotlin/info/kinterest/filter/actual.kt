@@ -1,5 +1,5 @@
 package info.kinterest.filter
 
-import info.kinterest.jvm.filter.EntityFilter.FilterWrapper
+import info.kinterest.jvm.filter.IFilterWrapper
 
-actual typealias Filter<E, K> = FilterWrapper<E, K>
+actual typealias Filter<E, K> = IFilterWrapper<E, K>
