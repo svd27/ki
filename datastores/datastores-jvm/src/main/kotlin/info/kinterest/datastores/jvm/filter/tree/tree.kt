@@ -1,3 +1,5 @@
+@file:Suppress("unused")
+
 package info.kinterest.datastores.jvm.filter.tree
 
 import info.kinterest.*
@@ -12,9 +14,9 @@ import kotlinx.coroutines.experimental.newFixedThreadPoolContext
 import kotlinx.coroutines.experimental.runBlocking
 import mu.KLogging
 
-class FilterTree(events: Dispatcher<EntityEvent<*, *>>, val load: Int) {
+class FilterTree(events: Dispatcher<EntityEvent<*, *>>, load: Int) {
     internal var root: Node.Root = Node.Root(load)
-    fun collect(ev: EntityEvent<*, *>) = root.collect(ev)
+    private fun collect(ev: EntityEvent<*, *>) = root.collect(ev)
 
     init {
         val listener = Channel<EntityEvent<*, *>>()
@@ -55,8 +57,8 @@ class FilterTree(events: Dispatcher<EntityEvent<*, *>>, val load: Int) {
             }
 
             class EntitySplitNode(load: Int, meta: KIEntityMeta, override val filters: Set<FilterWrapper<*, *>>) : EntityBasedNode(load, meta) {
-                var idNode: IDNode = IDNode(load, meta, setOf())
-                var propertyNodes: Map<KIProperty<*>, PropertyNode> = mapOf()
+                private var idNode: IDNode = IDNode(load, meta, setOf())
+                private var propertyNodes: Map<KIProperty<*>, PropertyNode> = mapOf()
 
                 init {
                     val fits = filters.map { it to bestFit(it) }
@@ -99,7 +101,7 @@ class FilterTree(events: Dispatcher<EntityEvent<*, *>>, val load: Int) {
                 }
             }
 
-            class PropertyNode(load: Int, meta: KIEntityMeta, val property: KIProperty<*>, override val filters: Set<FilterWrapper<*, *>>) : EntityBasedNode(load, meta) {
+            class PropertyNode(load: Int, meta: KIEntityMeta, private val property: KIProperty<*>, override val filters: Set<FilterWrapper<*, *>>) : EntityBasedNode(load, meta) {
 
                 override fun plus(f: FilterWrapper<*, *>): PropertyNode = PropertyNode(load, meta, property, filters + f)
 
@@ -108,15 +110,10 @@ class FilterTree(events: Dispatcher<EntityEvent<*, *>>, val load: Int) {
                 override fun collect(ev: EntityEvent<*, *>): Set<FilterWrapper<*, *>> = when (ev) {
                     is EntityCreateEvent, is EntityDeleteEvent -> filters
                     is EntityUpdatedEvent ->
-                        if (ev.updates.filter { it.prop == property }.isNotEmpty())
+                        if (ev.updates.any { it.prop == property })
                             filters
                         else setOf()
                 }
-            }
-
-            sealed class PropertyRangeNode(load: Int, meta: KIEntityMeta, val property: KIProperty<*>, val min: Any, val max: Any) {
-                class LTRange(load: Int, meta: KIEntityMeta, property: KIProperty<*>, min: Any, max: Any) : PropertyRangeNode(load, meta, property, min, max)
-                class GTERange(load: Int, meta: KIEntityMeta, property: KIProperty<*>, min: Any, max: Any) : PropertyRangeNode(load, meta, property, min, max)
             }
         }
 

@@ -1,6 +1,7 @@
 package info.kinterest.jvm.filter
 
 import info.kinterest.*
+import info.kinterest.filter.Filter
 import info.kinterest.jvm.MetaProvider
 import info.kinterest.jvm.datastores.DataStoreFacade
 import info.kinterest.meta.KIEntityMeta
@@ -19,7 +20,7 @@ sealed class KIFilter<T> {
     abstract fun matches(e: T): Boolean
 }
 
-inline fun <reified E : KIEntity<K>, K : Any> filter(ds: DataStoreFacade, provider: MetaProvider, crossinline cb: EntityFilter<E, K>.() -> EntityFilter<E, K>): FilterWrapper<E, K> = run {
+inline fun <reified E : KIEntity<K>, K : Any> filter(ds: DataStoreFacade, provider: MetaProvider, crossinline cb: Filter<E, K>.() -> EntityFilter<E, K>): FilterWrapper<E, K> = run {
     val meta = provider.meta(E::class) as KIEntityMeta
     filter(ds, meta, cb)
 }
@@ -35,6 +36,7 @@ typealias FilterWrapper<E, K> = EntityFilter.FilterWrapper<E, K>
 
 
 interface IFilterWrapper<E : KIEntity<K>, K : Any> {
+    val f: Filter<E, K>
     val meta: KIEntityMeta
     fun matches(e: E): Boolean
     fun wants(upd: EntityUpdatedEvent<E, K>): Boolean
@@ -44,6 +46,8 @@ interface IFilterWrapper<E : KIEntity<K>, K : Any> {
 @Suppress("EqualsOrHashCode")
 sealed class EntityFilter<E : KIEntity<K>, K : Any>(override val meta: KIEntityMeta) : KIFilter<E>(), IFilterWrapper<E, K> {
     abstract val parent: EntityFilter<E, K>
+    override val f: Filter<E, K>
+        get() = this
     open val ds: DataStore
         get() = parent.ds
     /**
@@ -76,7 +80,7 @@ sealed class EntityFilter<E : KIEntity<K>, K : Any>(override val meta: KIEntityM
     }
 
     class FilterWrapper<E : KIEntity<K>, K : Any>(override val ds: DataStoreFacade, meta: KIEntityMeta) : EntityFilter<E, K>(meta), IFilterWrapper<E, K> {
-        lateinit var f: EntityFilter<E, K>
+        override lateinit var f: EntityFilter<E, K>
         var listener: SendChannel<EntityEvent<E, K>>? = null
 
         fun digest(ev: EntityEvent<E, K>) {
@@ -219,16 +223,17 @@ class StaticEntityFilter<E : KIEntity<K>, K : Any>(private val ids: Set<K>, meta
 }
 
 sealed class IdValueFilter<E : KIEntity<K>, K : Any>(meta: KIEntityMeta, parent: EntityFilter<E, K>) : IdFilter<E, K>(meta, parent)
-class IdComparisonFilter<E : KIEntity<K>, K : Any>(meta: KIEntityMeta, parent: EntityFilter<E, K>, val f: PropertyValueFilter<E, K, K>) : IdValueFilter<E, K>(meta, parent) {
-    override fun matches(e: E): Boolean = f.matches(e)
+class IdComparisonFilter<E : KIEntity<K>, K : Any>(meta: KIEntityMeta, parent: EntityFilter<E, K>, val valueFilter
+: PropertyValueFilter<E, K, K>) : IdValueFilter<E, K>(meta, parent) {
+    override fun matches(e: E): Boolean = valueFilter.matches(e)
 
     @Suppress("UNCHECKED_CAST")
-    override fun inverse(): EntityFilter<E, K> = IdComparisonFilter(meta, parent, f.inverse() as PropertyValueFilter<E, K, K>)
+    override fun inverse(): EntityFilter<E, K> = IdComparisonFilter(meta, parent, valueFilter.inverse() as PropertyValueFilter<E, K, K>)
 
     override fun contentEquals(f: EntityFilter<*, *>): Boolean = DONTDOTHIS("equals overridden")
-    override fun equals(other: Any?): Boolean = if (other is IdComparisonFilter<*, *>) f == other else false
-    override fun hashCode(): Int = f.hashCode()
-    override fun toString(): String = f.toString()
+    override fun equals(other: Any?): Boolean = if (other is IdComparisonFilter<*, *>) valueFilter == other.valueFilter else false
+    override fun hashCode(): Int = valueFilter.hashCode()
+    override fun toString(): String = valueFilter.toString()
 }
 
 sealed class PropertyFilter<E : KIEntity<K>, K : Any, P>(val prop: KIProperty<P>, meta: KIEntityMeta, override val parent: EntityFilter<E, K>) : EntityFilter<E, K>(meta) {

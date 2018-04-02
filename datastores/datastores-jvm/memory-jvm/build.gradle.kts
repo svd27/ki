@@ -18,7 +18,7 @@ kotlin {
 
 
 kapt {
-    arguments { arg("targets", "jvm.memory") }
+    arguments { arg("targets", "jvm") }
 }
 
 tasks.withType<Test>() {

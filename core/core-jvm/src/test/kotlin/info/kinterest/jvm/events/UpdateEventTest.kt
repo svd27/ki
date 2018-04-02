@@ -23,6 +23,8 @@ class AnEntity(override val id: Long, var name: String, var score: Int) : KIEnti
                 get() = AnEntity::class
             override val parent: Klass<*>?
                 get() = null
+            override val versioned: Boolean
+                get() = false
         }
     }
 

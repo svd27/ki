@@ -7,6 +7,7 @@ import info.kinterest.meta.KIEntityMeta
 
 @Suppress("AddVarianceModifier")
 expect interface Filter<E : KIEntity<K>, K : Any> {
+    val f: Filter<E, K>
     val meta: KIEntityMeta
     fun matches(e: E): Boolean
     fun wants(upd: EntityUpdatedEvent<E, K>): Boolean
@@ -14,6 +15,8 @@ expect interface Filter<E : KIEntity<K>, K : Any> {
 }
 
 val NOFILTER = object : Filter<Nothing, Nothing> {
+    override val f: Filter<Nothing, Nothing>
+        get() = this
     override val meta: KIEntityMeta
         get() = DONTDOTHIS()
 

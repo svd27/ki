@@ -8,6 +8,7 @@ import info.kinterest.UUID
 import info.kinterest.annotations.Entity
 import info.kinterest.annotations.StorageTypes
 import info.kinterest.datastores.jvm.DataStoreConfig
+import info.kinterest.datastores.jvm.memory.jvm.TestEventsEntityJvm
 import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.events.Dispatcher
 import kotlinx.coroutines.experimental.Job
@@ -66,6 +67,7 @@ object TestEvents : Spek ({
             @Suppress("UNCHECKED_CAST")
             dispatcher.subscribing.send(listener.ch)
         }
+        base.metaProvider.register(TestEventsEntityJvm.meta)
         val e = base.create<TestEventsEntity,UUID>(UUID.randomUUID(), mapOf("dob" to LocalDate.now()))
         on("subscribing and creating an entity") {
             val k = e.getOrElse { log.debug(it) {} }

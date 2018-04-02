@@ -11,8 +11,8 @@ import info.kinterest.cast
 import info.kinterest.datastores.jvm.DataStoreConfig
 import info.kinterest.datastores.jvm.DataStoreFactoryProvider
 import info.kinterest.datastores.jvm.datasourceKodein
-import info.kinterest.datastores.jvm.memory.jvm.mem.TestRootJvmMem
-import info.kinterest.datastores.jvm.memory.jvm.mem.TestVersionedJvmMem
+import info.kinterest.datastores.jvm.memory.jvm.TestRootJvm
+import info.kinterest.datastores.jvm.memory.jvm.TestVersionedJvm
 import info.kinterest.functional.flatten
 import info.kinterest.functional.getOrDefault
 import info.kinterest.functional.getOrElse
@@ -79,11 +79,11 @@ object TestJvmMem : Spek({
 
         val mem = ds.cast<JvmMemoryDataStore>()
         mem[TestRoot::class]
-        val kdef = mem.create(TestRoot::class, "a", mapOf("name" to "aname"))
+        val kdef = mem.create(TestRootJvm.meta, listOf("a" to mapOf("name" to "aname")))
         val deferred = kdef.getOrDefault { null }
         val tryk = runBlocking { deferred?.await()  }
-        val k = tryk?.getOrDefault { null }
-        val da = mem.retrieve<TestRoot,String>(metaProvider.meta(TestRoot::class)!!, listOf(k!!))
+        val k = tryk?.getOrDefault { throw it }!!.first()
+        val da = mem.retrieve<TestRoot, String>(metaProvider.meta(TestRoot::class)!!, listOf(k))
         val atry = da.map { runBlocking { it.await() } }.flatten()
         atry.isSuccess shouldBe true
         val e = atry.getOrElse { null}!!.first()
@@ -113,11 +113,11 @@ object TestJvmMem : Spek({
 
 
         fun create(k:String) : TestRoot = run {
-            val kd = mem.create(TestRoot::class, k, mapOf("name" to "aname"))
-            val def = kd.getOrDefault { null }
-            val tk = runBlocking { def?.await()  }
-            val key = tk?.getOrDefault { null }
-            val dret = mem.retrieve<TestRoot,String>(TestRootJvmMem.meta, listOf(key!!))
+            val kd = mem.create(TestRootJvm.meta, listOf(k to mapOf("name" to "aname")))
+            val def = kd.getOrDefault { throw it }
+            val tk = runBlocking { def.await() }
+            val key = tk.getOrDefault { throw it }.first()
+            val dret = mem.retrieve<TestRoot, String>(TestRootJvm.meta, listOf(key))
             val tryret = dret.map { runBlocking { it.await() } }.flatten()
             tryret.getOrElse { listOf()}.first()
         }
@@ -134,13 +134,13 @@ object TestJvmMem : Spek({
         }
 
         on("creating an entity with an existing id") {
-            val kd = mem.create(TestRoot::class, "a", mapOf("name" to "aname"))
-            val def = kd.getOrDefault { null }
-            val tk = runBlocking { def?.await()  }
+            val kd = mem.create(TestRootJvm.meta, listOf("a" to mapOf("name" to "aname")))
+            val def = kd.getOrDefault { throw it }
+            val tk = runBlocking { def.await() }
             it("should fail") {
-                tk!!.isSuccess.`should be false`()
+                tk.isSuccess.`should be false`()
             }
-            val ex = tk!!.fold({ it }, { null })
+            val ex = tk.fold({ it }, { null })
             it("should have an exception of proper type") {
                 ex.`should not be null`()
                 ex `should be instance of` DataStoreError.EntityError.EntityExists::class
@@ -172,23 +172,23 @@ class TestVersion : Spek({
         val ds = fac.factories[cfg.type]!!.create(cfg)
 
         val mem = ds.cast<JvmMemoryDataStore>()
-        val tryDefer = mem.create(TestVersioned::class, 0.toLong(), mapOf("name" to "aname", "someone" to "not me"))
-        val kdefer = tryDefer.getOrElse { null }!!
+        val tryDefer = mem.create(TestVersionedJvm.meta, listOf(0.toLong() to mapOf("name" to "aname", "someone" to "not me")))
+        val kdefer = tryDefer.getOrElse { throw it }
         val tryk = runBlocking { kdefer.await() }
-        val k = tryk.getOrDefault { log.error(it) { it }; (-1).toLong() }
-        val retrDeferred = mem.retrieve<TestVersioned, Long>(TestVersionedJvmMem.meta, listOf(k))
+        val k = tryk.getOrElse { throw it }.first()
+        val retrDeferred = mem.retrieve<TestVersioned, Long>(TestVersionedJvm.meta, listOf(k))
         val tryVersioned = retrDeferred.map { runBlocking { it.await() } }.flatten()
         val entity = tryVersioned.getOrDefault { listOf() }.first()
 
         @Suppress("unused")
         fun create(id: Long): TestVersioned = run {
-            val td = mem.create(TestVersioned::class, id, mapOf("name" to "aname", "someone" to "not me"))
+            val td = mem.create(TestVersionedJvm.meta, listOf(id to mapOf("name" to "aname", "someone" to "not me")))
             val kd = td.getOrElse { null }!!
             val tk = runBlocking { kd.await() }
-            val key = tk.getOrDefault { log.error(it) { it }; (-1).toLong() }
-            val rd = mem.retrieve<TestVersioned, Long>(TestVersionedJvmMem.meta, listOf(key))
+            val key = tk.getOrElse { throw it }.first()
+            val rd = mem.retrieve<TestVersioned, Long>(TestVersionedJvm.meta, listOf(key))
             val tv = rd.map { runBlocking { it.await() } }.flatten()
-            tv.getOrDefault { listOf() }.first()
+            tv.getOrElse { throw it }.first()
         }
         on("checking the result") {
             it("should be fine") {
@@ -197,11 +197,11 @@ class TestVersion : Spek({
             }
         }
 
-        val versionInitial = mem.version<TestVersioned, Long>(k)
+        val versionInitial = mem.version(TestVersionedJvm.meta, k)
         on("checking the version") {
             it("should be initial") {
                 versionInitial.`should not be null`()
-                versionInitial!! `should be equal to` 0.toLong()
+                versionInitial as Long `should be equal to` 0.toLong()
             }
         }
 
@@ -220,9 +220,9 @@ class TestVersion : Spek({
                 entity.someone.`should not be null or blank`()
                 entity.someone `should be equal to` "not me, but someone else"
             }
-            val versionInc = entity.cast<Versioned<Long>>()._version
+            val versionInc = entity.cast<Versioned>()._version
             it("should have a new version") {
-                versionInc `should be equal to` 1.toLong()
+                versionInc as Long `should be equal to` 1.toLong()
             }
 
         }
@@ -230,7 +230,7 @@ class TestVersion : Spek({
 
 
         on("attempting to set a values with the wrong version") {
-            val deferSet = mem.setValues(TestVersionedJvmMem.meta, entity.id, 0.toLong(), mapOf(TestVersionedJvmMem.Companion.Meta.PROP_SOMEONE to "oh no"))
+            val deferSet = mem.setValues(TestVersionedJvm.meta, entity.id, 0.toLong(), mapOf(TestVersionedJvm.meta.PROP_SOMEONE to "oh no"))
             val trySet = runBlocking { deferSet.await() }
             val ex = trySet.toEither().swap().getOrElse { null }!!
             trySet.getOrElse { log.trace(it) { } }
@@ -275,11 +275,11 @@ object TestDelete : Spek({
 
         val mem = ds.cast<JvmMemoryDataStore>()
         fun create(k: String): TestRoot = run {
-            val kdef = mem.create(TestRoot::class, k, mapOf("name" to "aname"))
-            val deferred = kdef.getOrDefault { null }
-            val tryk = runBlocking { deferred?.await() }
-            val key = tryk?.getOrDefault { null }
-            val da = mem.retrieve<TestRoot, String>(TestRootJvmMem.meta, listOf(key!!))
+            val kdef = mem.create(TestRootJvm.meta, listOf(k to mapOf("name" to "aname")))
+            val deferred = kdef.getOrElse { throw it }
+            val tryk = runBlocking { deferred.await() }
+            val key = tryk.getOrElse { throw it }.first()
+            val da = mem.retrieve<TestRoot, String>(TestRootJvm.meta, listOf(key))
             val atry = da.map { runBlocking { it.await() } }.flatten()
             atry.isSuccess shouldBe true
             atry.getOrElse { listOf() }.first()
@@ -291,9 +291,9 @@ object TestDelete : Spek({
                 entity.`should not be null`()
             }
         }
-        val tdel = mem.delete(TestRootJvmMem.meta, listOf("k"))
+        val tdel = mem.delete(TestRootJvm.meta, listOf("k"))
         val res = tdel.map { runBlocking { it.await() } }.fold({ null }, { it })?.fold({ null }, { it })
-        val tret = mem.retrieve<TestRoot, String>(TestRootJvmMem.meta, listOf("k")).let { it.map { runBlocking { it.await() } } }.flatten()
+        val tret = mem.retrieve<TestRoot, String>(TestRootJvm.meta, listOf("k")).let { it.map { runBlocking { it.await() } } }.flatten()
         on("deleting the entity") {
             it("can be called") {
                 tdel.isSuccess.`should be true`()

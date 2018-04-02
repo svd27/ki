@@ -5,8 +5,8 @@ import info.kinterest.DataStore
 import info.kinterest.TransientEntity
 import info.kinterest.Versioned
 import info.kinterest.annotations.Entity
-import info.kinterest.datastores.jvm.memory.JvmMemoryDataStore
-import info.kinterest.datastores.jvm.memory.KIJvmMemEntity
+import info.kinterest.jvm.KIJvmEntity
+import info.kinterest.jvm.datastores.DataStoreFacade
 import info.kinterest.meta.*
 import org.jetbrains.annotations.Nullable
 import org.yanex.takenoko.*
@@ -22,7 +22,7 @@ import kotlin.reflect.KClass
 
 class EntityInfo(val type: TypeElement, env: ProcessingEnvironment) {
     val srcPkg = type.qualifiedName.split('.').dropLast(1).joinToString(separator = ".")
-    val targetPkg = "$srcPkg.${JvmMemoryGenerator.store}"
+    val targetPkg = "$srcPkg.${JvmGenerator.type}"
     val root: TypeElement
     val parent: TypeElement?
 
@@ -38,7 +38,7 @@ class EntityInfo(val type: TypeElement, env: ProcessingEnvironment) {
     }
 
 
-    val name = type.simpleName.toString() + JvmMemoryGenerator.suffix
+    val name = type.simpleName.toString() + JvmGenerator.suffix
     val idGetter = type.enclosedElements.filter { el: Element? -> el is ExecutableElement }.first { it.simpleName.toString().equals("getId") }
     val idExecutableType: ExecutableType = idGetter.asType() as ExecutableType
     val idDecType = when (idExecutableType.returnType) {
@@ -128,6 +128,7 @@ fun String.normalize(): String = if (startsWith("java.lang")) {
         java.lang.Integer::class.java.canonicalName -> Int::class.qualifiedName!!
         java.lang.Long::class.java.canonicalName -> Long::class.qualifiedName!!
         java.lang.Short::class.java.canonicalName -> Short::class.qualifiedName!!
+        java.lang.Object::class.java.canonicalName -> Any::class.qualifiedName!!
 
         java.lang.String::class.java.canonicalName -> String::class.qualifiedName!!
 
@@ -159,10 +160,10 @@ sealed class Typing {
     }
 }
 
-object JvmMemoryGenerator : Generator {
-    override val store: String
-        get() = "jvm.mem"
-    val suffix = store.split('.').map { it.capitalize() }.joinToString("")
+object JvmGenerator : Generator {
+    override val type: String
+        get() = "jvm"
+    val suffix = type.split('.').map { it.capitalize() }.joinToString("")
 
 
     override fun generate(type: TypeElement, round: RoundEnvironment, env: ProcessingEnvironment): Pair<String, String>? = kotlin.run {
@@ -175,15 +176,15 @@ object JvmMemoryGenerator : Generator {
                     import(parseType(KIProperty::class.java))
                     classDeclaration(entity.name) {
                         primaryConstructor() {
-                            property("store", parseType(JvmMemoryDataStore::class.qualifiedName!!), VAL)
+                            param("_store", parseType(DataStoreFacade::class.qualifiedName!!))
                             param("id", entity.idKoType)
                         }
                         extends(
-                                parseType("${KIJvmMemEntity::class.qualifiedName}<${entity.type.simpleName},${entity.idTypeStr}>"),
-                                "store", "id")
+                                parseType("${KIJvmEntity::class.qualifiedName}<${entity.type.simpleName},${entity.idTypeStr}>"),
+                                "_store", "id")
                         implements(KoType.Companion.parseType("${entity.type.qualifiedName}"))
                         if (entity.versioned)
-                            implements(parseType("Versioned<Long>"))
+                            implements(parseType("Versioned"))
                         property("_meta", null, OVERRIDE + VAL) {
                             getter(KoModifierList.Empty, true) {
                                 append("Meta")
@@ -196,10 +197,10 @@ object JvmMemoryGenerator : Generator {
                         }
 
                         if (entity.versioned)
-                            property<Long>("_version", VAL + OVERRIDE) {
+                            property<Any>("_version", VAL + OVERRIDE) {
                                 getter(KoModifierList.Empty, true) {
                                     append("""
-                                        store.version<${entity.type.simpleName},${entity.idTypeStr}>(id)!!
+                                        _store.version(_meta, id)
                                     """.trimIndent())
                                 }
                             }
@@ -247,6 +248,9 @@ object JvmMemoryGenerator : Generator {
                                 }
                                 property("parent", parseType("${KClass::class.qualifiedName}<*>").nullable, OVERRIDE + VAL) {
                                     initializer(entity.parent?.let { "${entity.parent}::class" } ?: "null")
+                                }
+                                property("versioned", parseType(Boolean::class.java), OVERRIDE + VAL) {
+                                    initializer(entity.versioned)
                                 }
                                 entity.fields.forEach {
                                     env.note("${it.name} ${it.propMetaType} ${it.typeName} ${it.type}")
@@ -356,15 +360,6 @@ object JvmMemoryGenerator : Generator {
                                 }
                             }
 
-                            function("create", OVERRIDE) {
-                                typeParam("DS", parseType("${DataStore::class.qualifiedName}"))
-                                param("ds", parseType("DS"))
-                                param("id", parseType(entity.idTypeStr))
-                                param("values", parseType("Map<String,Any?>"))
-                                body(true) {
-                                    append("(ds as JvmMemoryDataStore).create(Meta.me, id, values) as Unit")
-                                }
-                            }
                         }
                     }
                 }.accept(PrettyPrinter(PrettyPrinterConfiguration()))

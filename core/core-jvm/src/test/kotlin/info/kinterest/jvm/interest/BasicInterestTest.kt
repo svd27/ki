@@ -1,8 +1,6 @@
 package info.kinterest.jvm.interest
 
-import com.nhaarman.mockito_kotlin.whenever
 import info.kinterest.DataStore
-
 import org.amshove.kluent.mock
 import org.jetbrains.spek.api.Spek
 import org.jetbrains.spek.api.dsl.given
@@ -10,6 +8,6 @@ import org.jetbrains.spek.api.dsl.given
 class BasicInterestTest : Spek({
     given("a datastore") {
         val ds: DataStore = mock()
-        whenever(ds.q)
+        //whenever(ds.q)
     }
 })

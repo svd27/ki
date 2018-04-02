@@ -11,7 +11,7 @@ dependencies {
 plugins { idea }
 
 kapt {
-    arguments { arg("targets", "jvm.memory") }
+    arguments { arg("targets", "jvm") }
 }
 
 kotlin {

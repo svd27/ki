@@ -10,12 +10,6 @@ dependencies {
     compile(project(":datastores:datastores-jvm:memory-jvm"))
 }
 
-tasks.withType<Test> {
-    doFirst {
-        systemProperties = systemProperties + ("projectConfigScan" to "false")
-    }
-}
-
 
 plugins {
     kotlin("jvm")
@@ -30,7 +24,7 @@ jacoco {
 }
 
 kapt {
-    arguments { arg("targets", "jvm.memory") }
+    arguments { arg("targets", "jvm") }
 }
 kotlin {
     experimental.coroutines = Coroutines.ENABLE

@@ -14,6 +14,7 @@ import kotlinx.coroutines.experimental.Deferred
 
 interface DataStoreFacade : DataStore {
     override val name: String
+    fun <K : Any> version(type: KIEntityMeta, id: K): Any
     fun <E : KIEntity<K>, K : Any> query(type: KIEntityMeta, f: EntityFilter<E, K>): Try<Deferred<Try<Iterable<K>>>>
     fun <E : KIEntity<K>, K : Any> query(query: Query<E, K>): Try<Deferred<Try<Page<E, K>>>>
     fun <E : KIEntity<K>, K : Any> retrieve(type: KIEntityMeta, ids: Iterable<K>): Try<Deferred<Try<Iterable<E>>>>

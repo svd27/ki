@@ -21,6 +21,7 @@ import org.jetbrains.spek.api.dsl.on
 import java.time.LocalDate
 import kotlin.reflect.KClass
 
+@Suppress("MemberVisibilityCanBePrivate")
 class TestFilter(override val id: String, val top: Int?, val date: LocalDate) : KIEntity<String> {
     @Suppress("PropertyName")
     override val _store: DataStore
@@ -55,6 +56,8 @@ class TestFilter(override val id: String, val top: Int?, val date: LocalDate) : 
                 get() = TestFilter::class
             override val parent: KClass<*>?
                 get() = null
+            override val versioned: Boolean
+                get() = false
         }
 
         init {
@@ -78,9 +81,6 @@ object SimpleTest : Spek({
                 f `should be instance of` EntityFilter.FilterWrapper::class
                 f.f `should be instance of` GTFilter::class
             }
-        }
-        val f1 = filter<TestFilter, String>(mock(), TestFilter.Companion.Meta) {
-            parse("TestFilter{(top < 2&&top>=0) || top<20}", Metas)
         }
     }
 

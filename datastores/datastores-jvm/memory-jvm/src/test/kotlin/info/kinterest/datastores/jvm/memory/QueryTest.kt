@@ -3,7 +3,7 @@ package info.kinterest.datastores.jvm.memory
 import info.kinterest.cast
 import info.kinterest.core.jvm.filters.parser.parse
 import info.kinterest.datastores.jvm.DataStoreConfig
-import info.kinterest.datastores.jvm.memory.jvm.mem.QueryEntityJvmMem
+import info.kinterest.datastores.jvm.memory.jvm.QueryEntityJvm
 import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.filter.filter
 import info.kinterest.paging.Paging
@@ -20,7 +20,7 @@ import org.jetbrains.spek.api.dsl.on
 import java.time.LocalDate
 
 class QueryTest : Spek({
-    val meta = QueryEntityJvmMem.Companion.Meta
+    val meta = QueryEntityJvm.Companion.Meta
     given("a query") {
         val base = BaseMemTest(object : DataStoreConfig {
             override val name: String

@@ -4,7 +4,7 @@ import com.github.salomonbrys.kodein.instance
 import info.kinterest.EntityEvent
 import info.kinterest.core.jvm.filters.parse
 import info.kinterest.datastores.jvm.DataStoreConfig
-import info.kinterest.datastores.jvm.filter.tree.jvm.mem.SomeEntityJvmMem
+import info.kinterest.datastores.jvm.filter.tree.jvm.SomeEntityJvm
 import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.filter.filter
 import kotlinx.coroutines.experimental.*
@@ -29,43 +29,43 @@ class FilterTreeTest : Spek({
             override val config: Map<String, Any?>
                 get() = mapOf()
         })
-        base.metaProvider.register(SomeEntityJvmMem.meta)
-        val filterTree: FilterTree = FilterTree(base.kodein.instance("entities"), 3)
-        val f = filter<SomeEntity, Long>(base.ds, SomeEntityJvmMem.meta) {
+        base.metaProvider.register(SomeEntityJvm.meta)
+        val filterTree = FilterTree(base.kodein.instance("entities"), 3)
+        val f = filter<SomeEntity, Long>(base.ds, SomeEntityJvm.meta) {
             parse("name >= \"W\"", base.metaProvider, base.ds)
         }
         on("adding a filter") {
             filterTree += f
             it("should have a proper structure") {
-                filterTree.root.entities `should have key` SomeEntityJvmMem.meta
-                filterTree.root[SomeEntityJvmMem.meta].filters.size `should equal` 1
+                filterTree.root.entities `should have key` SomeEntityJvm.meta
+                filterTree.root[SomeEntityJvm.meta].filters.size `should equal` 1
             }
         }
 
         on("adding a filter again") {
             filterTree += f
             it("nothing should happen") {
-                filterTree.root.entities `should have key` SomeEntityJvmMem.meta
-                filterTree.root[SomeEntityJvmMem.meta].filters.size `should equal` 1
+                filterTree.root.entities `should have key` SomeEntityJvm.meta
+                filterTree.root[SomeEntityJvm.meta].filters.size `should equal` 1
             }
         }
-        val f1 = filter<SomeEntity, Long>(base.ds, SomeEntityJvmMem.meta) {
+        val f1 = filter<SomeEntity, Long>(base.ds, SomeEntityJvm.meta) {
             parse("name >= \"W\"", base.metaProvider, base.ds)
         }
 
         on("adding a second identical filter") {
             filterTree += f1
             it("it should change") {
-                filterTree.root.entities `should have key` SomeEntityJvmMem.meta
-                filterTree.root[SomeEntityJvmMem.meta].filters.size `should equal` 2
+                filterTree.root.entities `should have key` SomeEntityJvm.meta
+                filterTree.root[SomeEntityJvm.meta].filters.size `should equal` 2
             }
         }
 
         on("removing a second identical filter") {
             filterTree -= f1
             it("it should change") {
-                filterTree.root.entities `should have key` SomeEntityJvmMem.meta
-                filterTree.root[SomeEntityJvmMem.meta].filters.size `should equal` 1
+                filterTree.root.entities `should have key` SomeEntityJvm.meta
+                filterTree.root[SomeEntityJvm.meta].filters.size `should equal` 1
             }
         }
     }
@@ -79,9 +79,9 @@ class FilterTreeTest : Spek({
             override val config: Map<String, Any?>
                 get() = mapOf()
         })
-        base.metaProvider.register(SomeEntityJvmMem.meta)
+        base.metaProvider.register(SomeEntityJvm.meta)
         val filterTree = FilterTree(base.kodein.instance("entities"), 3)
-        val f = filter<SomeEntity, Long>(base.ds, SomeEntityJvmMem.meta) {
+        val f = filter<SomeEntity, Long>(base.ds, SomeEntityJvm.meta) {
             parse("name >= \"W\"", base.metaProvider, base.ds)
         }
         val listener = object {
@@ -149,7 +149,7 @@ class FilterTreeTest : Spek({
 
         on("another filter which reacts to that property") {
             logger.debug { "fourth" }
-            val f1 = filter<SomeEntity, Long>(base.ds, SomeEntityJvmMem.meta) {
+            val f1 = filter<SomeEntity, Long>(base.ds, SomeEntityJvm.meta) {
                 val ds = LocalDate.now().minusDays(1).format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))
                 parse("""dob >= date("$ds", "dd.MM.yyyy")""", base.metaProvider, base.ds)
             }

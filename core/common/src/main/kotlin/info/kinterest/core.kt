@@ -2,6 +2,7 @@ package info.kinterest
 
 import info.kinterest.meta.KIEntityMeta
 import info.kinterest.meta.KIProperty
+import kotlin.reflect.KClass
 
 
 @Suppress("unused")
@@ -39,13 +40,11 @@ interface EntitySupport<K : Any> {
      * creates a new transient entity, requires that all properties are given in their ctor order
      */
     fun transient(id: K?, values: Map<String, Any?>): TransientEntity<K>
-
-    fun <DS : DataStore> create(ds: DS, id: K, values: Map<String, Any?>)
 }
 
-interface Versioned<out V> {
+interface Versioned {
     @Suppress("PropertyName")
-    val _version: V
+    val _version: Any
 }
 
 sealed class KIError(msg: String, cause: Throwable?) : Exception(msg, cause)
@@ -74,7 +73,7 @@ sealed class DataStoreError(val ds: DataStore, msg: String, cause: Throwable?) :
                 EntityError(meta, key, ds, "version for Entity ${meta.name} with id $key not found", cause)
     }
 
-    class MetaDataNotFound(@Suppress("CanBeParameter", "MemberVisibilityCanBePrivate") val kc: Klass<*>, ds: DataStore, cause: Throwable? = null) :
+    class MetaDataNotFound(@Suppress("CanBeParameter", "MemberVisibilityCanBePrivate") val kc: KClass<*>, ds: DataStore, cause: Throwable? = null) :
             DataStoreError(ds, "Metadata for Entity $kc not found", cause)
 
     @Suppress("MemberVisibilityCanBePrivate", "CanBeParameter")

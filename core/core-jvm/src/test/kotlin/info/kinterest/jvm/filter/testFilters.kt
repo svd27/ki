@@ -1,7 +1,6 @@
 package info.kinterest.jvm.filter
 
 import info.kinterest.DONTDOTHIS
-import info.kinterest.DataStore
 import info.kinterest.Klass
 import info.kinterest.TransientEntity
 import info.kinterest.core.jvm.filters.parser.parse
@@ -19,13 +18,13 @@ import java.time.LocalDate
 import kotlin.reflect.KClass
 
 val log = KotlinLogging.logger {  }
-class TestFilter(override val id:String, val number:Long, val date:LocalDate) : KIJvmEntity<TestFilter,String>() {
+
+@Suppress("MemberVisibilityCanBePrivate", "PropertyName")
+class TestFilter(id: String, val number: Long, val date: LocalDate) : KIJvmEntity<TestFilter, String>(mock(), id) {
     override val _meta: KIJvmEntityMeta
         get() = Meta
     override val _me: KClass<*>
         get() = Meta.me
-    override val _store: DataStore
-        get() = TODO("not implemented")
 
     @Suppress("UNCHECKED_CAST", "IMPLICIT_CAST_TO_ANY")
     override fun <V, P : KIProperty<V>> getValue(prop: P): V? = when (prop.name) {
@@ -37,15 +36,15 @@ class TestFilter(override val id:String, val number:Long, val date:LocalDate) : 
 
 
     override fun <V, P : KIProperty<V>> setValue(prop: P, v: V?) {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        DONTDOTHIS("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
     override fun <V, P : KIProperty<V>> setValue(prop: P, version: Any, v: V?) {
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+        DONTDOTHIS("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
     override fun asTransient(): TransientEntity<String> {
-        TODO("not implemented")
+        DONTDOTHIS("not implemented")
     }
 
     companion object {
@@ -54,8 +53,8 @@ class TestFilter(override val id:String, val number:Long, val date:LocalDate) : 
                 get() = TestFilter::class
             override val parent: Klass<*>?
                 get() = null
-
-
+            override val versioned: Boolean
+                get() = false
         }
     }
 }
@@ -63,8 +62,8 @@ class TestFilter(override val id:String, val number:Long, val date:LocalDate) : 
 
 
 object TestSimpleFilter : Spek({
-    val Metas = MetaProvider()
-    Metas.register(TestFilter.Companion.Meta)
+    val metaProvider = MetaProvider()
+    metaProvider.register(TestFilter.Companion.Meta)
     given("a simple set of entities") {
         val entities = mutableListOf<TestFilter>()
         for(c in 'A'..'Z') {
@@ -86,14 +85,14 @@ object TestSimpleFilter : Spek({
                 rinv.size `should equal` 23
             }
             val together = (entities.filter(fids::matches) + entities.filter(inv::matches)).toSet()
-            it("adding both filter and its inverse should give the orignal set") {
+            it("adding both filter and its inverse should give the original set") {
                 log.debug { together }
                 together `should equal` entities.toSet()
             }
         }
 
         val lt = filter<TestFilter,String>(mock(), TestFilter.Companion.Meta) {
-            parse("TestFilter{number>24}", Metas)
+            parse("TestFilter{number>24}", metaProvider)
         }
         val ltr = entities.filter { lt.matches(it) }
         on("filtering on a field") {
@@ -104,15 +103,14 @@ object TestSimpleFilter : Spek({
             }
         }
         val ids = filter<TestFilter,String>(mock(), TestFilter.Companion.Meta) {
-            parse("TestFilter{id > \"W\"}", Metas)
+            parse("TestFilter{id > \"W\"}", metaProvider)
         }
         on("filtering on ids") {
-            it("should be a propert filter") {
+            it("should be a property filter") {
                 ids `should be instance of` EntityFilter.FilterWrapper::class
-                val wrapperFilter = ids as EntityFilter.FilterWrapper
-                wrapperFilter.f `should be instance of` IdComparisonFilter::class
-                val idf = wrapperFilter.f as IdComparisonFilter
-                val gt = idf.f as GTFilter<TestFilter, String, String>
+                ids.f `should be instance of` IdComparisonFilter::class
+                val idf = ids.f as IdComparisonFilter
+                val gt = idf.valueFilter as GTFilter<TestFilter, String, String>
                 gt.prop.name `should equal` "id"
                 gt.value `should equal` "W"
             }
@@ -126,19 +124,19 @@ object TestSimpleFilter : Spek({
             }
         }
         on("another id filter") {
-            val ids =  filter<TestFilter, String>(mock(), TestFilter.Companion.Meta) {
-                parse("TestFilter{id >=\"W\"}", Metas)
+            val ids1 = filter<TestFilter, String>(mock(), TestFilter.Companion.Meta) {
+                parse("TestFilter{id >=\"W\"}", metaProvider)
             }
             it("should filter") {
-                val idF = entities.filter { ids.matches(it) }
+                val idF = entities.filter { ids1.matches(it) }
                 idF.size `should equal` 4
             }
         }
 
         on("reversed id filter") {
-            val ids = filter<TestFilter,String>(mock(), TestFilter.Companion.Meta) { parse("TestFilter{\"W\"<=id}", Metas) }
+            val ids1 = filter<TestFilter, String>(mock(), TestFilter.Companion.Meta) { parse("TestFilter{\"W\"<=id}", metaProvider) }
             it("should filter") {
-                val idF = entities.filter { ids.matches(it) }
+                val idF = entities.filter { ids1.matches(it) }
                 idF.size `should equal` 3
             }
         }

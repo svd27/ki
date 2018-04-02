@@ -28,9 +28,10 @@ class BaseMemTest(cfg:DataStoreConfig)  {
     val ds = fac!!.create(cfg) as JvmMemoryDataStore
     val metaProvider = kodein.instance<MetaProvider>()
     inline fun<reified E:KIEntity<K>,K:Comparable<K>> create(id:K, values:Map<String,Any?>) : Try<K> = run {
-        val tryC = ds.create(E::class, id, values)
+        val meta = metaProvider.meta(E::class)
+        val tryC = ds.create(meta!!, listOf(id to values))
         val await = tryC.map { runBlocking { it.await() } }
-        await.flatten()
+        await.flatten().map { it.first() }
     }
 
     inline fun<reified E:KIEntity<K>, K:Any> retrieve(ids:Iterable<K>) : Try<Iterable<E>> = run {

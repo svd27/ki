@@ -8,7 +8,6 @@ import info.kinterest.datastores.jvm.DataStoreFactoryProvider
 import info.kinterest.datastores.jvm.datasourceKodein
 import info.kinterest.datastores.jvm.memory.JvmMemoryDataStore
 import info.kinterest.functional.Try
-import info.kinterest.functional.flatten
 import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.MetaProvider
 import info.kinterest.jvm.coreKodein
@@ -32,9 +31,9 @@ class BaseDataStoreTest(cfg: DataStoreConfig) {
     val ds = fac!!.create(cfg) as JvmMemoryDataStore
     val metaProvider = kodein.instance<MetaProvider>()
     inline fun <reified E : KIEntity<K>, K : Comparable<K>> create(id: K, values: Map<String, Any?>): Try<K> = run {
-        val tryC = ds.create(E::class, id, values)
+        val tryC = ds.create(metaProvider.meta(E::class)!!, listOf(id to values))
         val await = tryC.map { runBlocking { withTimeout(300) { it.await() } } }
-        await.flatten()
+        await.getOrElse { throw it }.map { it.first() }
     }
 
     inline fun <reified E : KIEntity<K>, K : Any> retrieve(ids: Iterable<K>): Try<Iterable<E>> {

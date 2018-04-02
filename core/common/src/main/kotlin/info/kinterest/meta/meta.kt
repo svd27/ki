@@ -1,13 +1,18 @@
 package info.kinterest.meta
 
-import info.kinterest.*
+import info.kinterest.DataStore
+import info.kinterest.KIEntity
+import info.kinterest.LocalDate
+import info.kinterest.UUID
+import kotlin.reflect.KClass
 
 abstract class KIEntityMeta {
-    abstract val root: Klass<*>
-    abstract val impl: Klass<*>
-    abstract val me: Klass<*>
-    abstract val parent: Klass<*>?
+    abstract val root: KClass<*>
+    abstract val impl: KClass<*>
+    abstract val me: KClass<*>
+    abstract val parent: KClass<*>?
     abstract val name: String
+    abstract val versioned: Boolean
 
     abstract val idProperty: KIProperty<*>
     abstract val props : Map<String, KIProperty<*>>
@@ -23,7 +28,7 @@ abstract class KIEntityMeta {
 
 sealed class KIProperty<out V>(private val support: KIPropertySupport<V>, val order: Int) {
     val name: String get() = support.name
-    val type: Klass<*> get() = support.type
+    val type: KClass<*> get() = support.type
     val readOnly: Boolean get() = support.readOnly
     val nullable: Boolean get() = support.nullable
     val transient: Boolean get() = support.transient
@@ -43,7 +48,7 @@ sealed class KIProperty<out V>(private val support: KIPropertySupport<V>, val or
 
 interface KIPropertySupport<V> {
     val name: String
-    val type: Klass<*>
+    val type: KClass<*>
     val readOnly: Boolean
     val nullable: Boolean
     val transient: Boolean

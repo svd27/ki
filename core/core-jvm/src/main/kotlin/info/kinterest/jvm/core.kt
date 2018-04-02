@@ -4,8 +4,11 @@ import com.github.salomonbrys.kodein.Kodein
 import com.github.salomonbrys.kodein.bind
 import com.github.salomonbrys.kodein.instance
 import info.kinterest.*
+import info.kinterest.functional.getOrElse
+import info.kinterest.jvm.datastores.DataStoreFacade
 import info.kinterest.jvm.events.Dispatcher
 import info.kinterest.meta.*
+import kotlinx.coroutines.experimental.runBlocking
 import mu.KLogging
 import org.jetbrains.annotations.Nullable
 import kotlin.reflect.KClass
@@ -16,7 +19,7 @@ import kotlin.reflect.full.superclasses
 
 
 @Suppress("UNCHECKED_CAST", "unused", "PropertyName")
-abstract class KIJvmEntity<out E : KIEntity<K>, out K:Any> : KIEntity<K> {
+abstract class KIJvmEntity<out E : KIEntity<K>, out K : Any>(override val _store: DataStoreFacade, override val id: K) : KIEntity<K> {
     abstract override val _meta: KIJvmEntityMeta
     abstract val _me: KClass<*>
 
@@ -30,6 +33,17 @@ abstract class KIJvmEntity<out E : KIEntity<K>, out K:Any> : KIEntity<K> {
     override fun hashCode(): Int = id.hashCode()
 
     override fun toString(): String = "${_meta.name}($id)"
+    @Suppress("UNCHECKED_CAST")
+    override fun <V, P : KIProperty<V>> getValue(prop: P): V? = if (prop == _meta.idProperty) id as V? else
+        runBlocking { _store.getValues(_meta, id, prop).await().getOrElse { throw it }?.get(prop.name) } as V?
+
+    override fun <V, P : KIProperty<V>> setValue(prop: P, v: V?) {
+        _store.setValues(_meta, id, mapOf(prop to v))
+    }
+
+    override fun <V, P : KIProperty<V>> setValue(prop: P, version: Any, v: V?) {
+        _store.setValues(_meta, id, version, mapOf(prop to v))
+    }
 }
 
 interface KIJvmEntitySupport<K : Any> : EntitySupport<K> {
@@ -48,7 +62,7 @@ abstract class KIJvmEntityMeta(override val impl: Klass<*>, final override val m
     operator fun get(n: String): KIProperty<*>? = props[n]
     inner class PropertySupport<V : Any>(kProperty: KProperty1<*, *>) : KIPropertySupport<V> {
         override val name: String = kProperty.name
-        override val type: Klass<*> = kProperty.returnType.classifier!! as Klass<*>
+        override val type: KClass<*> = kProperty.returnType.classifier as KClass<*>
         override val readOnly: Boolean = kProperty !is KMutableProperty1
         override val nullable: Boolean = kProperty.annotations.any { it is Nullable }
         override val transient: Boolean = kProperty.annotations.any { it is Transient }

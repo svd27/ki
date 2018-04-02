@@ -1,7 +1,7 @@
 package info.kinterest.datastores.jvm.filter.tree
 
 import info.kinterest.core.jvm.filters.parser.parse
-import info.kinterest.datastores.jvm.filter.tree.jvm.mem.SomeEntityJvmMem
+import info.kinterest.datastores.jvm.filter.tree.jvm.SomeEntityJvm
 import info.kinterest.jvm.MetaProvider
 import info.kinterest.jvm.events.Dispatcher
 import info.kinterest.jvm.filter.EQFilter
@@ -22,9 +22,9 @@ class FitTest : Spek({
     given("filter tree") {
         val tree = FilterTree(Dispatcher(), 2)
         val metaProvider = MetaProvider()
-        metaProvider.register(SomeEntityJvmMem.meta)
+        metaProvider.register(SomeEntityJvm.meta)
         on("creating s simple && filter") {
-            val f = filter<SomeEntity, Long>(mock(), SomeEntityJvmMem.meta) {
+            val f = filter<SomeEntity, Long>(mock(), SomeEntityJvm.meta) {
                 parse("""name > "s"  && online = true""", metaProvider)
             }
             val fit = bestFit(f)
@@ -39,7 +39,7 @@ class FitTest : Spek({
         }
 
         on("creating s deeper && filter") {
-            val f = filter<SomeEntity, Long>(mock(), SomeEntityJvmMem.meta) {
+            val f = filter<SomeEntity, Long>(mock(), SomeEntityJvm.meta) {
                 parse("""name > "s"  &&  (dob < date("12.10.2001", "dd.M.yyyy") && (online = true || id > 5))""", metaProvider)
             }
             val fit = bestFit(f)
