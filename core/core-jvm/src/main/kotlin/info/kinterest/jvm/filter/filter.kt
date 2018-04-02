@@ -4,8 +4,10 @@ import info.kinterest.*
 import info.kinterest.jvm.MetaProvider
 import info.kinterest.meta.KIEntityMeta
 import info.kinterest.meta.KIProperty
+import kotlinx.coroutines.experimental.CoroutineDispatcher
 import kotlinx.coroutines.experimental.channels.SendChannel
 import kotlinx.coroutines.experimental.launch
+import kotlinx.coroutines.experimental.newFixedThreadPoolContext
 import mu.KLogging
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -69,8 +71,9 @@ sealed class EntityFilter<E : KIEntity<K>, K : Any>(val meta: KIEntityMeta) : KI
         var listener: SendChannel<EntityEvent<E, K>>? = null
 
         fun digest(ev: EntityEvent<E, K>) {
+
             listener?.let {
-                launch {
+                launch(context) {
                     val send = when (ev) {
                         is EntityCreateEvent, is EntityDeleteEvent -> matches(ev.entity)
                         is EntityUpdatedEvent -> wants(ev)
@@ -173,7 +176,9 @@ sealed class EntityFilter<E : KIEntity<K>, K : Any>(val meta: KIEntityMeta) : KI
 
     protected abstract fun contentEquals(f: EntityFilter<*, *>): Boolean
 
-    companion object : KLogging()
+    companion object : KLogging() {
+        val context: CoroutineDispatcher = newFixedThreadPoolContext(2, "filter")
+    }
 }
 
 abstract class IdFilter<E : KIEntity<K>, K : Any>(meta: KIEntityMeta, override val parent: EntityFilter<E, K>) : EntityFilter<E, K>(meta) {
