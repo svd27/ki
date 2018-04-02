@@ -2,6 +2,7 @@ package info.kinterest.jvm.filter
 
 import info.kinterest.*
 import info.kinterest.jvm.MetaProvider
+import info.kinterest.jvm.datastores.DataStoreFacade
 import info.kinterest.meta.KIEntityMeta
 import info.kinterest.meta.KIProperty
 import kotlinx.coroutines.experimental.CoroutineDispatcher
@@ -18,12 +19,12 @@ sealed class KIFilter<T> {
     abstract fun matches(e: T): Boolean
 }
 
-inline fun <reified E : KIEntity<K>, K : Any> filter(ds: DataStore, provider: MetaProvider, crossinline cb: EntityFilter<E, K>.() -> EntityFilter<E, K>): FilterWrapper<E, K> = run {
+inline fun <reified E : KIEntity<K>, K : Any> filter(ds: DataStoreFacade, provider: MetaProvider, crossinline cb: EntityFilter<E, K>.() -> EntityFilter<E, K>): FilterWrapper<E, K> = run {
     val meta = provider.meta(E::class) as KIEntityMeta
     filter(ds, meta, cb)
 }
 
-inline fun <E : KIEntity<K>, K : Any> filter(ds: DataStore, meta: KIEntityMeta, crossinline cb: EntityFilter<E, K>.() -> EntityFilter<E, K>): FilterWrapper<E, K> = EntityFilter.Empty<E, K>(meta).run {
+inline fun <E : KIEntity<K>, K : Any> filter(ds: DataStoreFacade, meta: KIEntityMeta, crossinline cb: EntityFilter<E, K>.() -> EntityFilter<E, K>): FilterWrapper<E, K> = EntityFilter.Empty<E, K>(meta).run {
     EntityFilter.FilterWrapper<E, K>(ds, meta).apply {
         val filter = this.cb()
         f = (filter as? FilterWrapper)?.f ?: filter
@@ -74,7 +75,7 @@ sealed class EntityFilter<E : KIEntity<K>, K : Any>(override val meta: KIEntityM
         override fun wants(upd: EntityUpdatedEvent<E, K>) = DONTDOTHIS()
     }
 
-    class FilterWrapper<E : KIEntity<K>, K : Any>(override val ds: DataStore, meta: KIEntityMeta) : EntityFilter<E, K>(meta), IFilterWrapper<E, K> {
+    class FilterWrapper<E : KIEntity<K>, K : Any>(override val ds: DataStoreFacade, meta: KIEntityMeta) : EntityFilter<E, K>(meta), IFilterWrapper<E, K> {
         lateinit var f: EntityFilter<E, K>
         var listener: SendChannel<EntityEvent<E, K>>? = null
 

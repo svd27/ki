@@ -1,8 +1,8 @@
 package info.kinterest.jvm.filter
 
-import info.kinterest.DataStore
 import info.kinterest.core.jvm.filters.parser.parse
 import info.kinterest.jvm.MetaProvider
+import info.kinterest.jvm.datastores.DataStoreFacade
 import org.amshove.kluent.`should equal`
 import org.amshove.kluent.mock
 import org.jetbrains.spek.api.Spek
@@ -13,7 +13,7 @@ import org.jetbrains.spek.api.dsl.on
 object TestEqualsToString : Spek({
     val metaProvider = MetaProvider()
     metaProvider.register(TestFilter.Companion.Meta)
-    val ds = mock<DataStore>()
+    val ds = mock<DataStoreFacade>()
 
     given("two filters") {
         val f1 = filter<TestFilter,String>(ds, TestFilter.Companion.Meta) {
