@@ -19,6 +19,7 @@ class DispatcherTest : Spek({
     val pool = newFixedThreadPoolContext(4, "test")
 
     given("having a dispatcher") {
+        logger.debug { "start" }
         on("sending to it ") {
             runBlocking { dispatcher.incoming.send(1) }
             it("should work") {}
@@ -41,6 +42,7 @@ class DispatcherTest : Spek({
                 }
 
             }
+
             fun close() = received.close()
         }
 
