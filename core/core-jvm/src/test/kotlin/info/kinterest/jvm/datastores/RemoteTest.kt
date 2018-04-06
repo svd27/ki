@@ -119,7 +119,7 @@ class RemoteTest : Spek({
         val ds: DataStoreFacade = mock()
         whenever(ds.name).thenReturn("test")
         whenever(ds.query<RemoteEntity, LocalDate>(any())).thenReturn(Try { CompletableDeferred(Try { Page(Paging(0, 1), listOf(RemoteEntity(java.time.LocalDate.now(), "", ",", ds))) }) })
-        val dispatcher: CoroutineDispatcher = newFixedThreadPoolContext(2, "test")
+        val dispatcher: CoroutineDispatcher = newFixedThreadPoolContext(4, "test")
         val remInc = RemIn(ds.name, dispatcher, channel, chResp)
         RemOut(ds, channel, chResp, dispatcher)
 
