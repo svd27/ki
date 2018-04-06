@@ -6,6 +6,7 @@ import kotlinx.coroutines.experimental.channels.Channel
 import kotlinx.coroutines.experimental.launch
 import kotlinx.coroutines.experimental.newFixedThreadPoolContext
 import kotlinx.coroutines.experimental.runBlocking
+import mu.KLogging
 import org.amshove.kluent.`should be equal to`
 import org.amshove.kluent.`should be true`
 import org.jetbrains.spek.api.Spek
@@ -66,7 +67,10 @@ class DispatcherTest : Spek({
                 dispatcher.incoming.isClosedForReceive.`should be true`()
                 dispatcher.incoming.isClosedForSend.`should be true`()
                 dispatcher.subscribing.isClosedForSend.`should be true`()
+                logger.debug { "Done." }
             }
         }
     }
-})
+}) {
+    companion object : KLogging()
+}
