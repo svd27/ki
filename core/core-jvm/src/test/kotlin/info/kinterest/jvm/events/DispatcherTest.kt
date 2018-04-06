@@ -1,10 +1,10 @@
 package info.kinterest.jvm.events
 
 import info.kinterest.jvm.filter.log
-import kotlinx.coroutines.experimental.CommonPool
 import kotlinx.coroutines.experimental.Job
 import kotlinx.coroutines.experimental.channels.Channel
 import kotlinx.coroutines.experimental.launch
+import kotlinx.coroutines.experimental.newFixedThreadPoolContext
 import kotlinx.coroutines.experimental.runBlocking
 import org.amshove.kluent.`should be equal to`
 import org.amshove.kluent.`should be true`
@@ -15,6 +15,7 @@ import org.jetbrains.spek.api.dsl.on
 
 class DispatcherTest : Spek({
     val dispatcher = Dispatcher<Int>()
+    val pool = newFixedThreadPoolContext(4, "test")
 
     given("having a dispatcher") {
         on("sending to it ") {
@@ -29,7 +30,7 @@ class DispatcherTest : Spek({
             val expect = 2
 
             init {
-                 launched = launch(CommonPool) {
+                launched = launch(pool) {
                     for (r in received) {
                         sum += r
                         log.debug { "received $r sum $sum" }
@@ -43,13 +44,13 @@ class DispatcherTest : Spek({
         }
 
         on("adding a subscriber") {
-            runBlocking { dispatcher.subscribing.send(receiver.received) }
-            runBlocking {
+            runBlocking(pool) { dispatcher.subscribing.send(receiver.received) }
+            runBlocking(pool) {
                 dispatcher.incoming.send(1)
                 dispatcher.incoming.send(1)
             }
 
-            runBlocking {
+            runBlocking(pool) {
                 receiver.launched.join()
             }
 
