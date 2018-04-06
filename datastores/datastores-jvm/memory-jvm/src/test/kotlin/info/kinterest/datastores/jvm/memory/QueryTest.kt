@@ -31,9 +31,11 @@ class QueryTest : Spek({
                 get() = mapOf()
         })
         base.metaProvider.register(meta)
-        repeat(26) { base.create<QueryEntity, String>("${'A' + it}", mapOf("name" to "${'Z' - it}anne", "dob" to LocalDate.now())) }
-        val f = filter<QueryEntity, String>(base.ds, meta) {
-            parse("""id > "H" """, base.metaProvider)
+        repeat(26) {
+            base.create<QueryEntity, String>(QueryEntityJvm.Companion.Transient(base.ds, "${'A' + it}", "${'Z' - it}anne", null, LocalDate.now()))
+        }
+        val f = filter<QueryEntity, String>(meta) {
+            parse("""id > "H" """, meta)
         }
         val q = Query<QueryEntity, String>(f.cast(), Ordering(listOf(meta.PROP_NAME.asc())), Paging(0, 3))
         on("querying by name ascending") {
@@ -54,7 +56,7 @@ class QueryTest : Spek({
         }
 
         on("changing the page") {
-            val q1 = Query<QueryEntity, String>(q.f, q.ordering, q.page.next)
+            val q1 = Query(q.f, q.ordering, q.page.next)
             val tq = base.ds.query(q1)
             it("should initially work") {
                 tq.isSuccess.`should be true`()

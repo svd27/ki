@@ -1,14 +1,13 @@
 package info.kinterest.annotations.processor
 
 import info.kinterest.KIEntity
+import info.kinterest.KIVersionedEntity
 import info.kinterest.annotations.Entity
 import info.kinterest.annotations.GeneratedId
 import info.kinterest.annotations.StorageTypes
 import info.kinterest.annotations.Versioned
 import info.kinterest.annotations.processor.jvm.TotalTestJvm
-import info.kinterest.annotations.processor.jvm.VersionedTestJvm
 import org.amshove.kluent.`should be`
-import org.amshove.kluent.`should contain`
 import org.amshove.kluent.`should equal`
 import org.amshove.kluent.`should not be`
 import org.jetbrains.spek.api.Spek
@@ -18,7 +17,6 @@ import org.jetbrains.spek.api.dsl.on
 import java.io.File
 import java.util.*
 import kotlin.reflect.full.memberProperties
-import kotlin.reflect.full.superclasses
 
 @Entity()
 @StorageTypes(["jvm.mem"])
@@ -33,12 +31,11 @@ interface TotalTest : KIEntity<UUID> {
 @Entity()
 @StorageTypes(arrayOf("jvm.mem"))
 @Versioned
-interface VersionedTest : KIEntity<Long> {
+interface VersionedTest : KIVersionedEntity<Long> {
     @get:GeneratedId()
     override val id: Long
     val total : Int?
     var adapt : Boolean?
-
 }
 
 object FileSpec : Spek( {
@@ -60,17 +57,6 @@ object FileSpec : Spek( {
             idProp.returnType.classifier `should equal` UUID::class
             val totalProp = kc.memberProperties.filter { it.name == "total" }.firstOrNull()
             totalProp `should not be` null
-        }
-    }
-})
-
-object VersionedSpec : Spek({
-    val kc = VersionedTestJvm::class
-    given("the class") {
-        on("checking the type") {
-            it("should be versioned") {
-                kc.superclasses.toList() `should contain` info.kinterest.Versioned::class
-            }
         }
     }
 })

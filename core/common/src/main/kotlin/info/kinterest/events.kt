@@ -4,10 +4,10 @@ import info.kinterest.meta.KIProperty
 import info.kinterest.paging.Page
 
 sealed class KIEvent
-sealed class EntityEvent<out E : KIEntity<K>, out K : Any>(val entity: E) : KIEvent()
-data class EntityCreateEvent<out E : KIEntity<K>, out K : Any>(private val e: E) : EntityEvent<E, K>(e)
-data class EntityDeleteEvent<out E : KIEntity<K>, out K : Any>(private val e: E) : EntityEvent<E, K>(e)
-data class EntityUpdatedEvent<out E : KIEntity<K>, out K : Any>(private val e: E, val updates: Iterable<EntityUpdated<*>>) : EntityEvent<E, K>(e) {
+sealed class EntityEvent<out E : KIEntity<K>, out K : Any> : KIEvent()
+data class EntityCreateEvent<out E : KIEntity<K>, out K : Any>(val entities: Iterable<E>) : EntityEvent<E, K>()
+data class EntityDeleteEvent<out E : KIEntity<K>, out K : Any>(val entities: Iterable<E>) : EntityEvent<E, K>()
+data class EntityUpdatedEvent<out E : KIEntity<K>, out K : Any>(val entity: E, val updates: Iterable<EntityUpdated<*>>) : EntityEvent<E, K>() {
     fun <V : Any> history(prop: KIProperty<V>): Iterable<V?> = updates.filter { it.prop == prop }.let {
         if (it.isEmpty()) listOf()
         else {
@@ -22,6 +22,7 @@ data class EntityUpdatedEvent<out E : KIEntity<K>, out K : Any>(private val e: E
 
 data class EntityUpdated<out V : Any>(val prop: KIProperty<V>, val old: V?, val new: V?)
 sealed class KIErrorEvent<T:KIError> : KIEvent()
+
 class KIRecoverableErrorEvent(val msg:String, val ex:Exception?=null) : KIErrorEvent<KIRecoverableError>()
 class KIFatalErrorEvent(val msg:String, val ex:Throwable) : KIErrorEvent<KIFatalError>()
 
@@ -56,3 +57,6 @@ data class InterestEntitiesAdded<out I : Interest<E, K>, E : KIEntity<K>, K : An
 data class InterestEntitiesRemoved<out I : Interest<E, K>, E : KIEntity<K>, K : Any>(override val interest: I, val removed: Iterable<E>) : InterestEntityEvent<I, E, K>(interest)
 
 
+sealed class DataStoreEvent : KIEvent()
+class StoreReady(val ds: DataStore) : DataStoreEvent()
+class StoreDown(val ds: DataStore) : DataStoreEvent()

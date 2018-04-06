@@ -2,8 +2,8 @@ package info.kinterest.annotations.processor.generators
 
 import info.kinterest.DONTDOTHIS
 import info.kinterest.DataStore
-import info.kinterest.TransientEntity
-import info.kinterest.Versioned
+import info.kinterest.EntitySupport
+import info.kinterest.KIVersionedEntity
 import info.kinterest.annotations.Entity
 import info.kinterest.jvm.KIJvmEntity
 import info.kinterest.jvm.datastores.DataStoreFacade
@@ -12,7 +12,10 @@ import org.jetbrains.annotations.Nullable
 import org.yanex.takenoko.*
 import javax.annotation.processing.ProcessingEnvironment
 import javax.annotation.processing.RoundEnvironment
-import javax.lang.model.element.*
+import javax.lang.model.element.ExecutableElement
+import javax.lang.model.element.Modifier
+import javax.lang.model.element.Name
+import javax.lang.model.element.TypeElement
 import javax.lang.model.type.DeclaredType
 import javax.lang.model.type.ExecutableType
 import javax.lang.model.type.PrimitiveType
@@ -20,7 +23,7 @@ import javax.lang.model.type.TypeMirror
 import javax.tools.Diagnostic
 import kotlin.reflect.KClass
 
-class EntityInfo(val type: TypeElement, env: ProcessingEnvironment) {
+class EntityInfo(val type: TypeElement, val env: ProcessingEnvironment) {
     val srcPkg = type.qualifiedName.split('.').dropLast(1).joinToString(separator = ".")
     val targetPkg = "$srcPkg.${JvmGenerator.type}"
     val root: TypeElement
@@ -33,15 +36,28 @@ class EntityInfo(val type: TypeElement, env: ProcessingEnvironment) {
         }?.let {
             findEntitySuper(it.asElement() as TypeElement)
         } ?: t
+
         root = findEntitySuper(type)
         parent = type.interfaces.filterIsInstance<DeclaredType>().firstOrNull { it.getAnnotation(Entity::class.java) != null }?.asElement() as? TypeElement
     }
 
 
+    fun TypeElement.findGetter(name: String): ExecutableElement? {
+        env.note("find $name in $this")
+        val direct = findGetterDirect(name)
+        return if (direct == null)
+            (this.interfaces).map { env.note("super $it ${it::class}"); it }.filterIsInstance<DeclaredType>().map { te -> te.asElement() }.filterIsInstance<TypeElement>().map {
+                this@EntityInfo.env.note("checking $it ${it.typeParameters.map { it.genericElement }}")
+                it.findGetter(name)
+            }.firstOrNull()
+        else direct
+    }
+
+    fun TypeElement.findGetterDirect(name: String): ExecutableElement? = enclosedElements.filterIsInstance<ExecutableElement>().firstOrNull { it.simpleName.toString() == "get${name.capitalize()}" }
     val name = type.simpleName.toString() + JvmGenerator.suffix
-    val idGetter = type.enclosedElements.filter { el: Element? -> el is ExecutableElement }.first { it.simpleName.toString().equals("getId") }
-    val idExecutableType: ExecutableType = idGetter.asType() as ExecutableType
-    val idDecType = when (idExecutableType.returnType) {
+    private val idGetter = type.findGetter("id")!!
+    private val idExecutableType: ExecutableType = idGetter.asType() as ExecutableType
+    private val idDecType = when (idExecutableType.returnType) {
         is DeclaredType -> idExecutableType.returnType as DeclaredType
         else -> throw IllegalStateException("wrong type ${idExecutableType.returnType}")
     }
@@ -68,7 +84,7 @@ class EntityInfo(val type: TypeElement, env: ProcessingEnvironment) {
         )
     }
 
-    val versioned = type.getAnnotation(info.kinterest.annotations.Versioned::class.java) != null
+    val versioned = type.interfaces.any { it -> it is DeclaredType && it.asElement().simpleName.toString() == KIVersionedEntity::class.simpleName }
 
     class IdInfo(val type: TypeElement, val generateKey: Boolean)
 
@@ -172,8 +188,8 @@ object JvmGenerator : Generator {
         env.messager.printMessage(Diagnostic.Kind.NOTE, "found element $type")
         entity.name to
                 kotlinFile(packageName = entity.targetPkg) {
-                    import(parseType(Versioned::class.java))
                     import(parseType(KIProperty::class.java))
+
                     classDeclaration(entity.name) {
                         primaryConstructor() {
                             param("_store", parseType(DataStoreFacade::class.qualifiedName!!))
@@ -182,9 +198,7 @@ object JvmGenerator : Generator {
                         extends(
                                 parseType("${KIJvmEntity::class.qualifiedName}<${entity.type.simpleName},${entity.idTypeStr}>"),
                                 "_store", "id")
-                        implements(KoType.Companion.parseType("${entity.type.qualifiedName}"))
-                        if (entity.versioned)
-                            implements(parseType("Versioned"))
+                        implements(parseType("${entity.type.qualifiedName}"))
                         property("_meta", null, OVERRIDE + VAL) {
                             getter(KoModifierList.Empty, true) {
                                 append("Meta")
@@ -208,7 +222,6 @@ object JvmGenerator : Generator {
                         entity.fields.forEach {
                             val mod = if (it.readOnly) VAL else VAR
                             property(it.name, it.koType, OVERRIDE + mod) {
-                                val typeStr = it.typeName.let { if (it.endsWith("?")) it.dropLast(1) else it }
                                 getter(KoModifierList.Empty, true) {
                                     append("""getValue(Meta.${it.metaName})""")
                                     if (!it.nullable) append("!!")
@@ -227,13 +240,12 @@ object JvmGenerator : Generator {
 
                         function("asTransient", OVERRIDE) {
                             body(true) {
-                                val fields = entity.fields.map(EntityInfo.FieldInfo::name).joinToString(",")
-                                append("Transient(id,$fields)")
+                                append("Transient(this)")
                             }
                         }
 
                         companionDeclaration("") {
-                            implements(parseType("info.kinterest.jvm.KIJvmEntitySupport<${entity.idTypeStr}>"))
+                            implements(parseType(EntitySupport::class.java))
                             property("meta", null, VAL + OVERRIDE) {
                                 getter(KoModifierList.Empty, true) {
                                     append("Meta")
@@ -268,19 +280,33 @@ object JvmGenerator : Generator {
 
                             classDeclaration("Transient") {
                                 implements(parseType(entity.type.qualifiedName.toString()))
-                                implements("${TransientEntity::class.qualifiedName}<${entity.idTypeStr}>")
+
                                 primaryConstructor {
+                                    property("_store", parseType(DataStore::class.java), VAL + OVERRIDE)
                                     property("_id", parseType(entity.idTypeStr).nullable, VAL + PRIVATE)
-                                    property("values", parseType("Map<String,Any?>"), OVERRIDE + VAL)
-                                }
-                                secondaryConstructor {
-                                    param("id", parseType(entity.idTypeStr).nullable)
+                                    if (entity.versioned)
+                                        param("version", parseType(Any::class.java).nullable, VAL + PRIVATE)
                                     entity.fields.forEach {
-                                        param(it.name, it.koType)
+                                        property(it.name, it.koType, OVERRIDE + if (it.readOnly) VAL else VAR)
                                     }
-                                    val map = entity.fields.map { "\"${it.name}\" to ${it.name}" }.joinToString(",", "mapOf(", ")")
-                                    val arg = arrayOf("id", map)
-                                    delegateCall("this", *arg)
+                                }
+                                if (entity.versioned)
+                                    secondaryConstructor {
+                                        param("_store", parseType(DataStore::class.java))
+                                        param("_id", parseType(entity.idTypeStr).nullable)
+                                        entity.fields.forEach {
+                                            param(it.name, it.koType)
+                                        }
+                                        val args = listOf("_store", "_id", "null") +
+                                                entity.fields.map { it.name }
+                                        delegateCall("this", *args.toTypedArray())
+                                    }
+                                secondaryConstructor {
+                                    param("e", parseType(entity.type.qualifiedName.toString()))
+                                    val args = listOf("e._store", "e.id") +
+                                            (if (entity.versioned) listOf("e._version") else listOf()) +
+                                            entity.fields.map { "e.${it.name}" }
+                                    delegateCall("this", *args.toTypedArray())
                                 }
                                 property("id", parseType(entity.idTypeStr), VAL + OVERRIDE) {
                                     getter(KoModifierList.Empty, true) {
@@ -288,34 +314,24 @@ object JvmGenerator : Generator {
                                     }
                                 }
 
-                                property("_store", parseType("${DataStore::class.qualifiedName}"), VAL + OVERRIDE) {
-                                    getter(KoModifierList.Empty, true) {
-                                        append("TODO()")
-                                    }
-                                }
 
                                 property("_meta", parseType("${KIEntityMeta::class.qualifiedName}"), VAL + OVERRIDE) {
                                     getter(KoModifierList.Empty, true) {
-                                        append("TODO()")
+                                        append("Meta")
                                     }
                                 }
 
-                                entity.fields.forEach {
-                                    if (it.readOnly) {
-                                        property(it.name, it.koType, OVERRIDE + VAL) {
-                                            delegate("values")
-                                        }
-                                    } else {
-                                        property(it.name, it.koType, OVERRIDE + VAR) {
-                                            initializer("values[\"${it.name}\"] as ${it.typeName}")
-                                            setter("v", "TODO()")
+                                if (entity.versioned) {
+                                    property("_version", parseType(Any::class.java), VAL + OVERRIDE) {
+                                        getter(KoModifierList.Empty, true) {
+                                            append("if(version==null) TODO() else version")
                                         }
                                     }
-
                                 }
+
 
                                 function("asTransient", OVERRIDE) {
-                                    body(true) { append("this") }
+                                    body(true) { append("Transient(this)") }
                                 }
 
                                 function("getValue", OVERRIDE) {
@@ -324,10 +340,10 @@ object JvmGenerator : Generator {
                                     param("p", "P")
                                     returnType("V?")
                                     body(true) {
-                                        append("""
-                                            when(p) {
+                                        append("""when(p) {
+                                              Meta.idProperty -> id
                                               ${entity.fields.map { "Meta.${it.metaName} -> ${it.name}" }.joinToString("\n")}
-                                              else -> TODO()
+                                              else -> TODO(p.name)
                                             } as V?
                                         """.trimIndent())
                                     }
@@ -338,7 +354,15 @@ object JvmGenerator : Generator {
                                     typeParam("P:KIProperty<V>")
                                     param("p", "P")
                                     param("v", "V?")
-                                    body(true, "TODO()")
+                                    body(true) {
+                                        append("""when(p) {
+                                              ${entity.fields.filter { !it.readOnly }.map {
+                                            "Meta.${it.metaName} -> ${it.name} = v as ${(renderType(parseType(it.typeName)))}"
+                                        }.joinToString("\n")}
+                                              else -> TODO()
+                                            }
+                                        """.trimIndent())
+                                    }
                                 }
 
                                 function("setValue", OVERRIDE) {
@@ -347,21 +371,18 @@ object JvmGenerator : Generator {
                                     param("p", "P")
                                     param("version", "Any")
                                     param("v", "V?")
-                                    body(true, "TODO()")
-                                }
-
-                            }
-
-                            function("transient", OVERRIDE) {
-                                param("id", parseType(entity.idTypeStr).nullable)
-                                param("values", parseType("Map<String,Any?>"))
-                                body(true) {
-                                    append("Transient(id, values)")
+                                    body(true) {
+                                        append("""when(p) {
+                                              ${entity.fields.filter { !it.readOnly }.map { "Meta.${it.metaName} -> ${it.name} = v as ${renderType(parseType(it.typeName))}" }.joinToString("\n")}
+                                              else -> TODO()
+                                            }
+                                        """.trimIndent())
+                                    }
                                 }
                             }
-
                         }
                     }
                 }.accept(PrettyPrinter(PrettyPrinterConfiguration()))
     }
 }
+

@@ -2,7 +2,6 @@ package info.kinterest.jvm.filter
 
 import info.kinterest.DONTDOTHIS
 import info.kinterest.Klass
-import info.kinterest.TransientEntity
 import info.kinterest.core.jvm.filters.parser.parse
 import info.kinterest.jvm.KIJvmEntity
 import info.kinterest.jvm.KIJvmEntityMeta
@@ -43,7 +42,7 @@ class TestFilter(id: String, val number: Long, val date: LocalDate) : KIJvmEntit
         DONTDOTHIS("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
-    override fun asTransient(): TransientEntity<String> {
+    override fun asTransient(): TestFilter {
         DONTDOTHIS("not implemented")
     }
 
@@ -69,7 +68,7 @@ object TestSimpleFilter : Spek({
         for(c in 'A'..'Z') {
             entities += TestFilter("$c", c.toLong()-'A'.toLong(), LocalDate.now())
         }
-        val fids = filter<TestFilter,String>(mock(), TestFilter.Companion.Meta) {
+        val fids = filter<TestFilter, String>(TestFilter.Companion.Meta) {
             ids("A","B","C")
         }
         val res =entities.filter(fids::matches)
@@ -91,8 +90,8 @@ object TestSimpleFilter : Spek({
             }
         }
 
-        val lt = filter<TestFilter,String>(mock(), TestFilter.Companion.Meta) {
-            parse("TestFilter{number>24}", metaProvider)
+        val lt = filter<TestFilter, String>(TestFilter.Companion.Meta) {
+            parse("TestFilter{number>24}", TestFilter.Companion.Meta)
         }
         val ltr = entities.filter { lt.matches(it) }
         on("filtering on a field") {
@@ -102,8 +101,8 @@ object TestSimpleFilter : Spek({
                 ltr.map { it.id }.toSet() `should equal`  setOf("Z")
             }
         }
-        val ids = filter<TestFilter,String>(mock(), TestFilter.Companion.Meta) {
-            parse("TestFilter{id > \"W\"}", metaProvider)
+        val ids = filter<TestFilter, String>(TestFilter.Companion.Meta) {
+            parse("TestFilter{id > \"W\"}", TestFilter.Companion.Meta)
         }
         on("filtering on ids") {
             it("should be a property filter") {
@@ -124,8 +123,8 @@ object TestSimpleFilter : Spek({
             }
         }
         on("another id filter") {
-            val ids1 = filter<TestFilter, String>(mock(), TestFilter.Companion.Meta) {
-                parse("TestFilter{id >=\"W\"}", metaProvider)
+            val ids1 = filter<TestFilter, String>(TestFilter.Companion.Meta) {
+                parse("TestFilter{id >=\"W\"}", TestFilter.Companion.Meta)
             }
             it("should filter") {
                 val idF = entities.filter { ids1.matches(it) }
@@ -134,7 +133,7 @@ object TestSimpleFilter : Spek({
         }
 
         on("reversed id filter") {
-            val ids1 = filter<TestFilter, String>(mock(), TestFilter.Companion.Meta) { parse("TestFilter{\"W\"<=id}", metaProvider) }
+            val ids1 = filter<TestFilter, String>(TestFilter.Companion.Meta) { parse("TestFilter{\"W\"<=id}", TestFilter.Companion.Meta) }
             it("should filter") {
                 val idF = entities.filter { ids1.matches(it) }
                 idF.size `should equal` 3

@@ -130,8 +130,12 @@ class FilterTree(events: Dispatcher<EntityEvent<*, *>>, load: Int) {
             }
 
 
-            fun collect(ev: EntityEvent<*, *>): Set<FilterWrapper<*, *>> =
-                    this[ev.entity._meta].collect(ev)
+            fun collect(ev: EntityEvent<*, *>): Set<FilterWrapper<*, *>> = when (ev) {
+                is EntityCreateEvent -> ev.entities.firstOrNull()?.let { e -> this[e._meta].collect(ev) } ?: setOf()
+                is EntityDeleteEvent -> ev.entities.firstOrNull()?.let { e -> this[e._meta].collect(ev) } ?: setOf()
+                is EntityUpdatedEvent -> this[ev.entity._meta].collect(ev)
+            }
+
 
         }
     }

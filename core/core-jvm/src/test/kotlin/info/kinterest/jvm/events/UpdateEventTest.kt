@@ -28,7 +28,7 @@ class AnEntity(override val id: Long, var name: String, var score: Int) : KIEnti
         }
     }
 
-    override fun asTransient(): TransientEntity<Long> {
+    override fun asTransient(): KITransientEntity<Long> {
         DONTDOTHIS("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 

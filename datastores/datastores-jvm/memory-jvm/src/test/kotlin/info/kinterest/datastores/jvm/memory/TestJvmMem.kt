@@ -4,7 +4,7 @@ import com.github.salomonbrys.kodein.Kodein
 import com.github.salomonbrys.kodein.instance
 import info.kinterest.DataStoreError
 import info.kinterest.KIEntity
-import info.kinterest.Versioned
+import info.kinterest.KIVersionedEntity
 import info.kinterest.annotations.Entity
 import info.kinterest.annotations.StorageTypes
 import info.kinterest.cast
@@ -39,8 +39,8 @@ interface TestRoot : KIEntity<String> {
 @Entity
 @StorageTypes(["jvm.mem"])
 @info.kinterest.annotations.Versioned
-interface TestVersioned : KIEntity<Long> {
-    override val id : Long
+interface TestVersioned : KIVersionedEntity<Long> {
+    override val id: Long
     val name : String
     var online : Boolean?
     var someone : String
@@ -79,10 +79,10 @@ object TestJvmMem : Spek({
 
         val mem = ds.cast<JvmMemoryDataStore>()
         mem[TestRoot::class]
-        val kdef = mem.create(TestRootJvm.meta, listOf("a" to mapOf("name" to "aname")))
+        val kdef = mem.create<TestRoot, String>(TestRootJvm.meta, listOf(TestRootJvm.Companion.Transient(mem, "a", "aname", null)))
         val deferred = kdef.getOrDefault { null }
         val tryk = runBlocking { deferred?.await()  }
-        val k = tryk?.getOrDefault { throw it }!!.first()
+        val k = tryk?.getOrDefault { throw it }!!.first().id
         val da = mem.retrieve<TestRoot, String>(metaProvider.meta(TestRoot::class)!!, listOf(k))
         val atry = da.map { runBlocking { it.await() } }.flatten()
         atry.isSuccess shouldBe true
@@ -113,10 +113,10 @@ object TestJvmMem : Spek({
 
 
         fun create(k:String) : TestRoot = run {
-            val kd = mem.create(TestRootJvm.meta, listOf(k to mapOf("name" to "aname")))
+            val kd = mem.create<TestRoot, String>(TestRootJvm.meta, listOf(TestRootJvm.Companion.Transient(mem, k, "aname", null)))
             val def = kd.getOrDefault { throw it }
             val tk = runBlocking { def.await() }
-            val key = tk.getOrDefault { throw it }.first()
+            val key = tk.getOrDefault { throw it }.first().id
             val dret = mem.retrieve<TestRoot, String>(TestRootJvm.meta, listOf(key))
             val tryret = dret.map { runBlocking { it.await() } }.flatten()
             tryret.getOrElse { listOf()}.first()
@@ -134,7 +134,7 @@ object TestJvmMem : Spek({
         }
 
         on("creating an entity with an existing id") {
-            val kd = mem.create(TestRootJvm.meta, listOf("a" to mapOf("name" to "aname")))
+            val kd = mem.create(TestRootJvm.meta, listOf(TestRootJvm.Companion.Transient(mem, "a", "aname", null)))
             val def = kd.getOrDefault { throw it }
             val tk = runBlocking { def.await() }
             it("should fail") {
@@ -172,20 +172,20 @@ class TestVersion : Spek({
         val ds = fac.factories[cfg.type]!!.create(cfg)
 
         val mem = ds.cast<JvmMemoryDataStore>()
-        val tryDefer = mem.create(TestVersionedJvm.meta, listOf(0.toLong() to mapOf("name" to "aname", "someone" to "not me")))
+        val tryDefer = mem.create<TestVersioned, Long>(TestVersionedJvm.meta, listOf(TestVersionedJvm.Companion.Transient(mem, 0.toLong(), "aname", null, "not me")))
         val kdefer = tryDefer.getOrElse { throw it }
         val tryk = runBlocking { kdefer.await() }
-        val k = tryk.getOrElse { throw it }.first()
+        val k = tryk.getOrElse { throw it }.first().id
         val retrDeferred = mem.retrieve<TestVersioned, Long>(TestVersionedJvm.meta, listOf(k))
         val tryVersioned = retrDeferred.map { runBlocking { it.await() } }.flatten()
         val entity = tryVersioned.getOrDefault { listOf() }.first()
 
         @Suppress("unused")
         fun create(id: Long): TestVersioned = run {
-            val td = mem.create(TestVersionedJvm.meta, listOf(id to mapOf("name" to "aname", "someone" to "not me")))
+            val td = mem.create(TestVersionedJvm.meta, listOf(TestVersionedJvm.Companion.Transient(mem, id, "aname", null, "someone")))
             val kd = td.getOrElse { null }!!
             val tk = runBlocking { kd.await() }
-            val key = tk.getOrElse { throw it }.first()
+            val key = tk.getOrElse { throw it }.first().id
             val rd = mem.retrieve<TestVersioned, Long>(TestVersionedJvm.meta, listOf(key))
             val tv = rd.map { runBlocking { it.await() } }.flatten()
             tv.getOrElse { throw it }.first()
@@ -220,7 +220,7 @@ class TestVersion : Spek({
                 entity.someone.`should not be null or blank`()
                 entity.someone `should be equal to` "not me, but someone else"
             }
-            val versionInc = entity.cast<Versioned>()._version
+            val versionInc = entity._version
             it("should have a new version") {
                 versionInc as Long `should be equal to` 1.toLong()
             }
@@ -275,10 +275,10 @@ object TestDelete : Spek({
 
         val mem = ds.cast<JvmMemoryDataStore>()
         fun create(k: String): TestRoot = run {
-            val kdef = mem.create(TestRootJvm.meta, listOf(k to mapOf("name" to "aname")))
+            val kdef = mem.create<TestRoot, String>(TestRootJvm.meta, listOf(TestRootJvm.Companion.Transient(mem, k, "aname", null)))
             val deferred = kdef.getOrElse { throw it }
             val tryk = runBlocking { deferred.await() }
-            val key = tryk.getOrElse { throw it }.first()
+            val key = tryk.getOrElse { throw it }.first().id
             val da = mem.retrieve<TestRoot, String>(TestRootJvm.meta, listOf(key))
             val atry = da.map { runBlocking { it.await() } }.flatten()
             atry.isSuccess shouldBe true
@@ -291,7 +291,7 @@ object TestDelete : Spek({
                 entity.`should not be null`()
             }
         }
-        val tdel = mem.delete(TestRootJvm.meta, listOf("k"))
+        val tdel = mem.delete(TestRootJvm.meta, listOf(entity))
         val res = tdel.map { runBlocking { it.await() } }.fold({ null }, { it })?.fold({ null }, { it })
         val tret = mem.retrieve<TestRoot, String>(TestRootJvm.meta, listOf("k")).let { it.map { runBlocking { it.await() } } }.flatten()
         on("deleting the entity") {

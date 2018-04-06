@@ -31,8 +31,8 @@ class FilterTreeTest : Spek({
         })
         base.metaProvider.register(SomeEntityJvm.meta)
         val filterTree = FilterTree(base.kodein.instance("entities"), 3)
-        val f = filter<SomeEntity, Long>(base.ds, SomeEntityJvm.meta) {
-            parse("name >= \"W\"", base.metaProvider, base.ds)
+        val f = filter<SomeEntity, Long>(SomeEntityJvm.meta) {
+            parse("name >= \"W\"", SomeEntityJvm.meta)
         }
         on("adding a filter") {
             filterTree += f
@@ -49,8 +49,8 @@ class FilterTreeTest : Spek({
                 filterTree.root[SomeEntityJvm.meta].filters.size `should equal` 1
             }
         }
-        val f1 = filter<SomeEntity, Long>(base.ds, SomeEntityJvm.meta) {
-            parse("name >= \"W\"", base.metaProvider, base.ds)
+        val f1 = filter<SomeEntity, Long>(SomeEntityJvm.meta) {
+            parse("name >= \"W\"", SomeEntityJvm.meta)
         }
 
         on("adding a second identical filter") {
@@ -81,8 +81,8 @@ class FilterTreeTest : Spek({
         })
         base.metaProvider.register(SomeEntityJvm.meta)
         val filterTree = FilterTree(base.kodein.instance("entities"), 3)
-        val f = filter<SomeEntity, Long>(base.ds, SomeEntityJvm.meta) {
-            parse("name >= \"W\"", base.metaProvider, base.ds)
+        val f = filter<SomeEntity, Long>(SomeEntityJvm.meta) {
+            parse("name >= \"W\"", SomeEntityJvm.meta)
         }
         val listener = object {
             val ch = Channel<EntityEvent<*, *>>()
@@ -108,8 +108,8 @@ class FilterTreeTest : Spek({
 
         on("creating a non-matching entity") {
             logger.debug { "first" }
-            val idA = base.create<SomeEntity, Long>(1, mapOf("name" to "A")).getOrElse { throw it }
-            val e = base.retrieve<SomeEntity, Long>(listOf(idA)).getOrElse { throw it }.first()
+            val idA = base.create<SomeEntity, Long>(listOf(SomeEntityJvm.Companion.Transient(base.ds, 1, "AA", true, null))).getOrElse { throw it }
+            base.retrieve<SomeEntity, Long>(listOf(idA.id)).getOrElse { throw it }.first()
             it("should not hit our filter") {
                 runBlocking(base.context) { delay(200) }
                 listener.total `should equal` 0
@@ -121,11 +121,11 @@ class FilterTreeTest : Spek({
             logger.debug { "second" }
             val idX = runBlocking {
                 withTimeout(300) {
-                    base.create<SomeEntity, Long>(2, mapOf("name" to "X")).getOrElse { throw it }
+                    base.create<SomeEntity, Long>(listOf(SomeEntityJvm.Companion.Transient(base.ds, 2, "X", true, null))).getOrElse { throw it }
                 }
             }
             logger.debug { "created" }
-            val e = runBlocking { withTimeout(300) { base.retrieve<SomeEntity, Long>(listOf(idX)).getOrElse { throw it }.first() } }
+            val e = runBlocking { withTimeout(300) { base.retrieve<SomeEntity, Long>(listOf(idX.id)).getOrElse { throw it }.first() } }
             logger.debug { e.name }
             it("should hit our filter") {
                 runBlocking(base.context) { delay(200) }
@@ -149,9 +149,9 @@ class FilterTreeTest : Spek({
 
         on("another filter which reacts to that property") {
             logger.debug { "fourth" }
-            val f1 = filter<SomeEntity, Long>(base.ds, SomeEntityJvm.meta) {
+            val f1 = filter<SomeEntity, Long>(SomeEntityJvm.meta) {
                 val ds = LocalDate.now().minusDays(1).format(DateTimeFormatter.ofPattern("dd.MM.yyyy"))
-                parse("""dob >= date("$ds", "dd.MM.yyyy")""", base.metaProvider, base.ds)
+                parse("""dob >= date("$ds", "dd.MM.yyyy")""", SomeEntityJvm.meta)
             }
             f1.listener = listener.ch
             filterTree += f1

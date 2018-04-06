@@ -2,7 +2,6 @@ package info.kinterest.core.jvm.filters.parser
 
 import info.kinterest.FilterError
 import info.kinterest.KIEntity
-import info.kinterest.jvm.MetaProvider
 import info.kinterest.jvm.filter.*
 import info.kinterest.meta.*
 import mu.KotlinLogging
@@ -177,14 +176,13 @@ fun diagnose(grammar: Grammar, input: String) {
 }
 
 
-inline fun <reified E : KIEntity<K>, K : Any> EntityFilter<E, K>.parse(s: String, metaProvider: MetaProvider): EntityFilter<E, K> = run {
-    val meta = metaProvider.meta(E::class)
-    val rgx = "${meta?.name}\\s*\\{.*}".toRegex()
-    val f = if (s.matches(rgx)) s else "${meta?.name}{$s}"
+inline fun <reified E : KIEntity<K>, K : Any> EntityFilter<E, K>.parse(s: String, meta: KIEntityMeta): EntityFilter<E, K> = run {
+    val rgx = "${meta.name}\\s*\\{.*}".toRegex()
+    val f = if (s.matches(rgx)) s else "${meta.name}{$s}"
     val grammar = FilterGrammar()
     if (grammar.parse(f)) {
         val root = grammar.stack[0]
-        val c = Creator(metaProvider, this)
+        val c = Creator(meta, this)
         c.create(root as FilterNode)
     } else {
         val failure = grammar.failure
@@ -194,13 +192,11 @@ inline fun <reified E : KIEntity<K>, K : Any> EntityFilter<E, K>.parse(s: String
     }
 }
 
-class Creator<E : KIEntity<K>, K : Any>(val metas: MetaProvider, val parent: EntityFilter<E, K>) {
-    var meta: KIEntityMeta? = null
-    fun create(fn: FilterNode): EntityFilter<E, K> = metas.meta(fn.entity.name)?.let {
-        meta = it
+class Creator<E : KIEntity<K>, K : Any>(val meta: KIEntityMeta, val parent: EntityFilter<E, K>) {
+    fun create(fn: FilterNode): EntityFilter<E, K> = meta.let {
         val root = fn.root
         compose(root)
-    } ?: throw FilterError("metas for ${fn.entity.name} not found")
+    }
 
     fun compose(n: FNode): EntityFilter<E, K> = when (n) {
         is FilterNode -> throw FilterError("cant happen $n")
@@ -242,18 +238,18 @@ class Creator<E : KIEntity<K>, K : Any>(val metas: MetaProvider, val parent: Ent
 
     @Suppress("UNCHECKED_CAST")
     private fun <T : Comparable<T>> cmp(op: String, name: String, value: T): EntityFilter<E, K> = run {
-        val prop = (if (name == "id") meta!!.idProperty else meta!!.props[name]!!) as KIProperty<T>
+        val prop = (if (name == "id") meta.idProperty else meta.props[name]!!) as KIProperty<T>
         val v = if (value is BigDecimal) prop.cast(value) else value
         val f: PropertyValueFilter<E, K, T> = when (op) {
-            "<" -> LTFilter(prop, meta!!, parent, v as T)
-            "<=" -> LTEFilter(prop, meta!!, parent, v as T)
-            ">" -> GTFilter(prop, meta!!, parent, v as T)
-            ">=" -> GTEFilter(prop, meta!!, parent, v as T)
-            "=" -> EQFilter(prop, meta!!, parent, v as T)
-            "!=" -> NEQFilter(prop, meta!!, parent, v as T)
+            "<" -> LTFilter(prop, meta, v as T)
+            "<=" -> LTEFilter(prop, meta, v as T)
+            ">" -> GTFilter(prop, meta, v as T)
+            ">=" -> GTEFilter(prop, meta, v as T)
+            "=" -> EQFilter(prop, meta, v as T)
+            "!=" -> NEQFilter(prop, meta, v as T)
             else -> throw FilterError("not supported $op")
         }
-        if (name == "id") IdComparisonFilter(meta!!, f.parent, f as PropertyValueFilter<E, K, K>) else f
+        if (name == "id") IdComparisonFilter(meta, f as PropertyValueFilter<E, K, K>) else f
     }
 
     private fun combine(n: Logical): EntityFilter<E, K> = run {

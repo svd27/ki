@@ -44,8 +44,6 @@ object TestEvents : Spek ({
         val base = BaseMemTest(cfg)
         val dispatcher: Dispatcher<EntityEvent<*, *>> = base.kodein.instance("entities")
 
-        val mem = base.ds
-
         val listener = object {
             val ch : Channel<EntityEvent<*,*>> = Channel()
             var events = 0
@@ -68,7 +66,8 @@ object TestEvents : Spek ({
             dispatcher.subscribing.send(listener.ch)
         }
         base.metaProvider.register(TestEventsEntityJvm.meta)
-        val e = base.create<TestEventsEntity,UUID>(UUID.randomUUID(), mapOf("dob" to LocalDate.now()))
+        TestEventsEntityJvm.Companion.Transient(base.ds, UUID.randomUUID(), "svd", LocalDate.now())
+        val e = base.create<TestEventsEntity, UUID>(TestEventsEntityJvm.Companion.Transient(base.ds, UUID.randomUUID(), "svd", LocalDate.now()))
         on("subscribing and creating an entity") {
             val k = e.getOrElse { log.debug(it) {} }
             log.debug { k }

@@ -1,9 +1,14 @@
 package info.kinterest.jvm.interest
 
+import com.github.salomonbrys.kodein.KodeinInjected
+import com.github.salomonbrys.kodein.KodeinInjector
+import com.github.salomonbrys.kodein.instance
 import info.kinterest.*
+import info.kinterest.filter.NOFILTER
 import info.kinterest.functional.Try
 import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.filter.EntityFilter
+import info.kinterest.jvm.query.QueryManager
 import info.kinterest.paging.Page
 import info.kinterest.paging.Paging
 import info.kinterest.query.Query
@@ -14,7 +19,9 @@ import kotlinx.coroutines.experimental.launch
 import kotlinx.coroutines.experimental.newFixedThreadPoolContext
 import kotlinx.coroutines.experimental.runBlocking
 
-class InterestJvm<E : KIEntity<K>, K : Any>(override val id: Any, q: Query<E, K>) : Interest<E, K> {
+class InterestJvm<E : KIEntity<K>, K : Any>(override val id: Any, q: Query<E, K>) : Interest<E, K>, KodeinInjected {
+    override val injector: KodeinInjector = KodeinInjector()
+    val queryManager: QueryManager by injector.instance()
     private var page: Page<E, K> = Page(paging, emptyList(), 1)
         set(value) {
             field = value
@@ -24,7 +31,7 @@ class InterestJvm<E : KIEntity<K>, K : Any>(override val id: Any, q: Query<E, K>
     private val events: Channel<EntityEvent<E, K>> = Channel()
     @Suppress("UNCHECKED_CAST")
     private val filter = (q.f as EntityFilter.FilterWrapper<E, K>)
-    private var query: Query<E, K> = Query.NOQUERY.cast()
+    private var query: Query<E, K> = Query(NOFILTER.cast())
         set(value) {
             page = Page(paging, emptyList(), 0)
             runBlocking(pool) {
@@ -95,20 +102,24 @@ class InterestJvm<E : KIEntity<K>, K : Any>(override val id: Any, q: Query<E, K>
         evts.forEach { ev ->
             when (ev) {
                 is EntityCreateEvent -> {
-                    when {
-                        page.size < paging.size -> match + ev.entity
-                        ordering.isIn(ev.entity, page.first() to page.last()) -> {
-                            match + ev.entity
-                            match - page.last()
+                    ev.entities.forEach { entity ->
+                        when {
+                            page.size < paging.size -> match + entity
+                            ordering.isIn(entity, page.first() to page.last()) -> {
+                                match + entity
+                                match - page.last()
+                            }
                         }
+                        match.evtAdd(entity)
                     }
-                    match.evtAdd(ev.entity)
                 }
                 is EntityDeleteEvent -> {
-                    if (ev.entity in page) {
-                        match - ev.entity
+                    ev.entities.forEach { entity ->
+                        if (entity in page) {
+                            match - entity
+                        }
+                        match.evtRem(entity)
                     }
-                    match.evtRem(ev.entity)
                 }
                 is EntityUpdatedEvent -> {
                     //we know the event is relevant else the filter wouldnt have called us
@@ -139,7 +150,7 @@ class InterestJvm<E : KIEntity<K>, K : Any>(override val id: Any, q: Query<E, K>
     }
 
 
-    private suspend fun query(query: Query<E, K>): Try<Page<E, K>> = filter.ds.query(query).getOrElse {
+    private suspend fun query(query: Query<E, K>): Try<Page<E, K>> = queryManager.query(query).getOrElse {
         throw InterestError.InterestQueryError(this, it.message ?: "", it)
     }.await()
 
@@ -166,7 +177,7 @@ class InterestJvm<E : KIEntity<K>, K : Any>(override val id: Any, q: Query<E, K>
 
     override fun get(k: K): E? = page.let { page ->
         val e = page.entites.filter { it.id == k }
-        if (e.isEmpty()) filter.ds.retrieve<E, K>(filter.meta, listOf(k)).map {
+        if (e.isEmpty()) queryManager.retrieve<E, K>(filter.meta, listOf(k)).map {
             runBlocking(pool) { it.await() }.getOrElse { throw it }.firstOrNull()
         }.getOrElse { throw it } else e.first()
     }

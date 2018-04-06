@@ -46,11 +46,6 @@ abstract class KIJvmEntity<out E : KIEntity<K>, out K : Any>(override val _store
     }
 }
 
-interface KIJvmEntitySupport<K : Any> : EntitySupport<K> {
-    val meta: KIJvmEntityMeta
-}
-
-
 abstract class KIJvmEntityMeta(override val impl: Klass<*>, final override val me: Klass<*>) : KIEntityMeta() {
     override val name = me.simpleName!!
     private val propertySupport: MutableMap<String, PropertySupport<*>> = mutableMapOf()

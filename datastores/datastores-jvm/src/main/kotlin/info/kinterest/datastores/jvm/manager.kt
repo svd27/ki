@@ -15,7 +15,7 @@ interface DataStoreFactory : KodeinInjected {
     fun create(cfg: DataStoreConfig) : DataStore
 }
 
-class DataStoreFactoryProvider() : KodeinInjected {
+class DataStoreFactoryProvider : KodeinInjected {
     override val injector: KodeinInjector = KodeinInjector()
 
     val factories = mutableMapOf<String,DataStoreFactory>()

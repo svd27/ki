@@ -2,8 +2,6 @@ package info.kinterest.datastores.jvm.filter.tree
 
 import info.kinterest.core.jvm.filters.parser.parse
 import info.kinterest.datastores.jvm.filter.tree.jvm.SomeEntityJvm
-import info.kinterest.jvm.MetaProvider
-import info.kinterest.jvm.events.Dispatcher
 import info.kinterest.jvm.filter.EQFilter
 import info.kinterest.jvm.filter.GTFilter
 import info.kinterest.jvm.filter.LTFilter
@@ -11,7 +9,6 @@ import info.kinterest.jvm.filter.filter
 import org.amshove.kluent.`should be instance of`
 import org.amshove.kluent.`should equal`
 import org.amshove.kluent.`should not be null`
-import org.amshove.kluent.mock
 import org.jetbrains.spek.api.Spek
 import org.jetbrains.spek.api.dsl.given
 import org.jetbrains.spek.api.dsl.it
@@ -20,12 +17,9 @@ import org.jetbrains.spek.api.dsl.on
 
 class FitTest : Spek({
     given("filter tree") {
-        val tree = FilterTree(Dispatcher(), 2)
-        val metaProvider = MetaProvider()
-        metaProvider.register(SomeEntityJvm.meta)
         on("creating s simple && filter") {
-            val f = filter<SomeEntity, Long>(mock(), SomeEntityJvm.meta) {
-                parse("""name > "s"  && online = true""", metaProvider)
+            val f = filter<SomeEntity, Long>(SomeEntityJvm.meta) {
+                parse("""name > "s"  && online = true""", SomeEntityJvm.meta)
             }
             val fit = bestFit(f)
             it("the fit should") {
@@ -39,8 +33,8 @@ class FitTest : Spek({
         }
 
         on("creating s deeper && filter") {
-            val f = filter<SomeEntity, Long>(mock(), SomeEntityJvm.meta) {
-                parse("""name > "s"  &&  (dob < date("12.10.2001", "dd.M.yyyy") && (online = true || id > 5))""", metaProvider)
+            val f = filter<SomeEntity, Long>(SomeEntityJvm.meta) {
+                parse("""name > "s"  &&  (dob < date("12.10.2001", "dd.M.yyyy") && (online = true || id > 5))""", SomeEntityJvm.meta)
             }
             val fit = bestFit(f)
             it("should create a proper filter") {

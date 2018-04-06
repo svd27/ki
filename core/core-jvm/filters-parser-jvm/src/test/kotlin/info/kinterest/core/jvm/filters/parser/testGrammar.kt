@@ -3,7 +3,7 @@ package info.kinterest.core.jvm.filters.parser
 import info.kinterest.DONTDOTHIS
 import info.kinterest.DataStore
 import info.kinterest.KIEntity
-import info.kinterest.TransientEntity
+import info.kinterest.KITransientEntity
 import info.kinterest.jvm.KIJvmEntityMeta
 import info.kinterest.jvm.MetaProvider
 import info.kinterest.jvm.filter.EntityFilter
@@ -13,7 +13,6 @@ import info.kinterest.jvm.filter.filter
 import info.kinterest.meta.KIEntityMeta
 import info.kinterest.meta.KIProperty
 import org.amshove.kluent.`should be instance of`
-import org.amshove.kluent.mock
 import org.jetbrains.spek.api.Spek
 import org.jetbrains.spek.api.dsl.given
 import org.jetbrains.spek.api.dsl.it
@@ -46,8 +45,9 @@ class TestFilter(override val id: String, val top: Int?, val date: LocalDate) : 
         DONTDOTHIS("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
-    override fun asTransient(): TransientEntity<String> {
-        DONTDOTHIS("not implemented")
+
+    override fun asTransient(): KITransientEntity<String> {
+        DONTDOTHIS()
     }
 
     companion object {
@@ -72,8 +72,8 @@ val Metas = MetaProvider()
 object SimpleTest : Spek({
     given("a string") {
         Metas.register(TestFilter.Companion.Meta)
-        val f = filter<TestFilter, String>(mock(), TestFilter.Companion.Meta) {
-            parse("TestFilter{top > 5}", Metas)
+        val f = filter<TestFilter, String>(TestFilter.Companion.Meta) {
+            parse("TestFilter{top > 5}", TestFilter.Companion.Meta)
         }
         on("parsing it") {
             it("should be parsed as a Filter") {
@@ -86,8 +86,8 @@ object SimpleTest : Spek({
 
     given("a string with a date") {
         on("parsing") {
-            val f = filter<TestFilter, String>(mock(), TestFilter.Companion.Meta) {
-                parse("TestFilter{date < date(\"12.3.2014\",\"d.M.yyyy\")}", Metas)
+            val f = filter<TestFilter, String>(TestFilter.Companion.Meta) {
+                parse("TestFilter{date < date(\"12.3.2014\",\"d.M.yyyy\")}", TestFilter.Companion.Meta)
             }
             it("should not fail") {}
             it("should be a proper filter") {

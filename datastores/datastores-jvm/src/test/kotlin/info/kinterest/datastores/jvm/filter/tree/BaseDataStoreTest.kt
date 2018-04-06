@@ -30,8 +30,9 @@ class BaseDataStoreTest(cfg: DataStoreConfig) {
     val fac = provider.factories[cfg.type]
     val ds = fac!!.create(cfg) as JvmMemoryDataStore
     val metaProvider = kodein.instance<MetaProvider>()
-    inline fun <reified E : KIEntity<K>, K : Comparable<K>> create(id: K, values: Map<String, Any?>): Try<K> = run {
-        val tryC = ds.create(metaProvider.meta(E::class)!!, listOf(id to values))
+    inline fun <reified E : KIEntity<K>, K : Comparable<K>> create(entities: Iterable<E>): Try<E> = run {
+        ds.create(metaProvider.meta(E::class)!!, listOf())
+        val tryC = ds.create(metaProvider.meta(E::class)!!, entities)
         val await = tryC.map { runBlocking { withTimeout(300) { it.await() } } }
         await.getOrElse { throw it }.map { it.first() }
     }
