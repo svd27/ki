@@ -1,7 +1,6 @@
 package info.kinterest.jvm.filter
 
 import info.kinterest.DONTDOTHIS
-import info.kinterest.Klass
 import info.kinterest.core.jvm.filters.parser.parse
 import info.kinterest.jvm.KIJvmEntity
 import info.kinterest.jvm.KIJvmEntityMeta
@@ -48,9 +47,9 @@ class TestFilter(id: String, val number: Long, val date: LocalDate) : KIJvmEntit
 
     companion object {
         object Meta : KIJvmEntityMeta(TestFilter::class, TestFilter::class) {
-            override val root: Klass<*>
+            override val root: KClass<*>
                 get() = TestFilter::class
-            override val parent: Klass<*>?
+            override val parent: KClass<*>?
                 get() = null
             override val versioned: Boolean
                 get() = false

@@ -10,6 +10,7 @@ import org.jetbrains.spek.api.Spek
 import org.jetbrains.spek.api.dsl.given
 import org.jetbrains.spek.api.dsl.it
 import org.jetbrains.spek.api.dsl.on
+import kotlin.reflect.KClass
 
 class AnEntity(override val id: Long, var name: String, var score: Int) : KIEntity<Long> {
     override val _store: DataStore
@@ -19,9 +20,9 @@ class AnEntity(override val id: Long, var name: String, var score: Int) : KIEnti
 
     companion object {
         val Meta = object : KIJvmEntityMeta(AnEntity::class, AnEntity::class) {
-            override val root: Klass<*>
+            override val root: KClass<*>
                 get() = AnEntity::class
-            override val parent: Klass<*>?
+            override val parent: KClass<*>?
                 get() = null
             override val versioned: Boolean
                 get() = false

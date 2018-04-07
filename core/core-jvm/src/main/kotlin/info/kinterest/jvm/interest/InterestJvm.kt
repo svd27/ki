@@ -153,7 +153,7 @@ class InterestJvm<E : KIEntity<K>, K : Any>(override val id: Any, q: Query<E, K>
     }.await()
 
 
-    private fun fire(vararg evts: InterestEvent<InterestJvm<E, K>, E, K>?) {
+    private fun fire(vararg evts: InterestContainedEvent<InterestJvm<E, K>, E, K>?) {
         val list = evts.filterNotNull()
         if (list.isNotEmpty()) launch(pool) {
             for (s in subscibers) {
@@ -162,14 +162,14 @@ class InterestJvm<E : KIEntity<K>, K : Any>(override val id: Any, q: Query<E, K>
         }
     }
 
-    private var subscibers: List<suspend (Iterable<InterestEvent<Interest<E, K>, E, K>>) -> Unit> = listOf()
+    private var subscibers: List<suspend (Iterable<InterestContainedEvent<Interest<E, K>, E, K>>) -> Unit> = listOf()
 
 
-    override fun addSubscriber(s: suspend (Iterable<InterestEvent<Interest<E, K>, E, K>>) -> Unit) {
+    override fun addSubscriber(s: suspend (Iterable<InterestContainedEvent<Interest<E, K>, E, K>>) -> Unit) {
         subscibers += s
     }
 
-    override fun removeSubscriber(s: suspend (Iterable<InterestEvent<Interest<E, K>, E, K>>) -> Unit) {
+    override fun removeSubscriber(s: suspend (Iterable<InterestContainedEvent<Interest<E, K>, E, K>>) -> Unit) {
         subscibers -= s
     }
 

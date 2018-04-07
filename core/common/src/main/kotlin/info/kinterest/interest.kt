@@ -31,8 +31,8 @@ interface Interest<E : KIEntity<K>, K : Any> {
         paging = paging.prev
     }
 
-    fun addSubscriber(s: suspend (Iterable<InterestEvent<Interest<E, K>, E, K>>) -> Unit)
-    fun removeSubscriber(s: suspend (Iterable<InterestEvent<Interest<E, K>, E, K>>) -> Unit)
+    fun addSubscriber(s: suspend (Iterable<InterestContainedEvent<Interest<E, K>, E, K>>) -> Unit)
+    fun removeSubscriber(s: suspend (Iterable<InterestContainedEvent<Interest<E, K>, E, K>>) -> Unit)
 }
 
 interface InterestManager {

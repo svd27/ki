@@ -4,11 +4,6 @@ import info.kinterest.meta.KIEntityMeta
 import info.kinterest.meta.KIProperty
 
 
-@Suppress("unused")
-expect interface Klass<T : Any> {
-    val simpleName: String?
-}
-
 expect class UUID
 
 interface Keyed<out T:Any> {

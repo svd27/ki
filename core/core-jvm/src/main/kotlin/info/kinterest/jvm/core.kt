@@ -46,7 +46,7 @@ abstract class KIJvmEntity<out E : KIEntity<K>, out K : Any>(override val _store
     }
 }
 
-abstract class KIJvmEntityMeta(override val impl: Klass<*>, final override val me: Klass<*>) : KIEntityMeta() {
+abstract class KIJvmEntityMeta(override val impl: KClass<*>, final override val me: KClass<*>) : KIEntityMeta() {
     override val name = me.simpleName!!
     private val propertySupport: MutableMap<String, PropertySupport<*>> = mutableMapOf()
 
@@ -108,7 +108,7 @@ class MetaProvider() {
     private val metas : MutableMap<String,KIEntityMeta> = mutableMapOf()
     private val metaByClass : MutableMap<KClass<*>,KIEntityMeta> = mutableMapOf()
     fun meta(entity:String) : KIEntityMeta? = metas[entity]
-    fun meta(klass:Klass<*>) = metaByClass[klass]
+    fun meta(klass: KClass<*>) = metaByClass[klass]
     fun register(meta:KIEntityMeta) {
         metas[meta.name] = meta
         metaByClass[meta.me.cast()] = meta
