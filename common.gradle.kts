@@ -10,7 +10,7 @@ configure(common) {
     }
 
     dependencies {
-        "compile"("com.github.svd27:functional-stuff:v0.1.1")
+        "compile"("org.jetbrains.kotlinx:kotlinx-coroutines-core-common:0.22.5")
         "compile"(kotlin("stdlib-common"))
         "testCompile"(kotlin("test-annotations-common"))
         "testCompile"(kotlin("test-common"))

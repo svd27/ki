@@ -5,6 +5,9 @@ import info.kinterest.DataStore
 import info.kinterest.KIEntity
 import info.kinterest.LocalDate
 import info.kinterest.cast
+import info.kinterest.datastores.DataStoreFacade
+import info.kinterest.datastores.QueryMsg
+import info.kinterest.datastores.QueryResult
 import info.kinterest.filter.NOFILTER
 import info.kinterest.functional.Try
 import info.kinterest.functional.getOrElse

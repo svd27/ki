@@ -43,7 +43,10 @@ class DispatcherTest : Spek({
 
             }
 
-            fun close() = received.close()
+            fun close() = {
+                runBlocking { dispatcher.unsubscribe.send(received) }
+                received.close()
+            }
         }
 
         on("adding a subscriber") {

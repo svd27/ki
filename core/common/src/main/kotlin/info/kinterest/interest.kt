@@ -1,8 +1,11 @@
 package info.kinterest
 
+import info.kinterest.functional.Try
 import info.kinterest.paging.Page
 import info.kinterest.paging.Paging
+import info.kinterest.query.Query
 import info.kinterest.sorting.Ordering
+import kotlinx.coroutines.experimental.Deferred
 
 interface Interest<E : KIEntity<K>, K : Any> {
     val id: Any
@@ -10,10 +13,10 @@ interface Interest<E : KIEntity<K>, K : Any> {
     var ordering: Ordering<E, K>
     var paging: Paging
     /**
-     * retrieves the entity with key K if it is within the filter of the interest or null
+     * retrieves the entity with key K if it is within the filter of the interest
      * will throw EntityNotFound
      */
-    operator fun get(k: K): E?
+    operator fun get(k: K): Deferred<Try<E?>>
 
     /**
      * get entity at idx in the current page
@@ -30,5 +33,10 @@ interface Interest<E : KIEntity<K>, K : Any> {
 
     fun addSubscriber(s: suspend (Iterable<InterestEvent<Interest<E, K>, E, K>>) -> Unit)
     fun removeSubscriber(s: suspend (Iterable<InterestEvent<Interest<E, K>, E, K>>) -> Unit)
+}
+
+interface InterestManager {
+    fun <E : KIEntity<K>, K : Any> create(q: Query<E, K>)
+    fun <E : KIEntity<K>, K : Any> delete(i: Interest<E, K>)
 }
 

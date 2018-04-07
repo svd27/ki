@@ -3,8 +3,8 @@ package info.kinterest.datastores.jvm
 import com.github.salomonbrys.kodein.*
 import info.kinterest.DataStore
 import info.kinterest.EntityEvent
+import info.kinterest.datastores.DataStoreFacade
 import info.kinterest.jvm.MetaProvider
-import info.kinterest.jvm.datastores.DataStoreFacade
 import info.kinterest.jvm.events.Dispatcher
 import java.util.*
 

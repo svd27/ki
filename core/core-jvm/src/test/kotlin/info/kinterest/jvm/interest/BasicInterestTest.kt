@@ -5,8 +5,8 @@ import info.kinterest.DONTDOTHIS
 import info.kinterest.DataStore
 import info.kinterest.KIEntity
 import info.kinterest.KITransientEntity
+import info.kinterest.datastores.DataStoreFacade
 import info.kinterest.jvm.KIJvmEntityMeta
-import info.kinterest.jvm.datastores.DataStoreFacade
 import info.kinterest.meta.KIEntityMeta
 import info.kinterest.meta.KIProperty
 import info.kinterest.query.Query

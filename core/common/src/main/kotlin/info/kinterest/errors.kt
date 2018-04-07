@@ -4,6 +4,7 @@ import info.kinterest.meta.KIEntityMeta
 import info.kinterest.query.Query
 import kotlin.reflect.KClass
 
+
 sealed class KIError(msg: String, cause: Throwable?) : Exception(msg, cause)
 class KIFatalError(msg: String, cause: Throwable?) : KIError(msg, cause)
 

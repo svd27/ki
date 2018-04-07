@@ -5,8 +5,8 @@ import info.kinterest.DataStore
 import info.kinterest.EntitySupport
 import info.kinterest.KIVersionedEntity
 import info.kinterest.annotations.Entity
+import info.kinterest.datastores.DataStoreFacade
 import info.kinterest.jvm.KIJvmEntity
-import info.kinterest.jvm.datastores.DataStoreFacade
 import info.kinterest.meta.*
 import org.jetbrains.annotations.Nullable
 import org.yanex.takenoko.*

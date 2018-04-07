@@ -57,6 +57,6 @@ data class InterestEntitiesAdded<out I : Interest<E, K>, E : KIEntity<K>, K : An
 data class InterestEntitiesRemoved<out I : Interest<E, K>, E : KIEntity<K>, K : Any>(override val interest: I, val removed: Iterable<E>) : InterestEntityEvent<I, E, K>(interest)
 
 
-sealed class DataStoreEvent : KIEvent()
-class StoreReady(val ds: DataStore) : DataStoreEvent()
-class StoreDown(val ds: DataStore) : DataStoreEvent()
+sealed class DataStoreEvent(val ds: DataStore) : KIEvent()
+class StoreReady(ds: DataStore) : DataStoreEvent(ds)
+class StoreDown(ds: DataStore) : DataStoreEvent(ds)

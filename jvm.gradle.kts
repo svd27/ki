@@ -11,6 +11,7 @@ configure(jvm) {
             mavenCentral()
         }
         dependencies {
+            "compile"("org.jetbrains.kotlinx:kotlinx-coroutines-jdk8:0.22.5")
             classpath ("org.jetbrains.kotlin:kotlin-gradle-plugin:1.2.30")
             classpath("org.junit.platform:junit-platform-gradle-plugin:1.1.0")
             classpath("com.kncept.junit5.reporter:junit-reporter:1.1.0")
@@ -34,7 +35,6 @@ configure(jvm) {
         "expectedBy"(project(":core:common"))
         "compile"(kotlin("reflect"))
         "compile"(kotlin("stdlib-jdk8"))
-        "compile"("com.github.svd27.functional-stuff:jvm:v0.1.1")
         "compile"("ch.qos.logback:logback-classic:1.0.13")
         "compile"( "com.github.salomonbrys.kodein:kodein:4.1.0")
         "compile"("io.vertx:vertx-web:3.5.1")

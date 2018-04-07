@@ -8,16 +8,14 @@ import info.kinterest.filter.NOFILTER
 import info.kinterest.functional.Try
 import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.filter.EntityFilter
+import info.kinterest.jvm.map
 import info.kinterest.jvm.query.QueryManager
 import info.kinterest.paging.Page
 import info.kinterest.paging.Paging
 import info.kinterest.query.Query
 import info.kinterest.sorting.Ordering
-import kotlinx.coroutines.experimental.CoroutineDispatcher
+import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.channels.Channel
-import kotlinx.coroutines.experimental.launch
-import kotlinx.coroutines.experimental.newFixedThreadPoolContext
-import kotlinx.coroutines.experimental.runBlocking
 
 class InterestJvm<E : KIEntity<K>, K : Any>(override val id: Any, q: Query<E, K>) : Interest<E, K>, KodeinInjected {
     override val injector: KodeinInjector = KodeinInjector()
@@ -175,11 +173,11 @@ class InterestJvm<E : KIEntity<K>, K : Any>(override val id: Any, q: Query<E, K>
         subscibers -= s
     }
 
-    override fun get(k: K): E? = page.let { page ->
+    override fun get(k: K): Deferred<Try<E>> = page.let { page ->
         val e = page.entites.filter { it.id == k }
-        if (e.isEmpty()) queryManager.retrieve<E, K>(filter.meta, listOf(k)).map {
-            runBlocking(pool) { it.await() }.getOrElse { throw it }.firstOrNull()
-        }.getOrElse { throw it } else e.first()
+        if (e.isEmpty()) queryManager.retrieve<E, K>(filter.meta, listOf(k)).getOrElse { throw it }.map {
+            it.map { it.first() }
+        } else CompletableDeferred(Try { e.first() })
     }
 
     override fun get(idx: Int): E? = page.let { p ->

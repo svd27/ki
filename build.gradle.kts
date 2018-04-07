@@ -64,6 +64,7 @@ apply {
 allprojects {
     group = "info.kinterest"
     plugins { maven }
+
     afterEvaluate {
         configure<KotlinProjectExtension> {
             experimental.coroutines = Coroutines.ENABLE

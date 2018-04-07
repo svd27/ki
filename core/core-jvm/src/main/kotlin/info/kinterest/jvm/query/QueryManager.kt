@@ -4,9 +4,9 @@ import info.kinterest.DataStore
 import info.kinterest.DataStoreEvent
 import info.kinterest.KIEntity
 import info.kinterest.QueryError
+import info.kinterest.datastores.DataStoreFacade
 import info.kinterest.functional.Try
 import info.kinterest.functional.getOrElse
-import info.kinterest.jvm.datastores.DataStoreFacade
 import info.kinterest.meta.KIEntityMeta
 import info.kinterest.paging.Page
 import info.kinterest.query.Query

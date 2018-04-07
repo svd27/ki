@@ -4,8 +4,8 @@ import com.github.salomonbrys.kodein.Kodein
 import com.github.salomonbrys.kodein.bind
 import com.github.salomonbrys.kodein.instance
 import info.kinterest.*
+import info.kinterest.datastores.DataStoreFacade
 import info.kinterest.functional.getOrElse
-import info.kinterest.jvm.datastores.DataStoreFacade
 import info.kinterest.jvm.events.Dispatcher
 import info.kinterest.meta.*
 import kotlinx.coroutines.experimental.runBlocking
