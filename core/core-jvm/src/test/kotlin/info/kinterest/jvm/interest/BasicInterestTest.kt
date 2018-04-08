@@ -208,6 +208,7 @@ class BasicInterestTest : Spek({
             val interest = im + Query<InterestEntity, Long>(f.cast(), Ordering(listOf(InterestEntityImpl.Companion.Meta.props["name"]!!.asc())))
             entities.firstOrNull { it.name == "a" }?.let { it.name = "e" }
             wait(interest.id, 5)
+            runBlocking(pool) { delay(100) }
             it("after updating an entity") {
                 logger.debug { "interest entities ${interest.entities}" }
                 interest.entities.entites.size `should equal` 3
