@@ -186,7 +186,7 @@ class BasicInterestTest : Spek({
 
         on("creating the interest") {
             val interest = im + Query<InterestEntity, Long>(f.cast())
-            wait(interest.id, 2)
+            wait(interest.id, 3)
             it("should be registered") {
                 im.interests.size `should equal` 1
             }

@@ -186,6 +186,8 @@ class InterestJvm<E : KIEntity<K>, K : Any>(override val id: Any, q: Query<E, K>
         p[idx]
     }
 
+    override fun toString(): String = "Interrest($id, $query)"
+
     companion object {
         val pool: CoroutineDispatcher = newFixedThreadPoolContext(8, "interests")
     }

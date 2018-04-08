@@ -33,8 +33,6 @@ import org.jetbrains.spek.api.dsl.it
 import org.jetbrains.spek.api.dsl.on
 import kotlin.math.min
 
-val logger = KLogging().logger
-
 class QueryManagerTest : Spek({
     given("a query manager and three DataStores") {
         val pool = newFixedThreadPoolContext(4, "test")
