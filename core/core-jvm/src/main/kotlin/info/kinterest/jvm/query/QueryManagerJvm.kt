@@ -25,7 +25,7 @@ class QueryManagerJvm(val filterTree: FilterTree) : QueryManager {
         get() = _stores
     val dataStores = Channel<DataStoreEvent>()
 
-    val pool: CoroutineDispatcher = CommonPool
+    val pool: CoroutineDispatcher = newFixedThreadPoolContext(4, "${QueryManagerJvm::class.simpleName}")
 
     init {
         launch(pool) {
@@ -51,27 +51,6 @@ class QueryManagerJvm(val filterTree: FilterTree) : QueryManager {
     fun removeFilter(f: EntityFilter.FilterWrapper<*, *>) {
         filterTree -= f
     }
-
-
-//    override fun <E : KIEntity<K>, K : Any> query(q: Query<E, K>): Try<Deferred<Try<Page<E, K>>>> = Try {
-//        val dss = if (q.ds == Query.ALL) stores else q.ds.mapNotNull { ads -> stores.filter { it.name == ads.name }.firstOrNull() }
-//        when {
-//            dss.isEmpty() -> throw QueryError(q, "no DataStores found to query")
-//            dss.size == 1 -> dss.first().query(q).getOrElse { throw it }
-//            else -> {
-//                val deferreds = dss.map { it.query(q) }.map { it -> it.getOrElse { throw it } }
-//                launch {
-//                    select<Try<Page<E,K>>> {
-//                        for(d in deferreds) {
-//                            d.onAwait {
-//
-//                            }
-//                        }
-//                    }
-//                }
-//            }
-//        }
-//    }
 
     override fun <E : KIEntity<K>, K : Any> query(q: Query<E, K>): Try<Deferred<Try<Page<E, K>>>> = Try {
         val dss = if (q.ds == Query.ALL) stores else q.ds.mapNotNull { ads -> stores.filter { it.name == ads.name }.firstOrNull() }
