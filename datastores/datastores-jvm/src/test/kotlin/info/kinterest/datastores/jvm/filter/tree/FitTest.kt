@@ -6,6 +6,8 @@ import info.kinterest.jvm.filter.EQFilter
 import info.kinterest.jvm.filter.GTFilter
 import info.kinterest.jvm.filter.LTFilter
 import info.kinterest.jvm.filter.filter
+import info.kinterest.jvm.filter.tree.AndFit
+import info.kinterest.jvm.filter.tree.bestFit
 import org.amshove.kluent.`should be instance of`
 import org.amshove.kluent.`should equal`
 import org.amshove.kluent.`should not be null`

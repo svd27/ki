@@ -1,6 +1,6 @@
 @file:Suppress("unused")
 
-package info.kinterest.datastores.jvm.filter.tree
+package info.kinterest.jvm.filter.tree
 
 import info.kinterest.*
 import info.kinterest.jvm.events.Dispatcher
@@ -15,7 +15,7 @@ import kotlinx.coroutines.experimental.runBlocking
 import mu.KLogging
 
 class FilterTree(events: Dispatcher<EntityEvent<*, *>>, load: Int) {
-    internal var root: Node.Root = Node.Root(load)
+    var root: Node.Root = Node.Root(load)
     private fun collect(ev: EntityEvent<*, *>) = root.collect(ev)
 
     init {
@@ -37,7 +37,7 @@ class FilterTree(events: Dispatcher<EntityEvent<*, *>>, load: Int) {
         }
     }
 
-    internal sealed class Node(val load: Int) {
+    sealed class Node(val load: Int) {
         abstract operator fun plus(f: FilterWrapper<*, *>): Node
         abstract operator fun minus(f: FilterWrapper<*, *>): Node
         sealed class EntityBasedNode(load: Int, val meta: KIEntityMeta) : Node(load) {

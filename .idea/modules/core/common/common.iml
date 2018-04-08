@@ -1,31 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <module external.linked.project.id=":core:common" external.linked.project.path="$MODULE_DIR$/../../../../core/common" external.root.project.path="$MODULE_DIR$/../../../.." external.system.id="GRADLE" external.system.module.group="info.kinterest" external.system.module.version="unspecified" type="JAVA_MODULE" version="4">
-  <component name="NewModuleRootManager">
-    <output url="file://$MODULE_DIR$/../../../../core/common/out/production/classes" />
-    <output-test url="file://$MODULE_DIR$/../../../../core/common/out/test/classes" />
+  <component name="NewModuleRootManager" inherit-compiler-output="true">
     <exclude-output />
     <content url="file://$MODULE_DIR$/../../../../core/common">
-      <sourceFolder url="file://$MODULE_DIR$/../../../../core/common/src/main/kotlin" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/../../../../core/common/src/main/resources" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/../../../../core/common/src/test/kotlin" isTestSource="true" />
-      <sourceFolder url="file://$MODULE_DIR$/../../../../core/common/src/test/resources" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/../../../../core/common/.gradle" />
       <excludeFolder url="file://$MODULE_DIR$/../../../../core/common/build" />
       <excludeFolder url="file://$MODULE_DIR$/../../../../core/common/out" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
-    <orderEntry type="library" name="Gradle: com.github.svd27:functional-stuff:v0.1.1" level="project" />
-    <orderEntry type="library" name="Gradle: com.github.svd27.functional-stuff:build:v0.1.1" level="project" />
-    <orderEntry type="library" name="Gradle: org.jetbrains.kotlin:kotlin-stdlib-common:1.2.30" level="project" />
-    <orderEntry type="library" name="Gradle: com.github.svd27.functional-stuff:js:v0.1.1" level="project" />
-    <orderEntry type="library" name="Gradle: com.github.svd27.functional-stuff:jvm:v0.1.1" level="project" />
-    <orderEntry type="library" name="Gradle: org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.2.30" level="project" />
-    <orderEntry type="library" name="Gradle: org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.2.30" level="project" />
-    <orderEntry type="library" name="Gradle: org.jetbrains.kotlin:kotlin-stdlib:1.2.30" level="project" />
-    <orderEntry type="library" name="Gradle: org.jetbrains.kotlin:kotlin-stdlib-js:1.2.30" level="project" />
-    <orderEntry type="library" name="Gradle: org.jetbrains:annotations:13.0" level="project" />
-    <orderEntry type="library" scope="TEST" name="Gradle: org.jetbrains.kotlin:kotlin-test-annotations-common:1.2.30" level="project" />
-    <orderEntry type="library" scope="TEST" name="Gradle: org.jetbrains.kotlin:kotlin-test-common:1.2.30" level="project" />
   </component>
 </module>

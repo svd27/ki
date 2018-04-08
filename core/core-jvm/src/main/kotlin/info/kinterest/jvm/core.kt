@@ -90,7 +90,7 @@ abstract class KIJvmEntityMeta(override val impl: KClass<*>, final override val 
 
     private val ctor = findCtor()
     private fun findCtor() = run {
-        val ctor = impl.constructors.first()
+        val ctor = impl.constructors.filter { logger.info { it };it.parameters.size == 2 }.first()
         logger.trace { "ctor $ctor ${ctor.parameters.size}" }
         assert(ctor.parameters.size == 2)
         ctor

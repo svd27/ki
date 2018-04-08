@@ -114,6 +114,14 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
         }
     }
 
+    override fun <E : KIEntity<K>, K : Any> retrieveLenient(type: KIEntityMeta, ids: Iterable<K>): Try<Deferred<Try<Iterable<E>>>> = Try {
+        buckets[type]?.let { bucket ->
+            val idf = ids.filter { bucket[it] != null }
+            if (idf.isEmpty()) CompletableDeferred(Try { listOf<E>() })
+            else retrieve<E, K>(type, idf).getOrElse { throw it }
+        } ?: throw DataStoreError.MetaDataNotFound(type.me, this)
+    }
+
     override fun <E : KIEntity<K>, K : Any> retrieve(type: KIEntityMeta, ids: Iterable<K>): Try<Deferred<Try<Iterable<E>>>> = Try {
         val b = buckets[type]
         log.debug { "retrieving $ids" }

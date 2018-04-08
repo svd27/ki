@@ -1,7 +1,7 @@
 package info.kinterest.jvm.datastores
 
+import info.kinterest.DataStoreError
 import info.kinterest.KIEntity
-import info.kinterest.QueryError
 import info.kinterest.datastores.*
 import info.kinterest.functional.Try
 import info.kinterest.paging.Page
@@ -22,7 +22,7 @@ interface RemoteDataStoreFacade : DataStoreFacade {
             val resp = CompletableDeferred<Pair<Boolean, Long>>(parent = coroutineContext[Job])
             ch.send(QueryMsg(query, resp))
             val (result, id) = resp.await()
-            if (!result) throw QueryError(query, "query failed", null)
+            if (!result) throw DataStoreError.QueryFailed(query, this@RemoteDataStoreFacade, "query failed")
             val res = CompletableDeferred<Try<Page<*, *>>>(coroutineContext[Job])
             pendingQueries += (id to (query to res))
             @Suppress("UNCHECKED_CAST")
@@ -35,7 +35,7 @@ interface RemoteDataStoreFacade : DataStoreFacade {
             for (msg in chResp) {
                 when (msg) {
                     is QueryTryFailure -> pendingQueries[msg.id]?.let {
-                        it.second.complete(Try { throw QueryError(it.first, "failed") })
+                        it.second.complete(Try { throw DataStoreError.QueryFailed(it.first, this@RemoteDataStoreFacade, "query failed") })
                     }
                     is QueryTrySuccess -> pendingQueries[msg.id]?.apply {
                         logger.trace { "received success: $msg" }

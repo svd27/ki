@@ -1,6 +1,6 @@
 package info.kinterest.jvm.events
 
-import kotlinx.coroutines.experimental.ThreadPoolDispatcher
+import kotlinx.coroutines.experimental.CoroutineDispatcher
 import kotlinx.coroutines.experimental.channels.Channel
 import kotlinx.coroutines.experimental.channels.SendChannel
 import kotlinx.coroutines.experimental.launch
@@ -8,7 +8,7 @@ import kotlinx.coroutines.experimental.newFixedThreadPoolContext
 import kotlinx.coroutines.experimental.selects.select
 import mu.KLogging
 
-class Dispatcher<T>(pool: ThreadPoolDispatcher? = null) {
+class Dispatcher<T>(pool: CoroutineDispatcher? = null) {
     val incoming: Channel<T> = Channel()
     private var outgoing: List<Channel<T>> = listOf()
     private val _subscribing: Channel<Channel<T>> = Channel()
@@ -16,7 +16,7 @@ class Dispatcher<T>(pool: ThreadPoolDispatcher? = null) {
     private val _unsubscribe: Channel<Channel<T>> = Channel()
     val unsubscribe: SendChannel<Channel<T>> = _unsubscribe
 
-    private val dispatcher: ThreadPoolDispatcher = pool ?: newFixedThreadPoolContext(8, "Dispatcher")
+    private val dispatcher = pool ?: newFixedThreadPoolContext(8, "Dispatcher")
 
     init {
         launch(dispatcher) {

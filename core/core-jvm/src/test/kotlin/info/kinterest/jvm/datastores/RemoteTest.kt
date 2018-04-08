@@ -61,6 +61,10 @@ abstract class BaseDataSource(override val name: String) : DataStoreFacade {
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
+    override fun <E : KIEntity<K>, K : Any> retrieveLenient(type: KIEntityMeta, ids: Iterable<K>): Try<Deferred<Try<Iterable<E>>>> {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
     override fun <E : KIEntity<K>, K : Any> retrieve(type: KIEntityMeta, ids: Iterable<K>): Try<Deferred<Try<Iterable<E>>>> {
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }

@@ -16,9 +16,10 @@ enum class NullPlacement {
     NULLFIRST
 }
 
-class OrderDef(val prop: KIProperty<*>, val direction: OrderDirection = OrderDirection.ASCENDING)
+data class OrderDef(val prop: KIProperty<*>, val direction: OrderDirection = OrderDirection.ASCENDING)
 
-class Ordering<E : KIEntity<K>, out K : Any>(val order: Iterable<OrderDef>, val nullPlacement: NullPlacement = NullPlacement.NULLLASY) : Comparator<E> {
+data class Ordering<E : KIEntity<K>, out K : Any>(private val order: Iterable<OrderDef>, private val nullPlacement: NullPlacement = NullPlacement.NULLLASY) : Comparator<E> {
+    val comparator: Comparator<in E> = this
     @Suppress("UNCHECKED_CAST")
     override fun compare(a: E, b: E): Int {
         if (this === NATURAL) return 0

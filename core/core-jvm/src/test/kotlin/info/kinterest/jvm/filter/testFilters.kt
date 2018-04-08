@@ -1,6 +1,7 @@
 package info.kinterest.jvm.filter
 
 import info.kinterest.DONTDOTHIS
+import info.kinterest.DataStore
 import info.kinterest.core.jvm.filters.parser.parse
 import info.kinterest.jvm.KIJvmEntity
 import info.kinterest.jvm.KIJvmEntityMeta
@@ -19,6 +20,8 @@ val log = KotlinLogging.logger {  }
 
 @Suppress("MemberVisibilityCanBePrivate", "PropertyName")
 class TestFilter(id: String, val number: Long, val date: LocalDate) : KIJvmEntity<TestFilter, String>(mock(), id) {
+    @Suppress("UNUSED_PARAMETER", "unused")
+    constructor(ds: DataStore, id: String) : this(id, 0, LocalDate.now())
     override val _meta: KIJvmEntityMeta
         get() = Meta
     override val _me: KClass<*>

@@ -22,6 +22,8 @@ import kotlin.reflect.KClass
 
 @Suppress("MemberVisibilityCanBePrivate")
 class TestFilter(override val id: String, val top: Int?, val date: LocalDate) : KIEntity<String> {
+    @Suppress("UNUSED_PARAMETER", "unused")
+    constructor(ds: DataStore, id: String) : this(id, null, LocalDate.now())
     @Suppress("PropertyName")
     override val _store: DataStore
         get() = DONTDOTHIS("not implemented")
@@ -51,27 +53,26 @@ class TestFilter(override val id: String, val top: Int?, val date: LocalDate) : 
     }
 
     companion object {
-        object Meta : KIJvmEntityMeta(TestFilter::class, TestFilter::class) {
-            override val root: KClass<*>
-                get() = TestFilter::class
-            override val parent: KClass<*>?
-                get() = null
-            override val versioned: Boolean
-                get() = false
-        }
-
-        init {
-            println("register $Meta")
-            Metas.register(Meta)
+        val Meta: KIJvmEntityMeta by lazy {
+            object : KIJvmEntityMeta(TestFilter::class, TestFilter::class) {
+                override val root: KClass<*>
+                    get() = TestFilter::class
+                override val parent: KClass<*>?
+                    get() = null
+                override val versioned: Boolean
+                    get() = false
+            }
         }
     }
 }
 
-val Metas = MetaProvider()
+val Metas = MetaProvider().apply {
+    register(TestFilter.Companion.Meta)
+}
+
 
 object SimpleTest : Spek({
     given("a string") {
-        Metas.register(TestFilter.Companion.Meta)
         val f = filter<TestFilter, String>(TestFilter.Companion.Meta) {
             parse("TestFilter{top > 5}", TestFilter.Companion.Meta)
         }

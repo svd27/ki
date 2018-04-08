@@ -12,7 +12,11 @@ import org.jetbrains.spek.api.dsl.it
 import org.jetbrains.spek.api.dsl.on
 import kotlin.reflect.KClass
 
+@Suppress("unused", "PropertyName")
 class AnEntity(override val id: Long, var name: String, var score: Int) : KIEntity<Long> {
+    @Suppress("UNUSED_PARAMETER")
+    constructor(ds: DataStore, id: Long) : this(id, "", 0)
+
     override val _store: DataStore
         get() = DONTDOTHIS("not implemented") //To change initializer of created properties use File | Settings | File Templates.
     override val _meta: KIEntityMeta

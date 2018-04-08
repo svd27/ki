@@ -72,6 +72,10 @@ sealed class EntityFilter<E : KIEntity<K>, K : Any>(override val meta: KIEntityM
         override lateinit var f: EntityFilter<E, K>
         var listener: SendChannel<EntityEvent<E, K>>? = null
 
+        constructor(f: EntityFilter<E, K>) : this(f.meta) {
+            this.f = f
+        }
+
         fun digest(ev: EntityEvent<E, K>) {
 
             listener?.let {

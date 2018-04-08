@@ -7,6 +7,7 @@ import info.kinterest.datastores.jvm.DataStoreConfig
 import info.kinterest.datastores.jvm.filter.tree.jvm.SomeEntityJvm
 import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.filter.filter
+import info.kinterest.jvm.filter.tree.FilterTree
 import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.channels.Channel
 import mu.KLogging

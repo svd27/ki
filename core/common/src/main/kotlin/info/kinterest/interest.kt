@@ -3,7 +3,6 @@ package info.kinterest
 import info.kinterest.functional.Try
 import info.kinterest.paging.Page
 import info.kinterest.paging.Paging
-import info.kinterest.query.Query
 import info.kinterest.sorting.Ordering
 import kotlinx.coroutines.experimental.Deferred
 
@@ -30,13 +29,4 @@ interface Interest<E : KIEntity<K>, K : Any> {
     fun prev() {
         paging = paging.prev
     }
-
-    fun addSubscriber(s: suspend (Iterable<InterestContainedEvent<Interest<E, K>, E, K>>) -> Unit)
-    fun removeSubscriber(s: suspend (Iterable<InterestContainedEvent<Interest<E, K>, E, K>>) -> Unit)
 }
-
-interface InterestManager {
-    fun <E : KIEntity<K>, K : Any> create(q: Query<E, K>)
-    fun <E : KIEntity<K>, K : Any> delete(i: Interest<E, K>)
-}
-

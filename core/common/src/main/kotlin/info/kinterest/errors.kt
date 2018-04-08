@@ -2,6 +2,7 @@ package info.kinterest
 
 import info.kinterest.meta.KIEntityMeta
 import info.kinterest.query.Query
+import info.kinterest.query.QueryManager
 import kotlin.reflect.KClass
 
 
@@ -11,7 +12,10 @@ class KIFatalError(msg: String, cause: Throwable?) : KIError(msg, cause)
 sealed class KIRecoverableError(msg: String, cause: Throwable?) :
         KIError(msg, cause)
 
-class QueryError(val q: Query<*, *>, msg: String, cause: Throwable? = null) : KIRecoverableError(msg, cause)
+sealed class QueryManagerError(val qm: QueryManager, msg: String, cause: Throwable?) : KIRecoverableError(msg, cause)
+class QueryManagerGenericError(qm: QueryManager, msg: String, cause: Throwable? = null) : QueryManagerError(qm, msg, cause)
+class QueryError(val q: Query<*, *>, qm: QueryManager, msg: String, cause: Throwable? = null) : QueryManagerError(qm, msg, cause)
+class QueryManagerRetrieveError(qm: QueryManager, msg: String, cause: Throwable? = null) : QueryManagerError(qm, msg, cause)
 
 class FilterError(msg: String, cause: Throwable? = null) :
         KIRecoverableError(msg, cause)
@@ -33,6 +37,8 @@ sealed class DataStoreError(val ds: DataStore, msg: String, cause: Throwable?) :
                 EntityError(meta, key, ds, "version for Entity ${meta.name} with id $key not found", cause)
     }
 
+    class QueryFailed(val q: Query<*, *>, ds: DataStore, msg: String, cause: Throwable? = null) : DataStoreError(ds, msg, cause)
+
     class MetaDataNotFound(@Suppress("CanBeParameter", "MemberVisibilityCanBePrivate") val kc: KClass<*>, ds: DataStore, cause: Throwable? = null) :
             DataStoreError(ds, "Metadata for Entity $kc not found", cause)
 
@@ -47,3 +53,5 @@ sealed class InterestError(msg: String, cause: Throwable?) : KIRecoverableError(
     class InterestCreatiopError(msg: String, cause: Throwable?) : InterestError(msg, cause)
     class InterestQueryError(val i: Interest<*, *>, msg: String, cause: Throwable?) : InterestError(msg, cause)
 }
+
+
