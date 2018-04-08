@@ -20,6 +20,7 @@ import info.kinterest.query.Query
 import info.kinterest.sorting.Ordering
 import info.kinterest.sorting.asc
 import kotlinx.coroutines.experimental.CompletableDeferred
+import kotlinx.coroutines.experimental.newFixedThreadPoolContext
 import kotlinx.coroutines.experimental.runBlocking
 import kotlinx.coroutines.experimental.yield
 import mu.KLogging
@@ -36,6 +37,7 @@ val logger = KLogging().logger
 
 class QueryManagerTest : Spek({
     given("a query manager and three DataStores") {
+        val pool = newFixedThreadPoolContext(4, "test")
         val ds1: DataStoreFacade = mock {
             on { name } doReturn "ds1"
         }
@@ -198,7 +200,7 @@ class QueryManagerTest : Spek({
 
         on("queying two DataStores with a page") {
             val res = qm.query(Query<InterestEntity, Long>(EntityFilter.FilterWrapper(StaticEntityFilter<InterestEntity, Long>(setOf(1, 2, 3, 4, 5, 6), InterestEntityImpl.Companion.Meta)).cast(), Ordering.NATURAL.cast(), Paging(0, 2), setOf(ds1, ds3)))
-            val td = runBlocking { res.getOrElse { throw it }.await() }
+            val td = runBlocking(pool) { res.getOrElse { throw it }.await() }
             it("should be successfull") {
                 res.isSuccess.`should be true`()
                 td.isSuccess.`should be true`()
@@ -230,7 +232,7 @@ class QueryManagerTest : Spek({
 
         on("querying three DataStores with a page and an ordering") {
             val res = qm.query(Query<InterestEntity, Long>(EntityFilter.FilterWrapper(StaticEntityFilter<InterestEntity, Long>(setOf(1, 2, 3, 4, 5, 6), InterestEntityImpl.Companion.Meta)).cast(), Ordering(listOf(InterestEntityImpl.Companion.Meta.props["name"]!!.asc())), Paging(0, 2), setOf(ds1, ds3, ds2)))
-            val td = runBlocking { res.getOrElse { throw it }.await() }
+            val td = runBlocking(pool) { res.getOrElse { throw it }.await() }
             it("should be successfull") {
                 res.isSuccess.`should be true`()
                 td.isSuccess.`should be true`()
@@ -246,7 +248,7 @@ class QueryManagerTest : Spek({
             }
 
             val resNext = qm.query(Query<InterestEntity, Long>(EntityFilter.FilterWrapper(StaticEntityFilter<InterestEntity, Long>(setOf(1, 2, 3, 4, 5, 6), InterestEntityImpl.Companion.Meta)).cast(), Ordering(listOf(InterestEntityImpl.Companion.Meta.props["name"]!!.asc())), Paging(0, 2).next, setOf(ds1, ds3, ds2)))
-            val dn = runBlocking { resNext.getOrElse { throw it }.await() }
+            val dn = runBlocking(pool) { resNext.getOrElse { throw it }.await() }
             val pNext = dn.getOrElse { throw it }
 
             it("the next page should contain the proper result") {
@@ -256,7 +258,7 @@ class QueryManagerTest : Spek({
 
             val paging = (Paging(0, 2).next).next
             val resLast = qm.query(Query<InterestEntity, Long>(EntityFilter.FilterWrapper(StaticEntityFilter<InterestEntity, Long>(setOf(1, 2, 3, 4, 5, 6), InterestEntityImpl.Companion.Meta)).cast(), Ordering(listOf(InterestEntityImpl.Companion.Meta.props["name"]!!.asc())), paging, setOf(ds1, ds3, ds2)))
-            val dl = runBlocking { resLast.getOrElse { throw it }.await() }
+            val dl = runBlocking(pool) { resLast.getOrElse { throw it }.await() }
             val pLast = dl.getOrElse { throw it }
 
             it("the last page should contain the proper result") {
