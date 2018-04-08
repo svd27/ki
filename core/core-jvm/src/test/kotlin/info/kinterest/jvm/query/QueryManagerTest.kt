@@ -124,6 +124,7 @@ class QueryManagerTest : Spek({
         }
 
         on("sending the DataStores") {
+            logger.debug { "checking DataStores" }
             it("should contain the proper stores") {
                 qm.stores `should equal` setOf(ds1, ds2, ds3)
             }
@@ -132,6 +133,7 @@ class QueryManagerTest : Spek({
 
 
         on("retrieving from one DataStore") {
+            logger.debug { "retrieving from one DataStores" }
             val tretrieve = qm.retrieve<InterestEntity, Long>(meta, setOf(1, 2, 3, 4, 5, 6), setOf(ds1)).getOrElse { throw it }
             val res = runBlocking { tretrieve.await() }
             it("should not fail") {
@@ -144,6 +146,7 @@ class QueryManagerTest : Spek({
         }
 
         on("retrieving from another DataStore") {
+            logger.debug { "retrieving from another DataStores" }
             val tretrieve = qm.retrieve<InterestEntity, Long>(meta, setOf(1, 2, 3, 4, 5, 6), setOf(ds2)).getOrElse { throw it }
             val res = runBlocking { tretrieve.await() }
             it("should not fail") {
@@ -156,6 +159,7 @@ class QueryManagerTest : Spek({
         }
 
         on("retrieving from two DataStores") {
+            logger.debug { "retrieving from two DataStores" }
             val tretrieve = qm.retrieve<InterestEntity, Long>(meta, setOf(1, 2, 3, 4, 5, 6), setOf(ds1, ds3)).getOrElse { throw it }
             val res = runBlocking { tretrieve.await() }
             it("should not fail") {
@@ -168,6 +172,7 @@ class QueryManagerTest : Spek({
         }
 
         on("querying one DataStore") {
+            logger.debug { "querying from one DataStores" }
             val res = qm.query(Query<InterestEntity, Long>(EntityFilter.FilterWrapper(StaticEntityFilter<InterestEntity, Long>(setOf(1, 2, 3, 4, 5, 6), InterestEntityImpl.Companion.Meta)).cast(), Ordering.NATURAL.cast(), Paging(0, 100), setOf(ds1)))
             val td = runBlocking { res.getOrElse { throw it }.await() }
             it("should be successfull") {
@@ -182,10 +187,11 @@ class QueryManagerTest : Spek({
             }
         }
 
-        on("queying two DataStores") {
+        on("querying two DataStores") {
+            logger.debug { "querying from two DataStores" }
             val res = qm.query(Query<InterestEntity, Long>(EntityFilter.FilterWrapper(StaticEntityFilter<InterestEntity, Long>(setOf(1, 2, 3, 4, 5, 6), InterestEntityImpl.Companion.Meta)).cast(), Ordering.NATURAL.cast(), Paging(0, 100), setOf(ds1, ds3)))
             val td = runBlocking { res.getOrElse { throw it }.await() }
-            it("should be successfull") {
+            it("should be successful") {
                 res.isSuccess.`should be true`()
                 td.isSuccess.`should be true`()
             }
@@ -198,10 +204,11 @@ class QueryManagerTest : Spek({
             }
         }
 
-        on("queying two DataStores with a page") {
+        on("querying two DataStores with a page") {
+            logger.debug { "querying from two DataStores with page" }
             val res = qm.query(Query<InterestEntity, Long>(EntityFilter.FilterWrapper(StaticEntityFilter<InterestEntity, Long>(setOf(1, 2, 3, 4, 5, 6), InterestEntityImpl.Companion.Meta)).cast(), Ordering.NATURAL.cast(), Paging(0, 2), setOf(ds1, ds3)))
             val td = runBlocking(pool) { res.getOrElse { throw it }.await() }
-            it("should be successfull") {
+            it("should be successful") {
                 res.isSuccess.`should be true`()
                 td.isSuccess.`should be true`()
             }
@@ -215,6 +222,7 @@ class QueryManagerTest : Spek({
         }
 
         on("querying two DataStores with the next page") {
+            logger.debug { "querying from two DataStores with next page" }
             val res = qm.query(Query<InterestEntity, Long>(EntityFilter.FilterWrapper(StaticEntityFilter<InterestEntity, Long>(setOf(1, 2, 3, 4, 5, 6), InterestEntityImpl.Companion.Meta)).cast(), Ordering.NATURAL.cast(), Paging(0, 2).next, setOf(ds1, ds3)))
             val td = runBlocking { res.getOrElse { throw it }.await() }
             it("should be successfull") {
@@ -231,6 +239,7 @@ class QueryManagerTest : Spek({
         }
 
         on("querying three DataStores with a page and an ordering") {
+            logger.debug { "querying from two DataStores with page and ordering" }
             val res = qm.query(Query<InterestEntity, Long>(EntityFilter.FilterWrapper(StaticEntityFilter<InterestEntity, Long>(setOf(1, 2, 3, 4, 5, 6), InterestEntityImpl.Companion.Meta)).cast(), Ordering(listOf(InterestEntityImpl.Companion.Meta.props["name"]!!.asc())), Paging(0, 2), setOf(ds1, ds3, ds2)))
             val td = runBlocking(pool) { res.getOrElse { throw it }.await() }
             it("should be successfull") {
@@ -269,4 +278,6 @@ class QueryManagerTest : Spek({
 
 
     }
-})
+}) {
+    companion object : KLogging()
+}
