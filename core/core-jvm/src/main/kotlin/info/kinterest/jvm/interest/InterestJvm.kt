@@ -143,6 +143,9 @@ class InterestJvm<E : KIEntity<K>, K : Any>(override val id: Any, q: Query<E, K>
                 }
             }
         }
+        val dist = match.page.distinct()
+        match.page.clear()
+        match.page += dist
         if (match.page.size < oldsize && oldsize >= paging.size) {
             match.page + query(Query(filter.cast(), ordering, Paging(paging.offset + match.page.size, paging.size - match.page.size))).map { it }.getOrElse { Page(paging, emptyList(), 0) }
         }

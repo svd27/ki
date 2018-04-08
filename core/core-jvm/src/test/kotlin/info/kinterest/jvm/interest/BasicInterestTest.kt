@@ -66,6 +66,11 @@ open class InterestEntityImpl(override val _store: DataStore, override val id: L
 
     override fun toString(): String = "${this::class.simpleName}($id)"
 
+    override fun equals(other: Any?): Boolean = if (other is InterestEntity) {
+        id == other.id
+    } else false
+
+    override fun hashCode(): Int = InterestEntity::class.hashCode() + id.hashCode()
 
     companion object {
         object Meta : KIJvmEntityMeta(InterestEntityImpl::class, InterestEntity::class) {
@@ -201,10 +206,6 @@ class BasicInterestTest : Spek({
 
         on("changing the value of an excluded entity") {
             val interest = im + Query<InterestEntity, Long>(f.cast(), Ordering(listOf(InterestEntityImpl.Companion.Meta.props["name"]!!.asc())))
-            wait(interest.id, 3)
-            it("should initially contain only 2 entities") {
-                interest.entities.entites.size `should equal` 2
-            }
             entities.firstOrNull { it.name == "a" }?.let { it.name = "e" }
             wait(interest.id, 5)
             it("after updating an entity") {
