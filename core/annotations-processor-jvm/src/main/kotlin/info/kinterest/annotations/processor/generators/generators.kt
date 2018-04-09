@@ -28,21 +28,31 @@ class EntityInfo(val type: TypeElement, val env: ProcessingEnvironment) {
     val targetPkg = "$srcPkg.${JvmGenerator.type}"
     val root: TypeElement
     val parent: TypeElement?
+    val hierarchy: List<TypeElement>
 
     init {
         env.note("targetPkg: $targetPkg")
+        fun findSuperEntity(t: TypeElement): TypeElement? = t.interfaces.filterIsInstance<DeclaredType>().map { it.asElement() }.filter { env.note("$it ${it.annotationMirrors.joinToString("\n", "\n")}");it.getAnnotation(Entity::class.java) != null }.filterIsInstance<TypeElement>().firstOrNull()
+        parent = findSuperEntity(type)
+        var par = listOf(findSuperEntity(type))
+        while (par.lastOrNull() != null) {
+            par += findSuperEntity(par.last()!!)
+        }
+        env.note("super: $par")
+        hierarchy = par.filterNotNull()
         fun findEntitySuper(t: TypeElement): TypeElement = t.interfaces.filterIsInstance<DeclaredType>().firstOrNull {
             it.getAnnotation(Entity::class.java) != null
         }?.let {
             findEntitySuper(it.asElement() as TypeElement)
         } ?: t
+        env.note("interfaces: ${type.interfaces.map { "$it: ${it::class.java.interfaces.toList()}" }}")
 
-        root = findEntitySuper(type)
-        parent = type.interfaces.filterIsInstance<DeclaredType>().firstOrNull { it.getAnnotation(Entity::class.java) != null }?.asElement() as? TypeElement
+        root = hierarchy.lastOrNull() ?: type
+        env.note("$type has parent $parent")
     }
 
 
-    fun TypeElement.findGetter(name: String): ExecutableElement? {
+    private fun TypeElement.findGetter(name: String): ExecutableElement? {
         env.note("find $name in $this")
         val direct = findGetterDirect(name)
         return if (direct == null)
@@ -53,7 +63,7 @@ class EntityInfo(val type: TypeElement, val env: ProcessingEnvironment) {
         else direct
     }
 
-    fun TypeElement.findGetterDirect(name: String): ExecutableElement? = enclosedElements.filterIsInstance<ExecutableElement>().firstOrNull { it.simpleName.toString() == "get${name.capitalize()}" }
+    private fun TypeElement.findGetterDirect(name: String): ExecutableElement? = enclosedElements.filterIsInstance<ExecutableElement>().firstOrNull { it.simpleName.toString() == "get${name.capitalize()}" }
     val name = type.simpleName.toString() + JvmGenerator.suffix
     private val idGetter = type.findGetter("id")!!
     private val idExecutableType: ExecutableType = idGetter.asType() as ExecutableType
@@ -68,20 +78,22 @@ class EntityInfo(val type: TypeElement, val env: ProcessingEnvironment) {
     val idTypeStr = idType.qualifiedName.normalize()
     val idKoType: KoType = parseType(idType.qualifiedName.normalize())
 
-    val fields: List<FieldInfo> = type.enclosedElements.filterIsInstance<ExecutableElement>().filter {
-        env.note("filter: $it")
-        it.simpleName.toString() != "getId" && Modifier.STATIC !in it.modifiers && it.simpleName.startsWith("get")
-                && it.simpleName.toString().length > 3
-    }.map {
-        val nm = it.simpleName.toString().substring(3).decapitalize()
-        val setterNm = "set${nm.capitalize()}"
-        val setter = type.enclosedElements.filterIsInstance<ExecutableElement>().filter { it.simpleName.toString() == setterNm }
-        FieldInfo(
-                nm,
-                it.returnType,
-                setter.isEmpty(),
-                it.getAnnotation(Nullable::class.java) != null
-        )
+    val fields: List<FieldInfo> = (hierarchy + type).flatMap {
+        it.enclosedElements.filterIsInstance<ExecutableElement>().filter {
+            env.note("filter: $it")
+            it.simpleName.toString() != "getId" && Modifier.STATIC !in it.modifiers && it.simpleName.startsWith("get")
+                    && it.simpleName.toString().length > 3
+        }.map {
+            val nm = it.simpleName.toString().substring(3).decapitalize()
+            val setterNm = "set${nm.capitalize()}"
+            val setter = type.enclosedElements.filterIsInstance<ExecutableElement>().filter { it.simpleName.toString() == setterNm }
+            FieldInfo(
+                    nm,
+                    it.returnType,
+                    setter.isEmpty(),
+                    it.getAnnotation(Nullable::class.java) != null
+            )
+        }
     }
 
     val versioned = type.interfaces.any { it -> it is DeclaredType && it.asElement().simpleName.toString() == KIVersionedEntity::class.simpleName }
@@ -199,6 +211,7 @@ object JvmGenerator : Generator {
                                 parseType("${KIJvmEntity::class.qualifiedName}<${entity.type.simpleName},${entity.idTypeStr}>"),
                                 "_store", "id")
                         implements(parseType("${entity.type.qualifiedName}"))
+
                         property("_meta", null, OVERRIDE + VAL) {
                             getter(KoModifierList.Empty, true) {
                                 append("Meta")
@@ -275,6 +288,10 @@ object JvmGenerator : Generator {
                                             initializer("props[\"${it.name}\"] as ${it.propMetaType.qualifiedName}")
                                         }
                                     }
+                                }
+                                property("hierarchy", parseType("List<KIEntityMeta>"), OVERRIDE + VAL) {
+                                    val hier = entity.hierarchy.joinToString(",", "listOf(", ")") { "${it.simpleName}Jvm.meta" }
+                                    initializer(hier)
                                 }
                             }
 
