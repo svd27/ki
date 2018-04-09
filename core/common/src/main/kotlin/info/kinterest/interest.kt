@@ -30,3 +30,8 @@ interface Interest<E : KIEntity<K>, K : Any> {
         paging = paging.prev
     }
 }
+
+interface StaticInterest<E : KIEntity<K>, K : Any> {
+    operator fun plus(e: E)
+    operator fun minus(e: E)
+}

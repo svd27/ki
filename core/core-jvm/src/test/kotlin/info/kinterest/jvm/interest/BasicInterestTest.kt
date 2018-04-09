@@ -18,8 +18,11 @@ import info.kinterest.paging.Paging
 import info.kinterest.query.Query
 import info.kinterest.sorting.Ordering
 import info.kinterest.sorting.asc
-import kotlinx.coroutines.experimental.*
+import kotlinx.coroutines.experimental.CommonPool
+import kotlinx.coroutines.experimental.CompletableDeferred
 import kotlinx.coroutines.experimental.channels.Channel
+import kotlinx.coroutines.experimental.delay
+import kotlinx.coroutines.experimental.runBlocking
 import mu.KLogging
 import norswap.utils.cast
 import org.amshove.kluent.`should equal`
@@ -156,41 +159,23 @@ class BasicInterestTest : Spek({
 
         val qm = QueryManagerJvm(FilterTree(Dispatcher(CommonPool), 2))
         runBlocking { qm.dataStores.send(StoreReady(ds)) }
-        val im = InterestManager(qm)
-        var evts: List<InterestEvent<Interest<InterestEntity, Long>, InterestEntity, Long>> = listOf()
-        val pool: CoroutineDispatcher = newFixedThreadPoolContext(2, "test")
-        val channel = Channel<Pair<Any, Int>>()
-        launch(pool) {
-            for (ev in im.events) {
-                logger.debug { ev }
-                @Suppress("UNCHECKED_CAST")
-                evts += (ev as InterestEvent<Interest<InterestEntity, Long>, InterestEntity, Long>)
-                if (ev is InterestContainedEvent<*, *, *>) {
-                    logger.debug { "sending $ev as ${ev.interest.id}" }
-                    channel.send(ev.interest.id to 1)
-                }
-            }
-        }
-
-        var read: Map<Any, Int> = mapOf()
-
-        fun wait(id: Any, n: Int) {
-            if (id in read && read[id]!! >= n) return
-            runBlocking(pool) {
-                for (i in channel) {
-                    logger.debug { "increment ${read[i.first]} by ${i.second}" }
-                    read += (i.first to ((read[i.first] ?: 0) + i.second))
-                    if (read[i.first] ?: 0 >= n) break
-                }
-            }
-        }
-
 
         on("creating the interest") {
+            val im = InterestManager(qm)
+            @Suppress("UNCHECKED_CAST")
+            val waiter = EventWaiter(im.events as Channel<InterestEvent<Interest<InterestEntity, Long>, InterestEntity, Long>>)
             val interest = im + Query<InterestEntity, Long>(f.cast())
-            wait(interest.id, 3)
+
             it("should be registered") {
+                waiter.waitFor {
+                    if (it is InterestCreated) logger.debug { "got created" }
+                    it is InterestCreated
+                }
+                runBlocking { delay(100) }
                 im.interests.size `should equal` 1
+            }
+            waiter.waitFor {
+                it is InterestPaged && it.paging.entites.size > 0
             }
             it("should have the proper length") {
                 interest.entities.entites.size `should equal` 2
@@ -199,18 +184,29 @@ class BasicInterestTest : Spek({
         }
 
         on("changing the ordering") {
-            val interest = im + Query<InterestEntity, Long>(f.cast())
-            interest.ordering = Ordering(listOf(InterestEntityImpl.Companion.Meta.props["name"]!!.asc()))
-            wait(interest.id, 3)
-            interest.entities.entites.size `should equal` 2
-            interest.entities.entites.first().name `should equal` "d"
+            val im = InterestManager(qm)
+            @Suppress("UNCHECKED_CAST")
+            val waiter = EventWaiter(im.events as Channel<InterestEvent<Interest<InterestEntity, Long>, InterestEntity, Long>>)
+            val interest = im + Query<InterestEntity, Long>(f.cast(), Ordering(listOf(InterestEntityImpl.Companion.Meta.props["name"]!!.asc())))
+
+            it("should return according to orderin") {
+                waiter.waitFor {
+                    it is InterestPaged && it.paging.entites.size > 0
+                }
+                interest.entities.entites.size `should equal` 2
+                interest.entities.entites.first().name `should equal` "d"
+            }
         }
 
         on("changing the value of an excluded entity") {
+            val im = InterestManager(qm)
+            @Suppress("UNCHECKED_CAST")
+            val waiter = EventWaiter(im.events as Channel<InterestEvent<Interest<InterestEntity, Long>, InterestEntity, Long>>)
             val interest = im + Query<InterestEntity, Long>(f.cast(), Ordering(listOf(InterestEntityImpl.Companion.Meta.props["name"]!!.asc())))
             entities.firstOrNull { it.name == "a" }?.let { it.name = "e" }
-            wait(interest.id, 5)
-            runBlocking(pool) { delay(100) }
+            waiter.waitFor {
+                it is InterestPageChanged
+            }
             it("after updating an entity") {
                 logger.debug { "interest entities ${interest.entities}" }
                 interest.entities.entites.size `should equal` 3

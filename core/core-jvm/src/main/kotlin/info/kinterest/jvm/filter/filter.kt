@@ -202,7 +202,7 @@ abstract class IdFilter<E : KIEntity<K>, K : Any>(meta: KIEntityMeta) : EntityFi
 }
 
 @Suppress("EqualsOrHashCode")
-class StaticEntityFilter<E : KIEntity<K>, K : Any>(private val ids: Set<K>, meta: KIEntityMeta) : IdFilter<E, K>(meta) {
+class StaticEntityFilter<E : KIEntity<K>, K : Any>(val ids: Set<K>, meta: KIEntityMeta) : IdFilter<E, K>(meta) {
     override fun matches(e: E): Boolean = ids.any { e.id == it }
 
     inner class Inverse : IdFilter<E, K>(meta) {

@@ -26,7 +26,7 @@ sealed class KIErrorEvent<T:KIError> : KIEvent()
 class KIRecoverableErrorEvent(val msg:String, val ex:Exception?=null) : KIErrorEvent<KIRecoverableError>()
 class KIFatalErrorEvent(val msg:String, val ex:Throwable) : KIErrorEvent<KIFatalError>()
 
-sealed class InterestEvent<out I : Interest<E, K>, E : KIEntity<K>, K : Any>
+sealed class InterestEvent<out I : Interest<E, K>, E : KIEntity<K>, K : Any> : KIEvent()
 sealed class InterestContainedEvent<out I : Interest<E, K>, E : KIEntity<K>, K : Any>(open val interest: I) : InterestEvent<I, E, K>()
 data class InterestCreated<out I : Interest<E, K>, E : KIEntity<K>, K : Any>(override val interest: I) : InterestContainedEvent<I, E, K>(interest)
 data class InterestDeleted<out I : Interest<E, K>, E : KIEntity<K>, K : Any>(val id: Any) : InterestEvent<I, E, K>()

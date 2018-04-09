@@ -12,8 +12,8 @@ import info.kinterest.sorting.Ordering
 import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.channels.Channel
 
-class InterestJvm<E : KIEntity<K>, K : Any>(override val id: Any, q: Query<E, K>, private val manager: InterestManager, private val subscriber: suspend (Iterable<InterestContainedEvent<Interest<E, K>, E, K>>) -> Unit) : Interest<E, K> {
-    private var query: Query<E, K> = q
+open class InterestJvm<E : KIEntity<K>, K : Any>(override val id: Any, q: Query<E, K>, protected val manager: InterestManager, private val subscriber: suspend (Iterable<InterestContainedEvent<Interest<E, K>, E, K>>) -> Unit) : Interest<E, K> {
+    protected var query: Query<E, K> = q
         set(value) {
             page = Page(paging, emptyList(), 0)
             runBlocking(pool) {
@@ -31,6 +31,7 @@ class InterestJvm<E : KIEntity<K>, K : Any>(override val id: Any, q: Query<E, K>
             query = Query(filter.cast(), ordering, value)
         }
 
+    @Suppress("LeakingThis")
     private var _page: Page<E, K> = Page(paging, emptyList(), 1)
     private var page: Page<E, K>
         get() = _page
