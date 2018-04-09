@@ -6,6 +6,7 @@ import info.kinterest.core.jvm.filters.parser.parse
 import info.kinterest.jvm.KIJvmEntity
 import info.kinterest.jvm.KIJvmEntityMeta
 import info.kinterest.jvm.MetaProvider
+import info.kinterest.meta.KIEntityMeta
 import info.kinterest.meta.KIProperty
 import mu.KotlinLogging
 import org.amshove.kluent.*
@@ -56,6 +57,8 @@ class TestFilter(id: String, val number: Long, val date: LocalDate) : KIJvmEntit
                 get() = null
             override val versioned: Boolean
                 get() = false
+
+            override val hierarchy: List<KIEntityMeta> = listOf()
         }
     }
 }

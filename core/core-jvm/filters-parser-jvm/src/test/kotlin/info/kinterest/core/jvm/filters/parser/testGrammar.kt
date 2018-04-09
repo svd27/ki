@@ -61,6 +61,9 @@ class TestFilter(override val id: String, val top: Int?, val date: LocalDate) : 
                     get() = null
                 override val versioned: Boolean
                     get() = false
+
+                override val hierarchy: List<KIEntityMeta>
+                    get() = listOf()
             }
         }
     }

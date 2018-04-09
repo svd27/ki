@@ -80,6 +80,8 @@ open class InterestEntityImpl(override val _store: DataStore, override val id: L
                 get() = null
             override val versioned: Boolean
                 get() = false
+
+            override val hierarchy: List<KIEntityMeta> = listOf()
         }
 
         class Transient(override val _store: DataStore, override val id: Long, override var name: String) : KITransientEntity<Long>, InterestEntity {

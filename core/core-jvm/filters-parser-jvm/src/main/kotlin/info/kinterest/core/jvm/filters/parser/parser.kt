@@ -238,18 +238,20 @@ class Creator<E : KIEntity<K>, K : Any>(val meta: KIEntityMeta, val parent: Enti
 
     @Suppress("UNCHECKED_CAST")
     private fun <T : Comparable<T>> cmp(op: String, name: String, value: T): EntityFilter<E, K> = run {
-        val prop = (if (name == "id") meta.idProperty else meta.props[name]!!) as KIProperty<T>
-        val v = if (value is BigDecimal) prop.cast(value) else value
-        val f: PropertyValueFilter<E, K, T> = when (op) {
-            "<" -> LTFilter(prop, meta, v as T)
-            "<=" -> LTEFilter(prop, meta, v as T)
-            ">" -> GTFilter(prop, meta, v as T)
-            ">=" -> GTEFilter(prop, meta, v as T)
-            "=" -> EQFilter(prop, meta, v as T)
-            "!=" -> NEQFilter(prop, meta, v as T)
-            else -> throw FilterError("not supported $op")
-        }
-        if (name == "id") IdComparisonFilter(meta, f as PropertyValueFilter<E, K, K>) else f
+        (if (name == "id") meta.idProperty else meta.props[name])?.let { p ->
+            val prop = p as KIProperty<T>
+            val v = if (value is BigDecimal) prop.cast(value) else value
+            val f: PropertyValueFilter<E, K, T> = when (op) {
+                "<" -> LTFilter(prop, meta, v as T)
+                "<=" -> LTEFilter(prop, meta, v as T)
+                ">" -> GTFilter(prop, meta, v as T)
+                ">=" -> GTEFilter(prop, meta, v as T)
+                "=" -> EQFilter(prop, meta, v as T)
+                "!=" -> NEQFilter(prop, meta, v as T)
+                else -> throw FilterError("not supported $op")
+            }
+            if (name == "id") IdComparisonFilter(meta, f as PropertyValueFilter<E, K, K>) else f
+        } ?: throw FilterError("property $name not found in entity ${meta.name}")
     }
 
     private fun combine(n: Logical): EntityFilter<E, K> = run {

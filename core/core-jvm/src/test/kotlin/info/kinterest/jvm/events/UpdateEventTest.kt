@@ -30,6 +30,7 @@ class AnEntity(override val id: Long, var name: String, var score: Int) : KIEnti
                 get() = null
             override val versioned: Boolean
                 get() = false
+            override val hierarchy: List<KIEntityMeta> = listOf()
         }
     }
 

@@ -16,6 +16,7 @@ import info.kinterest.paging.Page
 import info.kinterest.query.Query
 import info.kinterest.sorting.Ordering
 import kotlinx.coroutines.experimental.*
+import mu.KLogging
 import mu.KotlinLogging
 import org.mapdb.DB
 import org.mapdb.DBMaker
@@ -166,34 +167,68 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
         this.tx()
     }.fold({ throw it }, { it })
 
-    inner class Buckets(val map: MutableMap<KIEntityMeta, Bucket>) : Map<KIEntityMeta, Bucket> by map {
+    inner internal class Buckets(val map: MutableMap<KIEntityMeta, Bucket>) : Map<KIEntityMeta, Bucket> by map {
         override fun get(key: KIEntityMeta): Bucket? = if (key in map) map[key] else {
-            map[key] = Bucket(key)
+            if (key.parent == null)
+                map[key] = RootBucket(key)
+            else map[key] = SubTypeBucket(key, this[key.hierarchy.first()]!!)
             map[key]
         }
     }
 
 
-    inner class Bucket(val meta: KIEntityMeta) {
-        val versioned = meta.versioned
+    internal interface Bucket {
+        val meta: KIEntityMeta
+        val versioned: Boolean
         @Suppress("UNCHECKED_CAST")
-        private val bucket = db.hashMap(meta.name).createOrOpen() as HTreeMap<Any, MutableMap<String, Any?>>
+        val bucket: HTreeMap<Any, MutableMap<String, Any?>>
 
-        operator fun get(keys: Iterable<Any>): Iterable<Map<String, Any?>> = keys.mapNotNull { get(it) }
+        operator fun get(keys: Iterable<Any>): Iterable<Map<String, Any?>>
+        operator fun get(k: Any): MutableMap<String, Any?>?
+        operator fun set(k: Any, values: Map<String, Any?>): Map<String, Any?>
+        fun <E : KIEntity<K>, K : Any> create(entities: Iterable<E>): Iterable<E>
+        fun <E : KIEntity<K>, K : Any> delete(entities: Iterable<E>): Try<Iterable<K>>
+        fun version(id: Any): Long
+        @Suppress("UNUSED_PARAMETER")
+        fun index(k: Any, values: Map<String, Any?>)
 
-        operator fun get(k: Any): MutableMap<String, Any?>? = bucket[k]?.apply {
+
+        operator fun set(k: Any, version: Long, values: Map<String, Any?>): Map<String, Any?>
+
+        fun <E : KIEntity<K>, K : Any> baseQuery(query: Query<E, K>): Sequence<E>
+
+        @Suppress("UNCHECKED_CAST")
+        fun <E : KIEntity<K>, K : Any> query(query: Query<E, K>): Page<E, K> = run {
+            val fs = baseQuery(query)
+            val sortedWith = if (query.ordering === Ordering.NATURAL) fs else fs.sortedWith(query.ordering as Comparator<in E>)
+            val entities = if (query.page.size >= 0) {
+                val windowed = sortedWith.windowed(query.page.size, query.page.size, true)
+                windowed.drop(query.page.offset / query.page.size).firstOrNull() ?: listOf()
+            } else sortedWith.drop(query.page.offset).toList()
+            Page(query.page, entities, if (query.page.size >= 0 && entities.size == query.page.size) 1 else 0)
+        }
+    }
+
+    inner internal open class RootBucket(final override val meta: KIEntityMeta) : Bucket {
+        override val versioned = meta.versioned
+        @Suppress("UNCHECKED_CAST")
+        override val bucket = db.hashMap(meta.name).createOrOpen() as HTreeMap<Any, MutableMap<String, Any?>>
+
+        override operator fun get(keys: Iterable<Any>): Iterable<Map<String, Any?>> = keys.mapNotNull { get(it) }
+
+        override operator fun get(k: Any): MutableMap<String, Any?>? = bucket[k]?.apply {
             put("id", k)
             if (versioned) put("_version", version(k))
         }?.cast<MutableMap<String, Any?>>()
 
-        operator fun set(k: Any, values: Map<String, Any?>): Map<String, Any?> = run {
+        override operator fun set(k: Any, values: Map<String, Any?>): Map<String, Any?> = run {
             assert(!versioned)
             require(!versioned)
             log.trace { "set $k $values" }
             db.set(k, values)
         }
 
-        internal operator fun set(k: Any, version: Long, values: Map<String, Any?>): Map<String, Any?> = db.run {
+        override operator fun set(k: Any, version: Long, values: Map<String, Any?>): Map<String, Any?> = db.run {
             assert(versioned)
             if (bucket[k] == null) throw DataStoreError.EntityError.EntityNotFound(meta, k, this@JvmMemoryDataStore)
             val versionName = versionName(k)
@@ -226,9 +261,16 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
 
         private fun versionName(k: Any) = "${meta.me.simpleName}.$k._version"
 
-        fun <E : KIEntity<K>, K : Any> create(entities: Iterable<KIEntity<Any>>): Iterable<E> = run {
+        override fun <E : KIEntity<K>, K : Any> create(entities: Iterable<E>): Iterable<E> = run {
             db.tx {
-                entities.map { e -> e.id to meta.props.map { it.value.name to e.getValue(it.value) }.toMap() }.map { (id, values) ->
+                entities.map { e ->
+                    e to
+                            e._meta.props.map {
+                                it.value.name to e.getValue(it.value)
+                            }.toMap() +
+                            (TYPES to e._meta.types.map { it.name }.toTypedArray())
+                }.map { (e, values) ->
+                    val id = e.id
                     @Suppress("UNCHECKED_CAST")
                     if (id in bucket) throw DataStoreError.EntityError.EntityExists(meta, id, this@JvmMemoryDataStore)
 
@@ -238,7 +280,7 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
                     val map = values.toMutableMap()
                     bucket[id] = map
                     @Suppress("UNCHECKED_CAST")
-                    meta.new(this@JvmMemoryDataStore, id) as KIEntity<K> as E
+                    e._meta.new(this@JvmMemoryDataStore, id) as E
                 }.apply {
                     if (isNotEmpty())
                         runBlocking { events.incoming.send(EntityCreateEvent(this@apply)) }
@@ -247,7 +289,7 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
         }
 
 
-        fun <E : KIEntity<K>, K : Any> delete(entities: Iterable<E>): Try<Iterable<K>> = Try {
+        override fun <E : KIEntity<K>, K : Any> delete(entities: Iterable<E>): Try<Iterable<K>> = Try {
             db.tx {
                 entities.map { db.delete(it.id).second }
             }
@@ -263,26 +305,65 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
             bucket.remove(id)!! to id
         }
 
-        fun version(id: Any): Long = db.atomicLong(versionName(id)).open().get()
+        override fun version(id: Any): Long = db.atomicLong(versionName(id)).open().get()
 
         @Suppress("UNUSED_PARAMETER")
-        private fun index(k: Any, values: Map<String, Any?>) {
+        override fun index(k: Any, values: Map<String, Any?>) {
 
         }
 
         @Suppress("UNCHECKED_CAST")
-        fun <E : KIEntity<K>, K : Any> query(query: Query<E, K>): Page<E, K> = run {
-            val fs = bucket.iterator().asSequence().map { entry -> meta.new(this@JvmMemoryDataStore, entry.key as K) as E }.filter {
-                query.f.matches(it)
-            }
-            val sortedWith = if (query.ordering === Ordering.NATURAL) fs else fs.sortedWith(query.ordering as Comparator<in E>)
-            val entities = if (query.page.size >= 0) {
-                val windowed = sortedWith.windowed(query.page.size, query.page.size, true)
-                windowed.drop(query.page.offset / query.page.size).firstOrNull() ?: listOf()
-            } else sortedWith.drop(query.page.offset).toList()
-            Page(query.page, entities, if (query.page.size >= 0 && entities.size == query.page.size) 1 else 0)
+        override fun <E : KIEntity<K>, K : Any> baseQuery(query: Query<E, K>): Sequence<E> = bucket.iterator().asSequence().map { entry -> meta.new(this@JvmMemoryDataStore, entry.key as K) as E }.filter {
+            query.f.matches(it)
         }
+
+
+    }
+
+    inner internal class SubTypeBucket(override val meta: KIEntityMeta, val parent: Bucket) : Bucket {
+        override val bucket: HTreeMap<Any, MutableMap<String, Any?>>
+            get() = parent.bucket
+        override val versioned: Boolean
+            get() = meta.versioned
+
+        override fun get(keys: Iterable<Any>): Iterable<Map<String, Any?>> = parent.get(keys).filter {
+            val types = it[TYPES]
+            types is Array<*> && meta.name in types
+        }
+
+        fun typeFilter(m: Map<String, Any?>): Boolean = m[TYPES].let {
+            it is Array<*> && meta.name in it
+        }
+
+        override fun get(k: Any): MutableMap<String, Any?>? = parent.get(k)?.let {
+            val types = it[TYPES]
+            if (types is Array<*> && meta.name in types) it else null
+        }
+
+        override fun set(k: Any, values: Map<String, Any?>): Map<String, Any?> = parent.set(k, values)
+        override fun set(k: Any, version: Long, values: Map<String, Any?>): Map<String, Any?> = parent.set(k, version, values)
+
+        override fun <E : KIEntity<K>, K : Any> create(entities: Iterable<E>): Iterable<E> = parent.create(entities)
+
+        override fun <E : KIEntity<K>, K : Any> delete(entities: Iterable<E>): Try<Iterable<K>> = parent.delete(entities)
+        override fun version(id: Any): Long = parent.version(id)
+
+        @Suppress("UNCHECKED_CAST")
+        override fun <E : KIEntity<K>, K : Any> baseQuery(query: Query<E, K>): Sequence<E> = bucket.iterator().asSequence().filter {
+            typeFilter(it.value)
+        }.map { entry -> meta.new(this@JvmMemoryDataStore, entry.key as K) as E }.filter {
+            query.f.matches(it)
+        }
+
+        override fun index(k: Any, values: Map<String, Any?>) {
+
+        }
+
     }
 
     private val buckets = Buckets(mutableMapOf())
+
+    companion object : KLogging() {
+        val TYPES = "_types"
+    }
 }

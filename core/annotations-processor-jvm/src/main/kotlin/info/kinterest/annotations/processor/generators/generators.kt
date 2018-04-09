@@ -78,15 +78,15 @@ class EntityInfo(val type: TypeElement, val env: ProcessingEnvironment) {
     val idTypeStr = idType.qualifiedName.normalize()
     val idKoType: KoType = parseType(idType.qualifiedName.normalize())
 
-    val fields: List<FieldInfo> = (hierarchy + type).flatMap {
-        it.enclosedElements.filterIsInstance<ExecutableElement>().filter {
+    val fields: List<FieldInfo> = (hierarchy + type).flatMap { t ->
+        t.enclosedElements.filterIsInstance<ExecutableElement>().filter {
             env.note("filter: $it")
             it.simpleName.toString() != "getId" && Modifier.STATIC !in it.modifiers && it.simpleName.startsWith("get")
                     && it.simpleName.toString().length > 3
         }.map {
             val nm = it.simpleName.toString().substring(3).decapitalize()
             val setterNm = "set${nm.capitalize()}"
-            val setter = type.enclosedElements.filterIsInstance<ExecutableElement>().filter { it.simpleName.toString() == setterNm }
+            val setter = t.enclosedElements.filterIsInstance<ExecutableElement>().filter { it.simpleName.toString() == setterNm }
             FieldInfo(
                     nm,
                     it.returnType,

@@ -17,6 +17,7 @@ abstract class KIEntityMeta {
     abstract val idProperty: KIProperty<*>
     abstract val props : Map<String, KIProperty<*>>
     abstract val hierarchy: List<KIEntityMeta>
+    abstract val types: List<KIEntityMeta>
 
     abstract fun <K : Any> new(ds: DataStore, id: K): KIEntity<K>
 
