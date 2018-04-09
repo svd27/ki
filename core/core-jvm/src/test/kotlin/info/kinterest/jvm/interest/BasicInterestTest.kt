@@ -193,6 +193,7 @@ class BasicInterestTest : Spek({
                 waiter.waitFor {
                     it is InterestPaged && it.paging.entites.size > 0
                 }
+                runBlocking { delay(100) }
                 interest.entities.entites.size `should equal` 2
                 interest.entities.entites.first().name `should equal` "d"
             }
@@ -204,10 +205,11 @@ class BasicInterestTest : Spek({
             val waiter = EventWaiter(im.events as Channel<InterestEvent<Interest<InterestEntity, Long>, InterestEntity, Long>>)
             val interest = im + Query<InterestEntity, Long>(f.cast(), Ordering(listOf(InterestEntityImpl.Companion.Meta.props["name"]!!.asc())))
             entities.firstOrNull { it.name == "a" }?.let { it.name = "e" }
-            waiter.waitFor {
-                it is InterestPageChanged
-            }
+
             it("after updating an entity") {
+                waiter.waitFor {
+                    it is InterestPageChanged
+                }
                 logger.debug { "interest entities ${interest.entities}" }
                 interest.entities.entites.size `should equal` 3
                 interest.entities.entites.first().name `should equal` "d"
