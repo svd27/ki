@@ -1,9 +1,9 @@
 package info.kinterest.annotations.processor
 
-import info.kinterest.annotations.Entity
 import info.kinterest.annotations.processor.generators.Generator
 import info.kinterest.annotations.processor.generators.JvmGenerator
 import info.kinterest.annotations.processor.generators.note
+import info.kinterest.jvm.annotations.Entity
 import org.slf4j.LoggerFactory
 import java.io.File
 import javax.annotation.processing.*
@@ -12,7 +12,7 @@ import javax.lang.model.element.Element
 import javax.lang.model.element.TypeElement
 import javax.tools.Diagnostic
 
-@SupportedAnnotationTypes("info.kinterest.annotations.Entity")
+@SupportedAnnotationTypes("info.kinterest.jvm.annotations.Entity")
 @SupportedOptions(Processor.KAPT_KOTLIN_GENERATED_OPTION_NAME, "kapt.verbose", "targets")
 @SupportedSourceVersion(SourceVersion.RELEASE_8)
 class Processor : AbstractProcessor() {

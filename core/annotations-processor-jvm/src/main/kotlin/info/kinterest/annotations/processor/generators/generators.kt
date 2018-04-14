@@ -1,21 +1,21 @@
+@file:Suppress("PLATFORM_CLASS_MAPPED_TO_KOTLIN")
+
 package info.kinterest.annotations.processor.generators
 
-import info.kinterest.DONTDOTHIS
-import info.kinterest.DataStore
-import info.kinterest.EntitySupport
-import info.kinterest.KIVersionedEntity
-import info.kinterest.annotations.Entity
+import info.kinterest.*
 import info.kinterest.datastores.DataStoreFacade
+import info.kinterest.functional.Try
+import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.KIJvmEntity
+import info.kinterest.jvm.annotations.Entity
+import info.kinterest.jvm.annotations.Relation
 import info.kinterest.meta.*
 import org.jetbrains.annotations.Nullable
 import org.yanex.takenoko.*
+import java.util.Set
 import javax.annotation.processing.ProcessingEnvironment
 import javax.annotation.processing.RoundEnvironment
-import javax.lang.model.element.ExecutableElement
-import javax.lang.model.element.Modifier
-import javax.lang.model.element.Name
-import javax.lang.model.element.TypeElement
+import javax.lang.model.element.*
 import javax.lang.model.type.DeclaredType
 import javax.lang.model.type.ExecutableType
 import javax.lang.model.type.PrimitiveType
@@ -30,25 +30,22 @@ class EntityInfo(val type: TypeElement, val env: ProcessingEnvironment) {
     val parent: TypeElement?
     val hierarchy: List<TypeElement>
 
+    val rels: List<Pair<TypeElement, ExecutableElement>>
+
     init {
         env.note("targetPkg: $targetPkg")
-        fun findSuperEntity(t: TypeElement): TypeElement? = t.interfaces.filterIsInstance<DeclaredType>().map { it.asElement() }.filter { env.note("$it ${it.annotationMirrors.joinToString("\n", "\n")}");it.getAnnotation(Entity::class.java) != null }.filterIsInstance<TypeElement>().firstOrNull()
+        //type.getAnnotation(Relations::class.java)?.let{ env.note("rel: $it") }
+        fun findSuperEntity(t: TypeElement): TypeElement? = t.interfaces.filterIsInstance<DeclaredType>().map { it.asElement() }.filter { it.getAnnotation(Entity::class.java) != null }.filterIsInstance<TypeElement>().firstOrNull()
         parent = findSuperEntity(type)
         var par = listOf(findSuperEntity(type))
         while (par.lastOrNull() != null) {
             par += findSuperEntity(par.last()!!)
         }
-        env.note("super: $par")
         hierarchy = par.filterNotNull()
-        fun findEntitySuper(t: TypeElement): TypeElement = t.interfaces.filterIsInstance<DeclaredType>().firstOrNull {
-            it.getAnnotation(Entity::class.java) != null
-        }?.let {
-            findEntitySuper(it.asElement() as TypeElement)
-        } ?: t
-        env.note("interfaces: ${type.interfaces.map { "$it: ${it::class.java.interfaces.toList()}" }}")
+        rels = type.enclosedElements.filterIsInstance<ExecutableElement>().filter { env.note("rel check: $it ${it.annotationMirrors}"); it.getAnnotation(Relation::class.java) != null }.map { type to it } + hierarchy.flatMap { type -> type.enclosedElements.filterIsInstance<ExecutableElement>().filter { it.getAnnotation(Relation::class.java) != null }.map { type to it } }
+        env.note("RELS: $rels")
 
         root = hierarchy.lastOrNull() ?: type
-        env.note("$type has parent $parent")
     }
 
 
@@ -80,7 +77,8 @@ class EntityInfo(val type: TypeElement, val env: ProcessingEnvironment) {
 
     val fields: List<FieldInfo> = (hierarchy + type).flatMap { t ->
         t.enclosedElements.filterIsInstance<ExecutableElement>().filter {
-            env.note("filter: $it")
+            it.simpleName.toString() !in rels.map { it.second.simpleName.toString() }
+        }.filter {
             it.simpleName.toString() != "getId" && Modifier.STATIC !in it.modifiers && it.simpleName.startsWith("get")
                     && it.simpleName.toString().length > 3
         }.map {
@@ -96,10 +94,63 @@ class EntityInfo(val type: TypeElement, val env: ProcessingEnvironment) {
         }
     }
 
+    val relations: List<RelationInfo> = rels.map { val rel = RelationInfo(it.second, it.first); env.note("rel: ${it.second} ${it.second.simpleName} prop: ${rel.property}"); rel }
+//            (hierarchy + type).flatMap { t ->
+//            t.enclosedElements.filterIsInstance<ExecutableElement>().filter {
+//                it.simpleName.toString() != "getId" && Modifier.STATIC !in it.modifiers && it.simpleName.startsWith("get")
+//                        && it.simpleName.toString().length > 3 &&
+//                        it.simpleName.toString().substring(3).decapitalize() in rels.map { it.property }
+//            }.map {
+//                env.note("return : ${it.returnType}")
+//                val nm = it.simpleName.toString().substring(3).decapitalize()
+//                val setterNm = "set${nm.capitalize()}"
+//                val setter = t.enclosedElements.filterIsInstance<ExecutableElement>().filter { it.simpleName.toString() == setterNm }
+//                RelationInfo(rels.find { it.property==nm }!!, nm, it.returnType, setter.isEmpty(), it.getAnnotation(Nullable::class.java) != null)
+//            }
+    //    }
+
+
     val versioned = type.interfaces.any { it -> it is DeclaredType && it.asElement().simpleName.toString() == KIVersionedEntity::class.simpleName }
 
     class IdInfo(val type: TypeElement, val generateKey: Boolean)
 
+    inner class RelationInfo(val element: ExecutableElement, type1: TypeElement) {
+        val multi: Boolean
+        val typeName: String
+        val readOnly: Boolean = type1.enclosedElements.firstOrNull { it.simpleName.toString() == element.simpleName.toString().replaceFirst("get", "set") } == null
+        val nullable: Boolean = element.getAnnotation(Nullable::class.java) != null
+        val property: String = element.simpleName.toString().substring(3).decapitalize()
+        val targetVal: AnnotationValue
+        val targetIdVal: AnnotationValue
+        val target: String
+        val targetId: String
+        val mutableCollection: Boolean
+        val metaName: String
+        val metaType: String
+
+        init {
+            var replaceAfter = element.returnType.toString().replaceAfter('<', "")
+            if (replaceAfter != element.returnType.toString()) replaceAfter = replaceAfter.dropLast(1)
+            multi = Try { Class.forName(replaceAfter) == Set::class.java }.getOrElse { false }
+
+            val annotation = element.annotationMirrors.first { it.annotationType.toString() == Relation::class.qualifiedName }
+
+            targetVal = annotation!!.elementValues.entries.first { it.key.simpleName.toString() == "target" }.value
+            targetIdVal = annotation.elementValues.entries.first { it.key.simpleName.toString() == "targetId" }.value
+            env.note("${annotation.elementValues}")
+            target = targetVal.value.toString()
+            targetId = targetIdVal.value.toString().normalize()
+            mutableCollection = (annotation.elementValues.entries.firstOrNull { it.key.simpleName.toString() == "mutableCollection" }?.value?.value
+                    ?: true) as Boolean
+            env.note("$target $targetId $mutableCollection")
+            metaName = "PROP_${property.toUpperCase()}"
+            metaType = "${KIRelationProperty::class.qualifiedName}<$target,$targetId>"
+            val type = if (multi) {
+                element.returnType.toString().replace("java.util.Set", if (mutableCollection) "kotlin.MutableSet" else "kotlin.Set")
+            } else element.returnType.toString()
+            typeName = type + if (nullable) "?" else ""
+        }
+    }
 
     class FieldInfo(val name: String, _type: TypeMirror, val readOnly: Boolean, val nullable: Boolean, val transient: Boolean = false) {
         val type: Typing = when (_type) {
@@ -160,7 +211,7 @@ fun String.normalize(): String = if (startsWith("java.lang")) {
 
         java.lang.String::class.java.canonicalName -> String::class.qualifiedName!!
 
-        else -> toString()
+        else -> this
     }
 } else {
     this
@@ -201,6 +252,16 @@ object JvmGenerator : Generator {
         entity.name to
                 kotlinFile(packageName = entity.targetPkg) {
                     import(parseType(KIProperty::class.java))
+                    import(parseType(RelationDelegate::class.java))
+                    import(parseType(RelationNullableDelegate::class.java))
+                    import(parseType(RelationRODelegate::class.java))
+                    import(parseType(RelationNullableRODelegate::class.java))
+                    import(parseType(RelationMutableSet::class.java))
+                    import(parseType(RelationSet::class.java))
+
+                    env.note("import: ${Try::class.qualifiedName!!.replaceAfterLast('.', "*")}")
+                    extraImport(Try::class.qualifiedName!!.replaceAfterLast('.', "getOrElse"))
+                    //import(Try::class.qualifiedName!!.replaceAfterLast('.', "*"))
 
                     classDeclaration(entity.name) {
                         primaryConstructor() {
@@ -251,6 +312,35 @@ object JvmGenerator : Generator {
                             }
                         }
 
+
+
+                        entity.relations.forEach {
+                            val mod = if (it.readOnly) VAL else VAR
+                            property(it.property, parseType(it.typeName), OVERRIDE + mod) {
+                                if (!it.multi) {
+                                    if (it.readOnly) {
+                                        if (it.nullable) {
+                                            delegate("RelationNullableRODelegate(_store, Meta.${it.metaName})")
+                                        } else {
+                                            delegate("RelationRODelegate(_store, Meta.${it.metaName})")
+                                        }
+                                    } else {
+                                        if (it.nullable)
+                                            delegate("RelationNullableDelegate(_store, Meta.${it.metaName})")
+                                        else
+                                            delegate("RelationDelegate(_store, Meta.${it.metaName})")
+                                    }
+                                } else {
+                                    require(!it.nullable)
+                                    if (!it.mutableCollection) {
+                                        initializer("RelationSet(this, _store, Meta.${it.metaName})")
+                                    } else {
+                                        initializer("RelationMutableSet(this, _store, Meta.${it.metaName})")
+                                    }
+                                }
+                            }
+                        }
+
                         function("asTransient", OVERRIDE) {
                             body(true) {
                                 append("Transient(this)")
@@ -289,6 +379,11 @@ object JvmGenerator : Generator {
                                         }
                                     }
                                 }
+                                entity.relations.forEach {
+                                    property(it.metaName, parseType(it.metaType), VAL) {
+                                        initializer("props[\"${it.property}\"] as ${it.metaType}")
+                                    }
+                                }
                                 property("hierarchy", parseType("List<KIEntityMeta>"), OVERRIDE + VAL) {
                                     val hier = entity.hierarchy.joinToString(",", "listOf(", ")") { "${it.simpleName}Jvm.meta" }
                                     initializer(hier)
@@ -306,6 +401,9 @@ object JvmGenerator : Generator {
                                     entity.fields.forEach {
                                         property(it.name, it.koType, OVERRIDE + if (it.readOnly) VAL else VAR)
                                     }
+                                    entity.relations.forEach {
+                                        property(it.property, parseType(it.typeName), OVERRIDE + if (it.readOnly) VAL else VAR)
+                                    }
                                 }
                                 if (entity.versioned)
                                     secondaryConstructor {
@@ -315,14 +413,14 @@ object JvmGenerator : Generator {
                                             param(it.name, it.koType)
                                         }
                                         val args = listOf("_store", "_id", "null") +
-                                                entity.fields.map { it.name }
+                                                entity.fields.map { it.name } + entity.relations.map { "e." + if (it.multi) "${it.element.simpleName}.toMutableSet()" else it.element.simpleName }
                                         delegateCall("this", *args.toTypedArray())
                                     }
                                 secondaryConstructor {
                                     param("e", parseType(entity.type.qualifiedName.toString()))
                                     val args = listOf("e._store", "e.id") +
                                             (if (entity.versioned) listOf("e._version") else listOf()) +
-                                            entity.fields.map { "e.${it.name}" }
+                                            entity.fields.map { "e.${it.name}" } + entity.relations.map { "e." + if (it.multi) "${it.property}.toMutableSet()" else it.property }
                                     delegateCall("this", *args.toTypedArray())
                                 }
                                 property("id", parseType(entity.idTypeStr), VAL + OVERRIDE) {
@@ -360,6 +458,7 @@ object JvmGenerator : Generator {
                                         append("""when(p) {
                                               Meta.idProperty -> id
                                               ${entity.fields.map { "Meta.${it.metaName} -> ${it.name}" }.joinToString("\n")}
+                                              ${entity.relations.map { "Meta.${it.metaName} -> ${it.property}" }.joinToString("\n")}
                                               else -> TODO(p.name)
                                             } as V?
                                         """.trimIndent())
@@ -376,6 +475,9 @@ object JvmGenerator : Generator {
                                               ${entity.fields.filter { !it.readOnly }.map {
                                             "Meta.${it.metaName} -> ${it.name} = v as ${(renderType(parseType(it.typeName)))}"
                                         }.joinToString("\n")}
+                                        ${entity.relations.filter { !it.readOnly }.map {
+                                            "Meta.${it.metaName} -> ${it.property} = v as ${(renderType(parseType(it.typeName)))}"
+                                        }.joinToString("\n")}
                                               else -> TODO()
                                             }
                                         """.trimIndent())
@@ -391,6 +493,9 @@ object JvmGenerator : Generator {
                                     body(true) {
                                         append("""when(p) {
                                               ${entity.fields.filter { !it.readOnly }.map { "Meta.${it.metaName} -> ${it.name} = v as ${renderType(parseType(it.typeName))}" }.joinToString("\n")}
+                                              ${entity.relations.filter { !it.readOnly }.map {
+                                            "Meta.${it.metaName} -> ${it.property} = v as ${(renderType(parseType(it.typeName)))}"
+                                        }.joinToString("\n")}
                                               else -> TODO()
                                             }
                                         """.trimIndent())

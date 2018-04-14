@@ -1,8 +1,6 @@
 package info.kinterest.datastores.jvm.memory
 
 import info.kinterest.KIEntity
-import info.kinterest.annotations.Entity
-import info.kinterest.annotations.StorageTypes
 import info.kinterest.cast
 import info.kinterest.core.jvm.filters.parse
 import info.kinterest.datastores.jvm.DataStoreConfig
@@ -10,6 +8,8 @@ import info.kinterest.datastores.jvm.memory.jvm.QueryEntityJvm
 import info.kinterest.functional.flatten
 import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.MetaProvider
+import info.kinterest.jvm.annotations.Entity
+import info.kinterest.jvm.annotations.StorageTypes
 import info.kinterest.paging.Paging
 import info.kinterest.query.Query
 import info.kinterest.sorting.Ordering

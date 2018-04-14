@@ -1,10 +1,10 @@
 package info.kinterest.annotations.processor
 
 import info.kinterest.KIEntity
-import info.kinterest.annotations.Entity
 import info.kinterest.annotations.processor.jvm.EmployeeJvm
 import info.kinterest.annotations.processor.jvm.ManagerJvm
 import info.kinterest.annotations.processor.jvm.PersonJvm
+import info.kinterest.jvm.annotations.Entity
 import org.amshove.kluent.`should equal`
 import org.jetbrains.spek.api.Spek
 import org.jetbrains.spek.api.dsl.given

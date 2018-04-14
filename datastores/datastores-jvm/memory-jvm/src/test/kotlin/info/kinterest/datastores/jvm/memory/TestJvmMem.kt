@@ -5,8 +5,6 @@ import com.github.salomonbrys.kodein.instance
 import info.kinterest.DataStoreError
 import info.kinterest.KIEntity
 import info.kinterest.KIVersionedEntity
-import info.kinterest.annotations.Entity
-import info.kinterest.annotations.StorageTypes
 import info.kinterest.cast
 import info.kinterest.datastores.jvm.DataStoreConfig
 import info.kinterest.datastores.jvm.DataStoreFactoryProvider
@@ -18,6 +16,9 @@ import info.kinterest.functional.getOrDefault
 import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.KIJvmEntity
 import info.kinterest.jvm.MetaProvider
+import info.kinterest.jvm.annotations.Entity
+import info.kinterest.jvm.annotations.StorageTypes
+import info.kinterest.jvm.annotations.Versioned
 import info.kinterest.jvm.coreKodein
 import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.runBlocking
@@ -38,7 +39,7 @@ interface TestRoot : KIEntity<String> {
 
 @Entity
 @StorageTypes(["jvm.mem"])
-@info.kinterest.annotations.Versioned
+@Versioned
 interface TestVersioned : KIVersionedEntity<Long> {
     override val id: Long
     val name : String

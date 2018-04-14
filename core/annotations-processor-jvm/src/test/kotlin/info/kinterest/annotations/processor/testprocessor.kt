@@ -2,11 +2,11 @@ package info.kinterest.annotations.processor
 
 import info.kinterest.KIEntity
 import info.kinterest.KIVersionedEntity
-import info.kinterest.annotations.Entity
-import info.kinterest.annotations.GeneratedId
-import info.kinterest.annotations.StorageTypes
-import info.kinterest.annotations.Versioned
 import info.kinterest.annotations.processor.jvm.TotalTestJvm
+import info.kinterest.jvm.annotations.Entity
+import info.kinterest.jvm.annotations.GeneratedId
+import info.kinterest.jvm.annotations.StorageTypes
+import info.kinterest.jvm.annotations.Versioned
 import org.amshove.kluent.`should be`
 import org.amshove.kluent.`should equal`
 import org.amshove.kluent.`should not be`

@@ -5,6 +5,7 @@ import info.kinterest.KIEntity
 import info.kinterest.functional.Try
 import info.kinterest.meta.KIEntityMeta
 import info.kinterest.meta.KIProperty
+import info.kinterest.meta.KIRelationProperty
 import info.kinterest.paging.Page
 import info.kinterest.query.Query
 import kotlinx.coroutines.experimental.CompletableDeferred
@@ -24,6 +25,11 @@ interface DataStoreFacade : DataStore {
     fun getValues(type: KIEntityMeta, id: Any, props: Iterable<KIProperty<*>>): Deferred<Try<Map<String, Any?>?>>
     fun setValues(type: KIEntityMeta, id: Any, values: Map<KIProperty<*>, Any?>): Deferred<Try<Unit>>
     fun setValues(type: KIEntityMeta, id: Any, version: Any, values: Map<KIProperty<*>, Any?>): Deferred<Try<Unit>>
+    fun <S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any> addRelation(rel: KIRelationProperty<T, L>, source: S, target: T): Try<Deferred<Try<Boolean>>> = TODO()
+    fun <S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any> removeRelation(rel: KIRelationProperty<T, L>, source: S, target: T): Try<Deferred<Try<Boolean>>> = TODO()
+    fun <S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any> replaceRelation(rel: KIRelationProperty<T, L>, source: S, target: T): Try<Deferred<Try<Boolean>>> = TODO()
+    fun <S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any> getRelations(rel: KIRelationProperty<T, L>, source: S): Try<Deferred<Try<Iterable<T>>>> = TODO()
+    fun <S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any> getRelationsSync(rel: KIRelationProperty<T, L>, source: S): Try<Iterable<T>> = TODO()
 }
 
 sealed class QueryMessage

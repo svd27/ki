@@ -2,8 +2,8 @@ package info.kinterest.datastores.jvm.filter.tree
 
 import info.kinterest.KIEntity
 import info.kinterest.LocalDate
-import info.kinterest.annotations.Entity
-import info.kinterest.annotations.StorageTypes
+import info.kinterest.jvm.annotations.Entity
+import info.kinterest.jvm.annotations.StorageTypes
 
 @Entity
 @StorageTypes(["jvm.mem"])

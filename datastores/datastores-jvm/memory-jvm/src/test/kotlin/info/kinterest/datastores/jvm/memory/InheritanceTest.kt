@@ -2,7 +2,6 @@ package info.kinterest.datastores.jvm.memory
 
 import info.kinterest.FilterError
 import info.kinterest.KIEntity
-import info.kinterest.annotations.Entity
 import info.kinterest.cast
 import info.kinterest.core.jvm.filters.parser.parse
 import info.kinterest.datastores.jvm.DataStoreConfig
@@ -10,6 +9,7 @@ import info.kinterest.datastores.jvm.memory.jvm.MemCustomerJvm
 import info.kinterest.datastores.jvm.memory.jvm.MemEmployeeJvm
 import info.kinterest.datastores.jvm.memory.jvm.MemPersonJvm
 import info.kinterest.functional.getOrElse
+import info.kinterest.jvm.annotations.Entity
 import info.kinterest.jvm.filter.filter
 import info.kinterest.paging.Paging
 import info.kinterest.query.Query

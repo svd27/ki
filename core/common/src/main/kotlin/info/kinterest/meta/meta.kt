@@ -59,6 +59,8 @@ interface KIPropertySupport<V> {
     fun minMax(v1: V, v2: V): Pair<V, V>
 }
 
+class Relation<S : KIEntity<K>, T : KIEntity<L>, K : Any, L : Any>(val rel: KIRelationProperty<T, L>, val source: S, val target: T)
+
 
 class KIBooleanProperty(support: KIPropertySupport<Boolean>) : KIProperty<Boolean>(support, 0)
 class KIEnumProperty<E : Enum<*>>(support: KIPropertySupport<E>) : KIProperty<E>(support, 1)
@@ -75,6 +77,7 @@ class KIDoubleProperty(support: KIPropertySupport<Double>) : KINumberProperty<Do
 class KIStringProperty(support: KIPropertySupport<String>) : KIProperty<String>(support, 9)
 sealed class KITypeProperty<T>(support: KIPropertySupport<T>, order: Int) : KIProperty<T>(support, order)
 class KIEmbedProperty<T>(support: KIPropertySupport<T>) : KITypeProperty<T>(support, Int.MAX_VALUE)
+class KIRelationProperty<T : KIEntity<K>, K : Any>(val single: Boolean, val symmetric: String, val container: KClass<*>, val target: KIEntityMeta, support: KIPropertySupport<T>) : KITypeProperty<T>(support, 20)
 class KIReferenceProperty<T>(support: KIPropertySupport<T>) : KITypeProperty<T>(support, Int.MAX_VALUE - 1)
 sealed class KISimpleTypeProperty<T>(support: KIPropertySupport<T>, order: Int) : KITypeProperty<T>(support, order)
 class KIUUIDProperty(support: KIPropertySupport<UUID>) : KISimpleTypeProperty<UUID>(support, 12)

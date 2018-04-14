@@ -273,9 +273,8 @@ class QueryManagerTest : Spek({
                 pLast.entites.map { it.name } `should equal` listOf("zb", "zc")
             }
         }
-
-
     }
+    logger.debug { "Done." }
 }) {
     companion object : KLogging()
 }
