@@ -8,11 +8,9 @@ import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.filter.EntityFilter
 import info.kinterest.jvm.filter.tree.FilterTree
 import info.kinterest.meta.KIEntityMeta
-import info.kinterest.paging.Page
-import info.kinterest.paging.Paging
 import info.kinterest.query.Query
 import info.kinterest.query.QueryManager
-import info.kinterest.sorting.Ordering
+import info.kinterest.query.QueryResult
 import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.channels.Channel
 import kotlinx.coroutines.experimental.selects.select
@@ -24,6 +22,8 @@ class QueryManagerJvm(val filterTree: FilterTree) : QueryManager {
     override val stores: Set<DataStoreFacade>
         get() = _stores
     val dataStores = Channel<DataStoreEvent>()
+
+    override fun storesFor(meta: KIEntityMeta): Set<DataStoreFacade> = stores
 
     val pool: CoroutineDispatcher = newFixedThreadPoolContext(4, "${QueryManagerJvm::class.simpleName}")
 
@@ -52,73 +52,10 @@ class QueryManagerJvm(val filterTree: FilterTree) : QueryManager {
         filterTree -= f
     }
 
-    override fun <E : KIEntity<K>, K : Any> query(q: Query<E, K>): Try<Deferred<Try<Page<E, K>>>> = Try {
-        val dss = if (q.ds == Query.ALL) stores else q.ds.mapNotNull { ads -> stores.filter { it.name == ads.name }.firstOrNull() }
-        when {
-            dss.isEmpty() -> throw QueryManagerRetrieveError(this, "no DataStores found to query")
-            dss.size == 1 -> dss.first().query(q).getOrElse { throw it }
-            else -> {
-                val deferreds: List<Deferred<Try<Page<E, K>>>> = dss.map { it.query(Query(q.f, q.ordering, Paging(0, q.page.offset + q.page.size))) }.map { it.getOrElse { throw it } }
-                determinePage(q, deferreds)
+    override fun <E : KIEntity<K>, K : Any> query(q: Query<E, K>): Try<Deferred<Try<QueryResult<E, K>>>> = runBlocking { q.query(this@QueryManagerJvm) }
 
-            }
-        }
-    }
 
-    private fun <E : KIEntity<K>, K : Any> determinePage(q: Query<E, K>, defs: List<Deferred<Try<Page<E, K>>>>): Deferred<Try<Page<E, K>>> = run {
-        var deferreds = defs
-        async(pool) {
-            Try {
-                runBlocking {
-                    var pages = listOf<Page<E, K>>()
-                    while (deferreds.isNotEmpty()) {
-                        pages += select<Page<E, K>> {
-                            deferreds.map { d ->
-                                d.onAwait {
-                                    deferreds -= d
-                                    it.getOrElse { throw it }
-                                }
-                            }
-                        }
-                    }
-                    var entities: List<E> = listOf()
-                    val el = pages.map { it.entites.toMutableList() }.toMutableList()
-                    var off = 0
-                    logger.debug { "el before drop of ${q.page.offset} $el" }
-                    while (el.isNotEmpty() && off < q.page.offset) {
-                        el.minAndDrop(q.ordering)
-                        off++
-                    }
-                    logger.debug { "el after drop $el offset $off" }
-                    while (el.isNotEmpty() && (entities.size < q.page.size) || q.page.size < 0) {
-                        val minAndDrop = el.minAndDrop(q.ordering)
-                        if (minAndDrop != null)
-                            entities += minAndDrop
-                    }
-                    Page(q.page, entities, if (entities.size >= q.page.size) 1 else 0)
-                }
-            }
-        }
-    }
 
-    fun <E : KIEntity<K>, K : Any> MutableList<MutableList<E>>.minAndDrop(ordering: Ordering<E, K>): E? = run {
-        val rem = flatMap {
-            if (it.isEmpty()) listOf(it) else listOf()
-        }
-
-        logger.trace { "removing $rem" }
-        rem.forEach { remove(it) }
-
-        var min: MutableList<E>? = null
-        for (l in this) {
-            val nm = l.minWith(ordering.cast())!!
-            if (min == null || min.size == 0 || ordering.compare(nm, min.first()) < 0) {
-                min = l
-            }
-        }
-        logger.trace { "min is $min rest: $this" }
-        min?.removeAt(0)
-    }
 
     override fun <E : KIEntity<K>, K : Any> retrieve(meta: KIEntityMeta, ids: Iterable<K>, stores: Set<DataStore>): Try<Deferred<Try<Iterable<E>>>> = Try {
         val dss: Collection<DataStoreFacade> = if (stores == Query.ALL) this.stores else stores.mapNotNull { ads ->

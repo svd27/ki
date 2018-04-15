@@ -6,6 +6,7 @@ import info.kinterest.EntityEvent
 import info.kinterest.datastores.DataStoreFacade
 import info.kinterest.jvm.MetaProvider
 import info.kinterest.jvm.events.Dispatcher
+import mu.KLogging
 import java.util.*
 
 
@@ -22,18 +23,22 @@ class DataStoreFactoryProvider : KodeinInjected {
     init {
         onInjected {
             kodein ->
-            this.javaClass.classLoader.getResources("datasource-factory.properties").iterator().forEach {
+            logger.debug { "loading factories" }
+            this.javaClass.classLoader.getResources("datastore-factory.properties").iterator().forEach {
                 val props = Properties()
                 it.openStream().use {
                     props.load(it)
                 }
                 props.forEach { n, v ->
+                    logger.debug { "loading $n = $v" }
                     factories[n.toString()] = (Class.forName(v.toString()).newInstance() as DataStoreFactory).apply { inject(kodein) }
                 }
             }
         }
 
     }
+
+    companion object : KLogging()
 }
 
 

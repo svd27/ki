@@ -4,8 +4,8 @@ import info.kinterest.KIEntity
 import info.kinterest.datastores.*
 import info.kinterest.functional.Try
 import info.kinterest.functional.getOrElse
-import info.kinterest.paging.Page
 import info.kinterest.query.Query
+import info.kinterest.query.QueryResult
 import kotlinx.coroutines.experimental.CoroutineDispatcher
 import kotlinx.coroutines.experimental.Deferred
 import kotlinx.coroutines.experimental.channels.ReceiveChannel
@@ -15,12 +15,12 @@ import kotlinx.coroutines.experimental.launch
 interface RemoteOutgoingDataStoreFacade : DataStoreFacade {
     val ds: DataStoreFacade
     val chIn: ReceiveChannel<QueryMsg>
-    val chOut: SendChannel<QueryResult>
+    val chOut: SendChannel<QueryResultMsg>
     val pool: CoroutineDispatcher
 
     val nextId: Long
 
-    override fun <E : KIEntity<K>, K : Any> query(query: Query<E, K>): Try<Deferred<Try<Page<E, K>>>> = ds.query(query)
+    override fun <E : KIEntity<K>, K : Any> query(query: Query<E, K>): Try<Deferred<Try<QueryResult<E, K>>>> = ds.query(query)
 
     fun initReceiver() {
         launch(pool) {

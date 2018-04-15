@@ -13,7 +13,7 @@ import info.kinterest.jvm.map
 import info.kinterest.meta.KIEntityMeta
 import info.kinterest.meta.KIProperty
 import info.kinterest.paging.Page
-import info.kinterest.query.Query
+import info.kinterest.query.*
 import info.kinterest.sorting.Ordering
 import kotlinx.coroutines.experimental.*
 import mu.KLogging
@@ -106,7 +106,7 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
         }
     }
 
-    override fun <E : KIEntity<K>, K : Any> query(query: Query<E, K>): Try<Deferred<Try<Page<E, K>>>> = Try {
+    override fun <E : KIEntity<K>, K : Any> query(query: Query<E, K>): Try<Deferred<Try<QueryResult<E, K>>>> = Try {
         val bucket = buckets[query.f.meta]!!
         async(pool) {
             Try {
@@ -198,14 +198,23 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
         fun <E : KIEntity<K>, K : Any> baseQuery(query: Query<E, K>): Sequence<E>
 
         @Suppress("UNCHECKED_CAST")
-        fun <E : KIEntity<K>, K : Any> query(query: Query<E, K>): Page<E, K> = run {
+        fun <E : KIEntity<K>, K : Any> query(query: Query<E, K>): QueryResult<E, K> = run {
             val fs = baseQuery(query)
-            val sortedWith = if (query.ordering === Ordering.NATURAL) fs else fs.sortedWith(query.ordering as Comparator<in E>)
-            val entities = if (query.page.size >= 0) {
-                val windowed = sortedWith.windowed(query.page.size, query.page.size, true)
-                windowed.drop(query.page.offset / query.page.size).firstOrNull() ?: listOf()
-            } else sortedWith.drop(query.page.offset).toList()
-            Page(query.page, entities, if (query.page.size >= 0 && entities.size == query.page.size) 1 else 0)
+            val pres = query.projections.map { proj ->
+                when (proj) {
+                    is SumProjection<E, K, *> -> SumProjectionResult<E, K, Number>(proj as SumProjection<E, K, Number>, fs.map { it.getValue(proj.property) }.filterIsInstance<Number>().reduce { n1, n2 -> SumProjection.add(n1, n2) })
+                    is EntityProjection<E, K> -> {
+                        val sortedWith = if (proj.ordering === Ordering.NATURAL) fs else fs.sortedWith(proj.ordering as Comparator<in E>)
+                        val entities = if (proj.paging.size >= 0) {
+                            val windowed = sortedWith.windowed(proj.paging.size, proj.paging.size, true)
+                            windowed.drop(proj.paging.offset / proj.paging.size).firstOrNull() ?: listOf()
+                        } else sortedWith.drop(proj.paging.offset).toList()
+
+                        EntityProjectionResult(proj, Page(proj.paging, entities, if (proj.paging.size >= 0 && entities.size >= proj.paging.size) 1 else 0))
+                    }
+                }
+            }.associateBy { it.name }
+            QueryResult(query, pres)
         }
     }
 
@@ -268,7 +277,8 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
                             e._meta.props.map {
                                 it.value.name to e.getValue(it.value)
                             }.toMap() +
-                            (TYPES to e._meta.types.map { it.name }.toTypedArray())
+                            (TYPES to e._meta.types.map { it.name }.toTypedArray()) +
+                            (TYPE to e._meta.name)
                 }.map { (e, values) ->
                     val id = e.id
                     @Suppress("UNCHECKED_CAST")
@@ -313,7 +323,7 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
         }
 
         @Suppress("UNCHECKED_CAST")
-        override fun <E : KIEntity<K>, K : Any> baseQuery(query: Query<E, K>): Sequence<E> = bucket.iterator().asSequence().map { entry -> meta.new(this@JvmMemoryDataStore, entry.key as K) as E }.filter {
+        override fun <E : KIEntity<K>, K : Any> baseQuery(query: Query<E, K>): Sequence<E> = bucket.iterator().asSequence().map { entry -> metaProvider.meta(entry.value[TYPE]!!.toString())!!.new(this@JvmMemoryDataStore, entry.key as K) as E }.filter {
             query.f.matches(it)
         }
 
@@ -351,7 +361,7 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
         @Suppress("UNCHECKED_CAST")
         override fun <E : KIEntity<K>, K : Any> baseQuery(query: Query<E, K>): Sequence<E> = bucket.iterator().asSequence().filter {
             typeFilter(it.value)
-        }.map { entry -> meta.new(this@JvmMemoryDataStore, entry.key as K) as E }.filter {
+        }.map { entry -> metaProvider.meta(entry.value[TYPE]!!.toString())!!.new(this@JvmMemoryDataStore, entry.key as K) as E }.filter {
             query.f.matches(it)
         }
 
@@ -365,5 +375,6 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
 
     companion object : KLogging() {
         val TYPES = "_types"
+        val TYPE = "_type"
     }
 }

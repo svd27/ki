@@ -119,7 +119,6 @@ class MetaProvider() {
 val coreKodein = Kodein.Module {
     bind<MetaProvider>() with instance(MetaProvider())
     bind<Dispatcher<EntityEvent<*,*>>>("entities") with instance(Dispatcher())
-    bind<Dispatcher<KIErrorEvent<*>>>("errors") with instance(Dispatcher())
 }
 
 

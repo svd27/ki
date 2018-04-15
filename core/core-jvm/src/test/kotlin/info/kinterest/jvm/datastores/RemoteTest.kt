@@ -7,7 +7,7 @@ import info.kinterest.LocalDate
 import info.kinterest.cast
 import info.kinterest.datastores.DataStoreFacade
 import info.kinterest.datastores.QueryMsg
-import info.kinterest.datastores.QueryResult
+import info.kinterest.datastores.QueryResultMsg
 import info.kinterest.filter.NOFILTER
 import info.kinterest.functional.Try
 import info.kinterest.functional.getOrElse
@@ -15,7 +15,10 @@ import info.kinterest.meta.KIEntityMeta
 import info.kinterest.meta.KIProperty
 import info.kinterest.paging.Page
 import info.kinterest.paging.Paging
+import info.kinterest.query.EntityProjection
+import info.kinterest.query.EntityProjectionResult
 import info.kinterest.query.Query
+import info.kinterest.query.QueryResult
 import info.kinterest.sorting.Ordering
 import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.channels.Channel
@@ -96,8 +99,8 @@ abstract class BaseDataSource(override val name: String) : DataStoreFacade {
 
 }
 
-open class RemIn(name: String, override val pool: CoroutineDispatcher, override val ch: SendChannel<QueryMsg>, override val chResp: ReceiveChannel<QueryResult>) : BaseDataSource(name), RemoteDataStoreFacade {
-    override var pendingQueries: Map<Long, Pair<Query<*, *>, CompletableDeferred<Try<Page<*, *>>>>> = mapOf()
+open class RemIn(name: String, override val pool: CoroutineDispatcher, override val ch: SendChannel<QueryMsg>, override val chResp: ReceiveChannel<QueryResultMsg>) : BaseDataSource(name), RemoteDataStoreFacade {
+    override var pendingQueries: Map<Long, Pair<Query<*, *>, CompletableDeferred<Try<QueryResult<*, *>>>>> = mapOf()
 
     final override fun receiverInit() = super.receiverInit()
 
@@ -107,7 +110,7 @@ open class RemIn(name: String, override val pool: CoroutineDispatcher, override 
     }
 }
 
-open class RemOut(override val ds: DataStoreFacade, override val chIn: ReceiveChannel<QueryMsg>, override val chOut: SendChannel<QueryResult>, override val pool: CoroutineDispatcher) : BaseDataSource(ds.name), RemoteOutgoingDataStoreFacade {
+open class RemOut(override val ds: DataStoreFacade, override val chIn: ReceiveChannel<QueryMsg>, override val chOut: SendChannel<QueryResultMsg>, override val pool: CoroutineDispatcher) : BaseDataSource(ds.name), RemoteOutgoingDataStoreFacade {
     var id: Long = 0
     override val nextId: Long
         get() = id++
@@ -122,16 +125,17 @@ open class RemOut(override val ds: DataStoreFacade, override val chIn: ReceiveCh
 class RemoteTest : Spek({
     given("a mock datasource and two ends of a remote datasource") {
         val channel = Channel<QueryMsg>()
-        val chResp = Channel<QueryResult>()
+        val chResp = Channel<QueryResultMsg>()
         val ds: DataStoreFacade = mock()
         whenever(ds.name).thenReturn("test")
-        whenever(ds.query<RemoteEntity, LocalDate>(any())).thenReturn(Try { CompletableDeferred(Try { Page(Paging(0, 1), listOf(RemoteEntity(java.time.LocalDate.now(), "", ",", ds))) }) })
+        //Page(Paging(0, 1), listOf(RemoteEntity(java.time.LocalDate.now(), "", ",", ds)))
+        whenever(ds.query<RemoteEntity, LocalDate>(any())).thenReturn(Try { CompletableDeferred(Try { QueryResult(Query<RemoteEntity, LocalDate>(NOFILTER.cast(), listOf()), mapOf("entities" to EntityProjectionResult(EntityProjection(Ordering.NATURAL.cast(), Paging.ALL, null), Page(Paging(0, 1), listOf(RemoteEntity(java.time.LocalDate.now(), "", ",", ds)))))) }) })
         val dispatcher: CoroutineDispatcher = newFixedThreadPoolContext(4, "test")
         val remInc = RemIn(ds.name, dispatcher, channel, chResp)
         RemOut(ds, channel, chResp, dispatcher)
 
         on("querying") {
-            val tq = remInc.query<RemoteEntity, LocalDate>(Query(NOFILTER.cast(), Ordering.NATURAL.cast()))
+            val tq = remInc.query<RemoteEntity, LocalDate>(Query(NOFILTER.cast(), listOf()))
             it("should be a success") {
                 tq.isSuccess.`should be true`()
             }
@@ -140,8 +144,12 @@ class RemoteTest : Spek({
             it("the deferred should also be a success") {
                 res.isSuccess.`should be true`()
             }
-            val page = res.getOrElse { throw it }
-            page.entites.size `should equal` 1
+            val qr = res.getOrElse { throw it }
+            qr.projections.size `should equal` 1
+            val proj = qr.projections.map { it.value }.filterIsInstance<EntityProjectionResult<RemoteEntity, LocalDate>>().first()
+            proj.name `should equal` "entities"
+            proj.page.entities.size `should equal` 1
+
         }
     }
 })

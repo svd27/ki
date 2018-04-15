@@ -21,7 +21,7 @@ class StaticInterestJvm<E : KIEntity<K>, K : Any>(id: Any, q: Query<E, K>, manag
         val filterWrapper = FilterWrapper(f)
         manager.qm.filterTree -= query.f.cast()
         manager.qm.filterTree += filterWrapper
-        query = Query(filterWrapper.cast(), query.ordering, query.page, query.ds)
+        _query = Query(filterWrapper.cast(), query.projections, query.ds)
     }
 
     override fun minus(e: E) {
@@ -31,6 +31,6 @@ class StaticInterestJvm<E : KIEntity<K>, K : Any>(id: Any, q: Query<E, K>, manag
         val filterWrapper = FilterWrapper(f)
         manager.qm.filterTree -= query.f.cast()
         manager.qm.filterTree += filterWrapper
-        query = Query(filterWrapper.cast(), query.ordering, query.page, query.ds)
+        _query = Query(filterWrapper.cast(), query.projections, query.ds)
     }
 }

@@ -7,10 +7,13 @@ import info.kinterest.datastores.jvm.memory.jvm.QueryEntityJvm
 import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.filter.filter
 import info.kinterest.paging.Paging
+import info.kinterest.query.EntityProjection
+import info.kinterest.query.EntityProjectionResult
 import info.kinterest.query.Query
 import info.kinterest.sorting.Ordering
 import info.kinterest.sorting.asc
 import kotlinx.coroutines.experimental.runBlocking
+import org.amshove.kluent.`should be instance of`
 import org.amshove.kluent.`should be true`
 import org.amshove.kluent.`should equal`
 import org.jetbrains.spek.api.Spek
@@ -37,7 +40,8 @@ class QueryTest : Spek({
         val f = filter<QueryEntity, String>(meta) {
             parse("""id > "H" """, meta)
         }
-        val q = Query<QueryEntity, String>(f.cast(), Ordering(listOf(meta.PROP_NAME.asc())), Paging(0, 3))
+        val projection = EntityProjection<QueryEntity, String>(Ordering(listOf(meta.PROP_NAME.asc())), Paging(0, 3))
+        val q = Query<QueryEntity, String>(f.cast(), listOf(projection))
         on("querying by name ascending") {
             val tq = base.ds.query(q)
             it("should not fail") {
@@ -48,22 +52,30 @@ class QueryTest : Spek({
             it("should in all be a success") {
                 td.isSuccess.`should be true`()
             }
-            val page = td.getOrElse { throw it }
+            val queryResult = td.getOrElse { throw it }
             it("should return a proper page") {
-                page.entites.count() `should equal` 3
-                page.entites.elementAt(0).name `should equal` "Aanne"
+                queryResult.projections["entities"] `should be instance of` EntityProjectionResult::class
+                val proj = queryResult.projections["entities"] as EntityProjectionResult
+                proj.page.entities.count() `should equal` 3
+                proj.page.entities.elementAt(0).name `should equal` "Aanne"
             }
         }
 
         on("changing the page") {
-            val q1 = Query(q.f, q.ordering, q.page.next)
+            val q1 = Query(q.f, listOf(EntityProjection(projection.ordering, projection.paging.next)))
             val tq = base.ds.query(q1)
             it("should initially work") {
                 tq.isSuccess.`should be true`()
             }
             val qd = tq.getOrElse { throw it }
-            val tp = runBlocking { qd.await() }.getOrElse { throw it }
-            tp.entites.elementAt(0).name `should equal` "Danne"
+            val queryResult = runBlocking { qd.await() }.getOrElse { throw it }
+
+            it("should work") {
+                queryResult.projections["entities"] `should be instance of` EntityProjectionResult::class
+                val proj = queryResult.projections["entities"] as EntityProjectionResult
+                proj.page.entities.elementAt(0).name `should equal` "Danne"
+            }
+
         }
     }
 })

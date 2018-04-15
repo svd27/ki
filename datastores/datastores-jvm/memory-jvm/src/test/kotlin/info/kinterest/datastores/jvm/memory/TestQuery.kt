@@ -11,6 +11,8 @@ import info.kinterest.jvm.MetaProvider
 import info.kinterest.jvm.annotations.Entity
 import info.kinterest.jvm.annotations.StorageTypes
 import info.kinterest.paging.Paging
+import info.kinterest.query.EntityProjection
+import info.kinterest.query.EntityProjectionResult
 import info.kinterest.query.Query
 import info.kinterest.sorting.Ordering
 import kotlinx.coroutines.experimental.delay
@@ -54,14 +56,15 @@ class TestQuery : Spek( {
         }.map { it.getOrElse { throw it } }
 
         val f = parse<QueryEntity, String>("QueryEntity{job < \"a\"}", meta)
-        val tq = base.ds.query(Query<QueryEntity, String>(f.cast(), Ordering.NATURAL.cast(), page = Paging(0, -1)))
+        val tq = base.ds.query(Query<QueryEntity, String>(f.cast(), listOf(EntityProjection(Ordering.NATURAL.cast(), Paging(0, -1)))))
         on("a simple query") {
             it("a query succeed") {
                 tq.isSuccess `should be equal to` true
                 val tres = tq.map { runBlocking { it.await() } }.flatten()
                 tres.isSuccess `should be equal to` true
-                val res = tres.getOrElse { throw it }
-                res.entites.size `should be equal to` 26
+                val queryResult = tres.getOrElse { throw it }
+                val proj = queryResult.projections["entities"] as EntityProjectionResult
+                proj.page.entities.size `should be equal to` 26
             }
         }
 
