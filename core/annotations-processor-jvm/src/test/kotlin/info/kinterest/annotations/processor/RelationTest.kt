@@ -1,9 +1,16 @@
 package info.kinterest.annotations.processor
 
 import info.kinterest.KIEntity
+import info.kinterest.annotations.processor.jvm.RelPersonJvm
 import info.kinterest.jvm.annotations.Entity
 import info.kinterest.jvm.annotations.Relation
+import info.kinterest.meta.KIRelationProperty
+import org.amshove.kluent.`should be instance of`
+import org.amshove.kluent.`should equal`
 import org.jetbrains.spek.api.Spek
+import org.jetbrains.spek.api.dsl.given
+import org.jetbrains.spek.api.dsl.it
+import org.jetbrains.spek.api.dsl.on
 
 @Entity
 //@Relations(
@@ -52,5 +59,12 @@ interface RelEmployee : RelPerson {
 }
 
 class RelationTest : Spek({
-
+    given("some entities with relations") {
+        on("checking their metadata") {
+            it("should have the proper content") {
+                RelPersonJvm.meta.PROP_BESTFRIEND `should be instance of` KIRelationProperty::class
+                RelPersonJvm.meta.PROP_BESTFRIEND.target `should equal` RelPerson::class
+            }
+        }
+    }
 })

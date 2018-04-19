@@ -3,17 +3,25 @@ package info.kinterest.query
 import info.kinterest.*
 import info.kinterest.datastores.DataStoreFacade
 import info.kinterest.functional.getOrElse
+import info.kinterest.meta.KINumberProperty
 import info.kinterest.meta.KIProperty
 import info.kinterest.paging.Page
 import info.kinterest.paging.Paging
 import info.kinterest.sorting.Ordering
 
 sealed class Projection<E : KIEntity<K>, K : Any>(val name: String, var parent: Projection<E, K>? = null) {
-    open fun nameMe(prefix: String, name: String, postFix: String): String = "$prefix$name$postFix"
     open fun adapt(ds: Iterable<DataStoreFacade>): Projection<E, K> = this
     abstract fun combine(results: Iterable<ProjectionResult<E, K>>): ProjectionResult<E, K>
+    val path: String = parent?.let { "${it.path}.$name" } ?: name
+
+    override fun equals(other: Any?): Boolean = if (other === this) true else {
+        other is Projection<*, *> && other.path == path
+    }
+
+    override fun hashCode(): Int = path.hashCode()
 }
 
+@Suppress("EqualsOrHashCode")
 class EntityProjection<E : KIEntity<K>, K : Any>(var ordering: Ordering<E, K>, var paging: Paging, parent: Projection<E, K>? = null) : Projection<E, K>("entities", parent) {
     override fun adapt(ds: Iterable<DataStoreFacade>): Projection<E, K> = if (ds.count() < 2) this else EntityProjection(ordering, Paging(0, if (paging.size >= 0) paging.offset + paging.size else -1), parent)
 
@@ -51,16 +59,23 @@ class EntityProjection<E : KIEntity<K>, K : Any>(var ordering: Ordering<E, K>, v
         }
         EntityProjectionResult(this, Page(paging, entities, if (entities.size >= paging.size) 1 else 0))
     }
+
+    override fun equals(other: Any?): Boolean = super.equals(other) && other is EntityProjection<*, *>
+
 }
 
-class SumProjection<E : KIEntity<K>, K : Any, V : Number>(val property: KIProperty<V>, parent: Projection<E, K>?) : Projection<E, K>(parent?.nameMe("count(", "", ")")
-        ?: "count()", parent) {
+@Suppress("EqualsOrHashCode")
+sealed class ValueProjection<E : KIEntity<K>, K : Any, V : Any>(val property: KIProperty<Any>, name: String, parent: Projection<E, K>?) : Projection<E, K>(name, parent) {
+    override fun equals(other: Any?): Boolean = super.equals(other) && other is ValueProjection<*, *, *>
+}
 
-
+class CountProjection<E : KIEntity<K>, K : Any>(property: KIProperty<Any>, parent: Projection<E, K>? = null) : ValueProjection<E, K, Long>(property, "count(${property.name})", parent) {
     override fun combine(results: Iterable<ProjectionResult<E, K>>): ProjectionResult<E, K> =
-            SumProjectionResult(this,
-                    results.filterIsInstance<SumProjectionResult<E, K, V>>().map { it.sum }.reduce { n1, n2 -> add(n1, n2) })
+            CountProjectionResult(this,
+                    results.filterIsInstance<CountProjectionResult<E, K>>().map { it.count }.reduce { n1, n2 -> n1 + n2 })
+}
 
+sealed class ScalarProjection<E : KIEntity<K>, K : Any, S : Number>(property: KIProperty<S>, name: String, parent: Projection<E, K>?) : ValueProjection<E, K, S>(property, name, parent) {
     companion object {
         @Suppress("IMPLICIT_CAST_TO_ANY", "UNCHECKED_CAST")
         fun <V : Number> add(v1: V, v2: V): V = when (v1) {
@@ -72,8 +87,26 @@ class SumProjection<E : KIEntity<K>, K : Any, V : Number>(val property: KIProper
             is Double -> v1 + v2.toDouble()
             else -> throw Exception("Bad type ${v1::class}")
         } as V
+
+        @Suppress("IMPLICIT_CAST_TO_ANY", "UNCHECKED_CAST")
+        fun <V : Number> max(v1: V, v2: V): V = when (v1) {
+            is Byte -> maxOf(v1, v2.toByte())
+            is Short -> maxOf(v1, v2.toShort())
+            is Int -> maxOf(v1, v2.toInt())
+            is Long -> maxOf(v1, v2.toLong())
+            is Float -> maxOf(v1, v2.toFloat())
+            is Double -> maxOf(v1, v2.toDouble())
+            else -> throw Exception("Bad type ${v1::class}")
+        } as V
     }
 }
+
+class SumProjection<E : KIEntity<K>, K : Any, V : Number>(property: KINumberProperty<V>, parent: Projection<E, K>?) : ScalarProjection<E, K, V>(property, "sum(${property.name})", parent) {
+    override fun combine(results: Iterable<ProjectionResult<E, K>>): ProjectionResult<E, K> =
+            ScalarProjectionResult(this,
+                    results.filterIsInstance<ScalarProjectionResult<E, K, V>>().map { it.sum }.reduce { n1, n2 -> add(n1, n2) })
+}
+
 
 sealed class ProjectionResult<E : KIEntity<K>, K : Any>(open val projection: Projection<E, K>) {
     val name
@@ -181,7 +214,7 @@ class EntityProjectionResult<E : KIEntity<K>, K : Any>(override val projection: 
     }
 }
 
-class SumProjectionResult<E : KIEntity<K>, K : Any, V : Number>(override val projection: SumProjection<E, K, V>, val sum: V) : ProjectionResult<E, K>(projection) {
+open class ValueProjectionResult<E : KIEntity<K>, K : Any, V : Any>(override val projection: ValueProjection<E, K, V>, val result: V) : ProjectionResult<E, K>(projection) {
     override fun <I : Interest<E, K>> digest(i: I, evts: Iterable<EntityEvent<E, K>>, events: (Iterable<ProjectionEvent<E, K>>) -> Unit): ProjectionResult<E, K> = run {
         val el = evts.any { e ->
             when (e) {
@@ -192,6 +225,7 @@ class SumProjectionResult<E : KIEntity<K>, K : Any, V : Number>(override val pro
                         true
                     } else false
                 }
+                is EntityRelationEvent<*, *, *, *> -> if (e.relations.first().rel == projection.property) true else false
             }
         }
         if (!el) {
@@ -202,3 +236,6 @@ class SumProjectionResult<E : KIEntity<K>, K : Any, V : Number>(override val pro
         }
     }
 }
+
+class CountProjectionResult<E : KIEntity<K>, K : Any>(projection: CountProjection<E, K>, val count: Long) : ValueProjectionResult<E, K, Long>(projection, count)
+class ScalarProjectionResult<E : KIEntity<K>, K : Any, V : Number>(override val projection: ScalarProjection<E, K, V>, val sum: V) : ValueProjectionResult<E, K, V>(projection, sum)

@@ -3,6 +3,7 @@
 package info.kinterest.jvm.filter.tree
 
 import info.kinterest.*
+import info.kinterest.filter.Filter
 import info.kinterest.jvm.events.Dispatcher
 import info.kinterest.jvm.filter.*
 import info.kinterest.meta.KIEntityMeta
@@ -61,7 +62,7 @@ class FilterTree(events: Dispatcher<EntityEvent<*, *>>, load: Int) {
                 private var propertyNodes: Map<KIProperty<*>, PropertyNode> = mapOf()
 
                 init {
-                    val fits = filters.map { it to bestFit(it) }
+                    val fits = filters.map { it to bestFit(it.f) }
                     for (fit in fits) {
                         val bests = fit.second.findBest()
                         for (sf in bests) {
@@ -97,7 +98,8 @@ class FilterTree(events: Dispatcher<EntityEvent<*, *>>, load: Int) {
                 override fun collect(ev: EntityEvent<*, *>): Set<FilterWrapper<*, *>> = when (ev) {
                     is EntityCreateEvent<*, *> -> filters
                     is EntityDeleteEvent<*, *> -> filters
-                    is EntityUpdatedEvent<*, *> -> setOf()
+                    is EntityRelationEvent<*, *, *, *> -> emptySet()
+                    is EntityUpdatedEvent<*, *> -> emptySet()
                 }
             }
 
@@ -112,7 +114,8 @@ class FilterTree(events: Dispatcher<EntityEvent<*, *>>, load: Int) {
                     is EntityUpdatedEvent ->
                         if (ev.updates.any { it.prop == property })
                             filters
-                        else setOf()
+                        else emptySet()
+                    is EntityRelationEvent<*, *, *, *> -> if (ev.relations.first().rel == property) filters else emptySet()
                 }
             }
         }
@@ -134,6 +137,10 @@ class FilterTree(events: Dispatcher<EntityEvent<*, *>>, load: Int) {
                 is EntityCreateEvent -> ev.entities.firstOrNull()?.let { e -> this[e._meta].collect(ev) } ?: setOf()
                 is EntityDeleteEvent -> ev.entities.firstOrNull()?.let { e -> this[e._meta].collect(ev) } ?: setOf()
                 is EntityUpdatedEvent -> this[ev.entity._meta].collect(ev)
+                is EntityRelationEvent<*, *, *, *> -> ev.relations.firstOrNull()?.let {
+                    val meta = it.source._meta
+                    this[meta].collect(ev)
+                } ?: emptySet()
             }
 
 
@@ -179,10 +186,10 @@ typealias AndFit = Fit.AndFit
 typealias IdFit = Fit.SimpleFit.IdFit
 typealias PropertyFit = Fit.SimpleFit.PropertyFit
 
-fun bestFit(f: EntityFilter<*, *>): Fit =
+fun bestFit(f: Filter<*, *>): Fit =
         when (f) {
-            is FilterWrapper -> bestFit(f.f)
             is EntityFilter.Empty -> DONTDOTHIS()
+            is FilterWrapper -> bestFit(f.f)
             is CombinationFilter -> {
                 val operandsFit = f.operands.map { bestFit(it) }
                 when (f) {
@@ -197,6 +204,7 @@ fun bestFit(f: EntityFilter<*, *>): Fit =
             }
             is IdFilter -> IdFit(f)
             is PropertyFilter<*, *, *> -> PropertyFit(f)
+            else -> throw Exception("bad filter $f ${f::class}")
         }
 
 object FitComparator : Comparator<Fit> {

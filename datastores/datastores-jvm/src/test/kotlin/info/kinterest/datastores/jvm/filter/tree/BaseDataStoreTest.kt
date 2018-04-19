@@ -3,13 +3,13 @@ package info.kinterest.datastores.jvm.filter.tree
 import com.github.salomonbrys.kodein.Kodein
 import com.github.salomonbrys.kodein.instance
 import info.kinterest.KIEntity
+import info.kinterest.MetaProvider
 import info.kinterest.datastores.jvm.DataStoreConfig
 import info.kinterest.datastores.jvm.DataStoreFactoryProvider
 import info.kinterest.datastores.jvm.datasourceKodein
 import info.kinterest.datastores.jvm.memory.JvmMemoryDataStore
 import info.kinterest.functional.Try
 import info.kinterest.functional.getOrElse
-import info.kinterest.jvm.MetaProvider
 import info.kinterest.jvm.coreKodein
 import kotlinx.coroutines.experimental.*
 import mu.KLogging

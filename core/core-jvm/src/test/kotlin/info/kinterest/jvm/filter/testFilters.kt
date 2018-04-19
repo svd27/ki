@@ -2,10 +2,10 @@ package info.kinterest.jvm.filter
 
 import info.kinterest.DONTDOTHIS
 import info.kinterest.DataStore
+import info.kinterest.MetaProvider
 import info.kinterest.core.jvm.filters.parser.parse
 import info.kinterest.jvm.KIJvmEntity
 import info.kinterest.jvm.KIJvmEntityMeta
-import info.kinterest.jvm.MetaProvider
 import info.kinterest.meta.KIEntityMeta
 import info.kinterest.meta.KIProperty
 import mu.KotlinLogging

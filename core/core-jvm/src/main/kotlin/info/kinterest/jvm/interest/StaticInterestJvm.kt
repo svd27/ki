@@ -18,7 +18,7 @@ class StaticInterestJvm<E : KIEntity<K>, K : Any>(id: Any, q: Query<E, K>, manag
         @Suppress("UNCHECKED_CAST")
         val old = query.f.f as StaticEntityFilter<E, K>
         val f = StaticEntityFilter<E, K>(old.ids + e.id, old.meta)
-        val filterWrapper = FilterWrapper(f)
+        val filterWrapper = FilterWrapper(f, f.meta)
         manager.qm.filterTree -= query.f.cast()
         manager.qm.filterTree += filterWrapper
         _query = Query(filterWrapper.cast(), query.projections, query.ds)
@@ -28,7 +28,7 @@ class StaticInterestJvm<E : KIEntity<K>, K : Any>(id: Any, q: Query<E, K>, manag
         @Suppress("UNCHECKED_CAST")
         val old = query.f.f as StaticEntityFilter<E, K>
         val f = StaticEntityFilter<E, K>(old.ids - e.id, old.meta)
-        val filterWrapper = FilterWrapper(f)
+        val filterWrapper = FilterWrapper(f, f.meta)
         manager.qm.filterTree -= query.f.cast()
         manager.qm.filterTree += filterWrapper
         _query = Query(filterWrapper.cast(), query.projections, query.ds)

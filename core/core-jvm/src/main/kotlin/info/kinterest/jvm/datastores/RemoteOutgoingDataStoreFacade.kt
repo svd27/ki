@@ -1,5 +1,8 @@
 package info.kinterest.jvm.datastores
 
+import com.github.salomonbrys.kodein.Kodein
+import com.github.salomonbrys.kodein.KodeinAware
+import com.github.salomonbrys.kodein.instance
 import info.kinterest.KIEntity
 import info.kinterest.datastores.*
 import info.kinterest.functional.Try
@@ -12,15 +15,22 @@ import kotlinx.coroutines.experimental.channels.ReceiveChannel
 import kotlinx.coroutines.experimental.channels.SendChannel
 import kotlinx.coroutines.experimental.launch
 
-interface RemoteOutgoingDataStoreFacade : DataStoreFacade {
-    val ds: DataStoreFacade
-    val chIn: ReceiveChannel<QueryMsg>
-    val chOut: SendChannel<QueryResultMsg>
-    val pool: CoroutineDispatcher
+abstract class RemoteOutgoingDataStoreFacade(name: String, override final val kodein: Kodein) : DataStoreFacade(name), KodeinAware {
+    abstract val ds: DataStoreFacade
+    abstract val chIn: ReceiveChannel<QueryMsg>
+    abstract val chOut: SendChannel<QueryResultMsg>
+    val pool: CoroutineDispatcher = kodein.instance("datastores")
 
+    private var _id: Long = 0
     val nextId: Long
+        get() = _id++
 
     override fun <E : KIEntity<K>, K : Any> query(query: Query<E, K>): Try<Deferred<Try<QueryResult<E, K>>>> = ds.query(query)
+    override fun <E : KIEntity<K>, K : Any> querySync(query: Query<E, K>): Try<QueryResult<E, K>> = ds.querySync(query)
+
+    init {
+        initReceiver()
+    }
 
     fun initReceiver() {
         launch(pool) {

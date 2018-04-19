@@ -1,14 +1,10 @@
 package info.kinterest.core.jvm.filters.parser
 
-import info.kinterest.DONTDOTHIS
-import info.kinterest.DataStore
-import info.kinterest.KIEntity
-import info.kinterest.KITransientEntity
+import info.kinterest.*
+import info.kinterest.filter.Filter
 import info.kinterest.jvm.KIJvmEntityMeta
-import info.kinterest.jvm.MetaProvider
 import info.kinterest.jvm.filter.EntityFilter
 import info.kinterest.jvm.filter.GTFilter
-import info.kinterest.jvm.filter.KIFilter
 import info.kinterest.jvm.filter.filter
 import info.kinterest.meta.KIEntityMeta
 import info.kinterest.meta.KIProperty
@@ -81,7 +77,7 @@ object SimpleTest : Spek({
         }
         on("parsing it") {
             it("should be parsed as a Filter") {
-                f `should be instance of` KIFilter::class
+                f `should be instance of` Filter::class
                 f `should be instance of` EntityFilter.FilterWrapper::class
                 f.f `should be instance of` GTFilter::class
             }

@@ -65,11 +65,12 @@ class InheritanceTest : Spek({
             val f = filter<MemEmployee, String>(MemEmployeeJvm.meta) {
                 parse("last >= \"A\"", meta)
             }
-            val q = Query<MemEmployee, String>(f.cast(), listOf(EntityProjection(Ordering.NATURAL.cast(), Paging(0, 100))))
+            val projection = EntityProjection<MemEmployee, String>(Ordering.NATURAL.cast(), Paging(0, 100))
+            val q = Query(f.cast(), listOf(projection))
             val res = runBlocking { base.ds.query(q).getOrElse { throw it }.await() }.getOrElse { throw it }
             it("should the right number of results") {
-                res.projections["entities"] `should be instance of` EntityProjectionResult::class
-                val proj = res.projections["entities"] as EntityProjectionResult
+                res.projections[projection] `should be instance of` EntityProjectionResult::class
+                val proj = res.projections[projection] as EntityProjectionResult
                 proj.page.entities.size `should equal` 10
             }
         }
@@ -78,11 +79,12 @@ class InheritanceTest : Spek({
             val f = filter<MemPerson, String>(MemPersonJvm.meta) {
                 parse("last >= \"A\"", meta)
             }
-            val q = Query<MemPerson, String>(f.cast(), listOf(EntityProjection(Ordering.NATURAL.cast(), Paging(0, 100))))
+            val projection = EntityProjection<MemPerson, String>(Ordering.NATURAL.cast(), Paging(0, 100))
+            val q = Query(f.cast(), listOf(projection))
             val res = runBlocking { base.ds.query(q).getOrElse { throw it }.await() }.getOrElse { throw it }
             it("") {
-                res.projections["entities"] `should be instance of` EntityProjectionResult::class
-                val proj = res.projections["entities"] as EntityProjectionResult
+                res.projections[projection] `should be instance of` EntityProjectionResult::class
+                val proj = res.projections[projection] as EntityProjectionResult
                 proj.page.entities.size `should equal` 20
                 proj.page.entities.count { it is MemEmployee } `should equal` 10
 

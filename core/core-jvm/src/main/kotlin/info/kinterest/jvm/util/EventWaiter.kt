@@ -1,11 +1,8 @@
-package info.kinterest.jvm.interest
+package info.kinterest.jvm.util
 
 import info.kinterest.KIEvent
-import kotlinx.coroutines.experimental.CoroutineDispatcher
+import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.channels.Channel
-import kotlinx.coroutines.experimental.launch
-import kotlinx.coroutines.experimental.newFixedThreadPoolContext
-import kotlinx.coroutines.experimental.withTimeout
 import mu.KLogging
 
 
@@ -26,19 +23,22 @@ class EventWaiter<E : KIEvent>(channel: Channel<E>) {
         }
     }
 
-    fun waitFor(check: (E) -> Boolean) {
-        launch(pool) {
-            if (evts.any { check(it) }) return@launch
-            withTimeout(500) {
-                for (e in out) {
-                    logger.debug { "received $e" }
-                    if (check(e)) break
-                    if (evts.any { check(it) }) break
+    fun waitFor(check: (E) -> Boolean): E = runBlocking(pool) {
+        val evt = evts.firstOrNull(check)
+        if (evt != null) evt else withTimeout(500) {
+            var res: E? = null
+            for (e in out) {
+                logger.debug { "received $e" }
+                if (check(e)) {
+                    res = e; break
                 }
-                logger.debug { "waitFor done." }
+                res = evts.firstOrNull(check)
+                if (res != null) break
             }
+            res!!
         }
     }
+
 
     companion object : KLogging()
 }

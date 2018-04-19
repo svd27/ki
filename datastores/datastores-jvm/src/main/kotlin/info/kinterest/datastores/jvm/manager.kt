@@ -2,16 +2,22 @@ package info.kinterest.datastores.jvm
 
 import com.github.salomonbrys.kodein.*
 import info.kinterest.DataStore
+import info.kinterest.DataStoreEvent
 import info.kinterest.EntityEvent
+import info.kinterest.MetaProvider
 import info.kinterest.datastores.DataStoreFacade
-import info.kinterest.jvm.MetaProvider
+import info.kinterest.datastores.IRelationTrace
 import info.kinterest.jvm.events.Dispatcher
+import info.kinterest.query.QueryManager
+import kotlinx.coroutines.experimental.channels.Channel
 import mu.KLogging
+import java.io.Serializable
 import java.util.*
 
 
 interface DataStoreFactory : KodeinInjected {
     var kodein : Kodein
+    val events: Channel<DataStoreEvent>
 
     fun create(cfg: DataStoreConfig) : DataStore
 }
@@ -42,13 +48,17 @@ class DataStoreFactoryProvider : KodeinInjected {
 }
 
 
-abstract class DataStoreJvm(override val name: String) : KodeinInjected, DataStoreFacade {
+abstract class DataStoreJvm(name: String) : KodeinInjected, DataStoreFacade(name) {
     override val injector: KodeinInjector = KodeinInjector()
 
     protected val events: Dispatcher<EntityEvent<*, *>> by instance("entities")
-    val metaProvider by instance<MetaProvider>()
+    override val metaProvider by instance<MetaProvider>()
+    override val qm by instance<QueryManager>()
 
 }
+
+
+data class RelationTrace(override val type: String, override val id: Any, override val ds: String) : Serializable, IRelationTrace
 
 val datasourceKodein = Kodein.Module {
     bind<DataStoreFactoryProvider>() with singleton { DataStoreFactoryProvider() }

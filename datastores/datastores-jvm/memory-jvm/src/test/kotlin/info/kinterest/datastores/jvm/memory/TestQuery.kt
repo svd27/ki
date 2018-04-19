@@ -1,13 +1,13 @@
 package info.kinterest.datastores.jvm.memory
 
 import info.kinterest.KIEntity
+import info.kinterest.MetaProvider
 import info.kinterest.cast
 import info.kinterest.core.jvm.filters.parse
 import info.kinterest.datastores.jvm.DataStoreConfig
 import info.kinterest.datastores.jvm.memory.jvm.QueryEntityJvm
 import info.kinterest.functional.flatten
 import info.kinterest.functional.getOrElse
-import info.kinterest.jvm.MetaProvider
 import info.kinterest.jvm.annotations.Entity
 import info.kinterest.jvm.annotations.StorageTypes
 import info.kinterest.paging.Paging
@@ -56,14 +56,15 @@ class TestQuery : Spek( {
         }.map { it.getOrElse { throw it } }
 
         val f = parse<QueryEntity, String>("QueryEntity{job < \"a\"}", meta)
-        val tq = base.ds.query(Query<QueryEntity, String>(f.cast(), listOf(EntityProjection(Ordering.NATURAL.cast(), Paging(0, -1)))))
+        val projection = EntityProjection<QueryEntity, String>(Ordering.NATURAL.cast(), Paging(0, -1))
+        val tq = base.ds.query(Query<QueryEntity, String>(f.cast(), listOf(projection)))
         on("a simple query") {
             it("a query succeed") {
                 tq.isSuccess `should be equal to` true
                 val tres = tq.map { runBlocking { it.await() } }.flatten()
                 tres.isSuccess `should be equal to` true
                 val queryResult = tres.getOrElse { throw it }
-                val proj = queryResult.projections["entities"] as EntityProjectionResult
+                val proj = queryResult.projections[projection] as EntityProjectionResult
                 proj.page.entities.size `should be equal to` 26
             }
         }

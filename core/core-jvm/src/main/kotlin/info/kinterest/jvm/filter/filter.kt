@@ -18,28 +18,15 @@ sealed class KIFilter<T> {
     abstract fun matches(e: T): Boolean
 }
 
-inline fun <E : KIEntity<K>, K : Any> filter(meta: KIEntityMeta, crossinline cb: EntityFilter<E, K>.() -> EntityFilter<E, K>): FilterWrapper<E, K> = EntityFilter.Empty<E, K>(meta).run {
-    EntityFilter.FilterWrapper<E, K>(meta).apply {
-        val filter = this.cb()
-        f = (filter as? FilterWrapper)?.f ?: filter
-    }
+inline fun <E : KIEntity<K>, K : Any> filter(meta: KIEntityMeta, crossinline cb: EntityFilter<E, K>.() -> Filter<E, K>): FilterWrapper<E, K> = EntityFilter.Empty<E, K>(meta).run {
+    FilterWrapper(this.cb(), meta)
 }
 
 typealias FilterWrapper<E, K> = EntityFilter.FilterWrapper<E, K>
 
 
-interface IFilterWrapper<E : KIEntity<K>, K : Any> {
-    val f: Filter<E, K>
-    val meta: KIEntityMeta
-    fun matches(e: E): Boolean
-    fun wants(upd: EntityUpdatedEvent<E, K>): Boolean
-    fun inverse(): IFilterWrapper<E, K>
-}
-
 @Suppress("EqualsOrHashCode")
-sealed class EntityFilter<E : KIEntity<K>, K : Any>(override val meta: KIEntityMeta) : KIFilter<E>(), IFilterWrapper<E, K> {
-    override val f: Filter<E, K>
-        get() = this
+sealed class EntityFilter<E : KIEntity<K>, K : Any>(override val meta: KIEntityMeta) : KIFilter<E>(), Filter<E, K> {
     /**
      * returns which properties affect this filter on one level depth
      *
@@ -66,15 +53,11 @@ sealed class EntityFilter<E : KIEntity<K>, K : Any>(override val meta: KIEntityM
         override fun inverse(): EntityFilter<E, K> = DONTDOTHIS()
         override fun contentEquals(f: EntityFilter<*, *>): Boolean = DONTDOTHIS()
         override fun wants(upd: EntityUpdatedEvent<E, K>) = DONTDOTHIS()
+        override fun wants(rel: EntityRelationEvent<E, K, *, *>): Boolean = DONTDOTHIS()
     }
 
-    class FilterWrapper<E : KIEntity<K>, K : Any>(meta: KIEntityMeta) : EntityFilter<E, K>(meta), IFilterWrapper<E, K> {
-        override lateinit var f: EntityFilter<E, K>
+    class FilterWrapper<E : KIEntity<K>, K : Any>(f: Filter<E, K>, meta: KIEntityMeta) : info.kinterest.filter.FilterWrapper<E, K>(f.cast(), meta) {
         var listener: SendChannel<EntityEvent<E, K>>? = null
-
-        constructor(f: EntityFilter<E, K>) : this(f.meta) {
-            this.f = f
-        }
 
         fun digest(ev: EntityEvent<E, K>) {
 
@@ -90,6 +73,7 @@ sealed class EntityFilter<E : KIEntity<K>, K : Any>(override val meta: KIEntityM
                             if (entities.isNotEmpty()) EntityDeleteEvent(entities) else null
                         }
                         is EntityUpdatedEvent -> if (wants(ev)) ev else null
+                        is EntityRelationEvent<E, K, *, *> -> if (wants(ev)) ev else null
                     }
                     logger.debug { "digest \n$ev \nsending $send\nfilter: ${this@FilterWrapper}" }
                     if (send != null) it.send(send)
@@ -97,22 +81,13 @@ sealed class EntityFilter<E : KIEntity<K>, K : Any>(override val meta: KIEntityM
             }
         }
 
-        override val affectedBy: Set<KIProperty<*>>
-            get() = f.affectedBy
-        override val affectedByAll: Set<KIProperty<*>>
-            get() = f.affectedByAll
-
         override fun matches(e: E): Boolean = f.matches(e)
 
         override fun wants(upd: EntityUpdatedEvent<E, K>) = f.wants(upd)
 
-        override fun inverse(): EntityFilter<E, K> = FilterWrapper<E, K>(meta).also { it.f = f.inverse() }
-
         override fun equals(other: Any?): Boolean = this === other
 
         override fun hashCode(): Int = System.identityHashCode(this)
-
-        override fun contentEquals(f: EntityFilter<*, *>): Boolean = equals(f)
 
         override fun toString(): String = "${meta.name}{$f}"
     }
@@ -199,10 +174,11 @@ abstract class IdFilter<E : KIEntity<K>, K : Any>(meta: KIEntityMeta) : EntityFi
         get() = affectedBy
 
     override fun wants(upd: EntityUpdatedEvent<E, K>) = false
+    override fun wants(rel: EntityRelationEvent<E, K, *, *>): Boolean = false
 }
 
 @Suppress("EqualsOrHashCode")
-class StaticEntityFilter<E : KIEntity<K>, K : Any>(val ids: Set<K>, meta: KIEntityMeta) : IdFilter<E, K>(meta) {
+class StaticEntityFilter<E : KIEntity<K>, K : Any>(val ids: Set<K>, meta: KIEntityMeta) : IdFilter<E, K>(meta), Filter<E, K> {
     override fun matches(e: E): Boolean = ids.any { e.id == it }
 
     inner class Inverse : IdFilter<E, K>(meta) {
@@ -240,6 +216,9 @@ sealed class PropertyFilter<E : KIEntity<K>, K : Any, P>(val prop: KIProperty<P>
         get() = affectedBy
 
     override fun wants(upd: EntityUpdatedEvent<E, K>): Boolean = upd.updates.any { it.prop == prop }
+    override fun wants(rel: EntityRelationEvent<E, K, *, *>): Boolean = rel.relations.firstOrNull()?.let {
+        it.rel == prop
+    } ?: false
 }
 
 class PropertyNullFilter<E : KIEntity<K>, K : Any, P>(prop: KIProperty<P>, meta: KIEntityMeta) : PropertyFilter<E, K, P>(prop, meta) {
@@ -347,6 +326,7 @@ class LTEFilter<E : KIEntity<K>, K : Any, P : Comparable<P>>(prop: KIProperty<P>
 
 sealed class CombinationFilter<E : KIEntity<K>, K : Any>(val operands: Iterable<EntityFilter<E, K>>, meta: KIEntityMeta) : EntityFilter<E, K>(meta) {
     override fun wants(upd: EntityUpdatedEvent<E, K>): Boolean = operands.any { it.wants(upd) }
+    override fun wants(rel: EntityRelationEvent<E, K, *, *>): Boolean = operands.any { it.wants(rel) }
 
     override val affectedByAll: Set<KIProperty<*>>
         get() = operands.fold(setOf()) { acc, op ->

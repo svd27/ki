@@ -95,20 +95,6 @@ class EntityInfo(val type: TypeElement, val env: ProcessingEnvironment) {
     }
 
     val relations: List<RelationInfo> = rels.map { val rel = RelationInfo(it.second, it.first); env.note("rel: ${it.second} ${it.second.simpleName} prop: ${rel.property}"); rel }
-//            (hierarchy + type).flatMap { t ->
-//            t.enclosedElements.filterIsInstance<ExecutableElement>().filter {
-//                it.simpleName.toString() != "getId" && Modifier.STATIC !in it.modifiers && it.simpleName.startsWith("get")
-//                        && it.simpleName.toString().length > 3 &&
-//                        it.simpleName.toString().substring(3).decapitalize() in rels.map { it.property }
-//            }.map {
-//                env.note("return : ${it.returnType}")
-//                val nm = it.simpleName.toString().substring(3).decapitalize()
-//                val setterNm = "set${nm.capitalize()}"
-//                val setter = t.enclosedElements.filterIsInstance<ExecutableElement>().filter { it.simpleName.toString() == setterNm }
-//                RelationInfo(rels.find { it.property==nm }!!, nm, it.returnType, setter.isEmpty(), it.getAnnotation(Nullable::class.java) != null)
-//            }
-    //    }
-
 
     val versioned = type.interfaces.any { it -> it is DeclaredType && it.asElement().simpleName.toString() == KIVersionedEntity::class.simpleName }
 
@@ -144,7 +130,7 @@ class EntityInfo(val type: TypeElement, val env: ProcessingEnvironment) {
                     ?: true) as Boolean
             env.note("$target $targetId $mutableCollection")
             metaName = "PROP_${property.toUpperCase()}"
-            metaType = "${KIRelationProperty::class.qualifiedName}<$target,$targetId>"
+            metaType = "${KIRelationProperty::class.qualifiedName}"
             val type = if (multi) {
                 element.returnType.toString().replace("java.util.Set", if (mutableCollection) "kotlin.MutableSet" else "kotlin.Set")
             } else element.returnType.toString()

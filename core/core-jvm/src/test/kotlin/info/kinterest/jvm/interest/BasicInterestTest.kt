@@ -11,14 +11,12 @@ import info.kinterest.jvm.events.Dispatcher
 import info.kinterest.jvm.filter.filter
 import info.kinterest.jvm.filter.tree.FilterTree
 import info.kinterest.jvm.query.QueryManagerJvm
+import info.kinterest.jvm.util.EventWaiter
 import info.kinterest.meta.KIEntityMeta
 import info.kinterest.meta.KIProperty
 import info.kinterest.paging.Page
 import info.kinterest.paging.Paging
-import info.kinterest.query.EntityProjection
-import info.kinterest.query.EntityProjectionResult
-import info.kinterest.query.Query
-import info.kinterest.query.QueryResult
+import info.kinterest.query.*
 import info.kinterest.sorting.Ordering
 import info.kinterest.sorting.asc
 import kotlinx.coroutines.experimental.CommonPool
@@ -138,8 +136,9 @@ class BasicInterestTest : Spek({
                         val page = Page(Paging(0, 10),
                                 entities.filter { q.f.matches(it) }.sortedWith(projection.ordering as Comparator<in InterestEntityImpl>), 0)
                         EntityProjectionResult(projection, page)
-                    }.associateBy { it.name }
-                    QueryResult(q, pmap)
+                    }.associateBy { it.projection }
+                    @Suppress("UNCHECKED_CAST")
+                    QueryResult(q, pmap as Map<Projection<InterestEntity, Long>, ProjectionResult<InterestEntity, Long>>)
                 })
             }
         }
@@ -174,7 +173,8 @@ class BasicInterestTest : Spek({
             val im = InterestManager(qm)
             @Suppress("UNCHECKED_CAST")
             val waiter = EventWaiter(im.events as Channel<InterestEvent<Interest<InterestEntity, Long>, InterestEntity, Long>>)
-            val interest = im + Query<InterestEntity, Long>(f.cast(), listOf(EntityProjection(Ordering.NATURAL.cast(), Paging(0, 10))))
+            val projection = EntityProjection<InterestEntity, Long>(Ordering.NATURAL.cast(), Paging(0, 10))
+            val interest = im + Query<InterestEntity, Long>(f.cast(), listOf(projection))
 
             it("should be registered") {
                 waiter.waitFor {
@@ -191,9 +191,6 @@ class BasicInterestTest : Spek({
                         it is ProjectionLoaded && run {
                             val res = it.result
                             if (res is EntityProjectionResult) {
-                                logger.debug {
-                                    "###waited for ${res.page.entities}"
-                                }
                                 res.page.entities.size > 0
                             } else {
                                 logger.debug { "nope" }
@@ -204,7 +201,7 @@ class BasicInterestTest : Spek({
                 }
 
                 logger.debug { interest.result.projections }
-                val res = interest.result.projections["entities"] as EntityProjectionResult
+                val res = interest.result.projections[projection] as EntityProjectionResult
                 res.page.entities.size `should equal` 2
                 res.page.entities.first().name `should equal` "w"
             }
@@ -224,8 +221,8 @@ class BasicInterestTest : Spek({
                     }
                 }
                 runBlocking { delay(100) }
-                interest.result.projections["entities"] `should be instance of` EntityProjectionResult::class
-                val proj = interest.result.projections["entities"] as EntityProjectionResult
+                interest.result.projections[projection] `should be instance of` EntityProjectionResult::class
+                val proj = interest.result.projections[projection] as EntityProjectionResult
                 proj.page.entities.size `should equal` 2
                 proj.page.entities.first().name `should equal` "d"
             }
@@ -247,9 +244,9 @@ class BasicInterestTest : Spek({
                         }
                     }
                 }
-                logger.debug { "interest entities ${interest.result.projections["entities"]}" }
-                interest.result.projections["entities"] `should be instance of` EntityProjectionResult::class
-                val proj = interest.result.projections["entities"] as EntityProjectionResult
+                logger.debug { "interest entities ${interest.result.projections[projection]}" }
+                interest.result.projections[projection] `should be instance of` EntityProjectionResult::class
+                val proj = interest.result.projections[projection] as EntityProjectionResult
                 proj.page.entities.size `should equal` 3
                 proj.page.entities.first().name `should equal` "d"
                 proj.page.entities[1].name `should equal` "e"

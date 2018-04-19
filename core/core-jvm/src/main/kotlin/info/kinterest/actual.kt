@@ -10,8 +10,3 @@ actual typealias UUID = UUID
 actual typealias LocalDate = LocalDate
 actual typealias LocalDateTime = LocalDateTime
 actual typealias OffsetDateTime = OffsetDateTime
-
-
-actual interface DataStore {
-    actual val name : String
-}

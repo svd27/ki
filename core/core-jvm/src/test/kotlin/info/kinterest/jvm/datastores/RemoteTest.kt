@@ -1,24 +1,23 @@
 package info.kinterest.jvm.datastores
 
+import com.github.salomonbrys.kodein.Kodein
 import com.nhaarman.mockito_kotlin.whenever
-import info.kinterest.DataStore
-import info.kinterest.KIEntity
-import info.kinterest.LocalDate
-import info.kinterest.cast
+import info.kinterest.*
 import info.kinterest.datastores.DataStoreFacade
+import info.kinterest.datastores.IRelationTrace
 import info.kinterest.datastores.QueryMsg
 import info.kinterest.datastores.QueryResultMsg
 import info.kinterest.filter.NOFILTER
 import info.kinterest.functional.Try
 import info.kinterest.functional.getOrElse
+import info.kinterest.jvm.coreKodein
 import info.kinterest.meta.KIEntityMeta
 import info.kinterest.meta.KIProperty
+import info.kinterest.meta.KIRelationProperty
+import info.kinterest.meta.Relation
 import info.kinterest.paging.Page
 import info.kinterest.paging.Paging
-import info.kinterest.query.EntityProjection
-import info.kinterest.query.EntityProjectionResult
-import info.kinterest.query.Query
-import info.kinterest.query.QueryResult
+import info.kinterest.query.*
 import info.kinterest.sorting.Ordering
 import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.channels.Channel
@@ -54,13 +53,22 @@ class RemoteEntity(override val id: LocalDate, val name: String, var token: Stri
     }
 }
 
-abstract class BaseDataSource(override val name: String) : DataStoreFacade {
+open class RemIn(name: String, override val pool: CoroutineDispatcher, override val ch: SendChannel<QueryMsg>, override val chResp: ReceiveChannel<QueryResultMsg>) : RemoteDataStoreFacade(name) {
+    override val qm: QueryManager
+        get() = TODO("not implemented") //To change initializer of created properties use File | Settings | File Templates.
+
+    override val metaProvider: MetaProvider
+        get() = TODO("not implemented") //To change initializer of created properties use File | Settings | File Templates.
+
     override fun <K : Any> version(type: KIEntityMeta, id: K): Any {
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
+    override fun getBookedRelationsSync(rel: KIRelationProperty, entity: KIEntity<Any>, sourceMeta: KIEntityMeta): Try<Iterable<IRelationTrace>> {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
 
-    override fun <E : KIEntity<K>, K : Any> create(type: KIEntityMeta, entities: Iterable<E>): Try<Deferred<Try<Iterable<E>>>> {
+    override fun <E : KIEntity<K>, K : Any> retrieve(type: KIEntityMeta, ids: Iterable<K>): Try<Deferred<Try<Iterable<E>>>> {
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
@@ -68,7 +76,7 @@ abstract class BaseDataSource(override val name: String) : DataStoreFacade {
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
-    override fun <E : KIEntity<K>, K : Any> retrieve(type: KIEntityMeta, ids: Iterable<K>): Try<Deferred<Try<Iterable<E>>>> {
+    override fun <E : KIEntity<K>, K : Any> create(type: KIEntityMeta, entities: Iterable<E>): Try<Deferred<Try<Iterable<E>>>> {
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
@@ -96,30 +104,109 @@ abstract class BaseDataSource(override val name: String) : DataStoreFacade {
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
+    override fun <S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any> addRelation(rel: Relation<S, T, K, L>): Try<Deferred<Try<Boolean>>> {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
 
-}
+    override fun <S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any> removeRelation(rel: Relation<S, T, K, L>): Try<Deferred<Try<Boolean>>> {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
 
-open class RemIn(name: String, override val pool: CoroutineDispatcher, override val ch: SendChannel<QueryMsg>, override val chResp: ReceiveChannel<QueryResultMsg>) : BaseDataSource(name), RemoteDataStoreFacade {
-    override var pendingQueries: Map<Long, Pair<Query<*, *>, CompletableDeferred<Try<QueryResult<*, *>>>>> = mapOf()
+    override fun <S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any> getRelations(rel: KIRelationProperty, source: S): Try<Deferred<Try<Iterable<T>>>> {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
 
-    final override fun receiverInit() = super.receiverInit()
+    override fun <S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any> getRelationsSync(rel: KIRelationProperty, source: S): Try<Iterable<T>> {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
 
+    override fun <T : KIEntity<L>, L : Any, S : KIEntity<K>, K : Any> bookRelationSync(rel: Relation<S, T, K, L>): Try<Boolean> {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun <T : KIEntity<L>, L : Any, S : KIEntity<K>, K : Any> unbookRelationSync(rel: Relation<S, T, K, L>): Try<Boolean> {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
 
     init {
         receiverInit()
     }
 }
 
-open class RemOut(override val ds: DataStoreFacade, override val chIn: ReceiveChannel<QueryMsg>, override val chOut: SendChannel<QueryResultMsg>, override val pool: CoroutineDispatcher) : BaseDataSource(ds.name), RemoteOutgoingDataStoreFacade {
-    var id: Long = 0
-    override val nextId: Long
-        get() = id++
+open class RemOut(kodein: Kodein, name: String, override val ds: DataStoreFacade, override val chIn: ReceiveChannel<QueryMsg>, override val chOut: SendChannel<QueryResultMsg>) : RemoteOutgoingDataStoreFacade(name, kodein) {
+    override val qm: QueryManager
+        get() = TODO("not implemented") //To change initializer of created properties use File | Settings | File Templates.
+    override val metaProvider: MetaProvider
+        get() = TODO("not implemented") //To change initializer of created properties use File | Settings | File Templates.
 
-    final override fun initReceiver() = super.initReceiver()
-
-    init {
-        initReceiver()
+    override fun <K : Any> version(type: KIEntityMeta, id: K): Any {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
+
+    override fun <E : KIEntity<K>, K : Any> retrieve(type: KIEntityMeta, ids: Iterable<K>): Try<Deferred<Try<Iterable<E>>>> {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun getBookedRelationsSync(rel: KIRelationProperty, entity: KIEntity<Any>, sourceMeta: KIEntityMeta): Try<Iterable<IRelationTrace>> {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun <E : KIEntity<K>, K : Any> retrieveLenient(type: KIEntityMeta, ids: Iterable<K>): Try<Deferred<Try<Iterable<E>>>> {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun <E : KIEntity<K>, K : Any> create(type: KIEntityMeta, entities: Iterable<E>): Try<Deferred<Try<Iterable<E>>>> {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun <E : KIEntity<K>, K : Any> delete(type: KIEntityMeta, entities: Iterable<E>): Try<Deferred<Try<Iterable<K>>>> {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun getValues(type: KIEntityMeta, id: Any): Deferred<Try<Map<String, Any?>?>> {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun getValues(type: KIEntityMeta, id: Any, vararg props: KIProperty<*>): Deferred<Try<Map<String, Any?>?>> {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun getValues(type: KIEntityMeta, id: Any, props: Iterable<KIProperty<*>>): Deferred<Try<Map<String, Any?>?>> {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun setValues(type: KIEntityMeta, id: Any, values: Map<KIProperty<*>, Any?>): Deferred<Try<Unit>> {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun setValues(type: KIEntityMeta, id: Any, version: Any, values: Map<KIProperty<*>, Any?>): Deferred<Try<Unit>> {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun <S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any> addRelation(rel: Relation<S, T, K, L>): Try<Deferred<Try<Boolean>>> {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun <S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any> removeRelation(rel: Relation<S, T, K, L>): Try<Deferred<Try<Boolean>>> {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun <S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any> getRelations(rel: KIRelationProperty, source: S): Try<Deferred<Try<Iterable<T>>>> {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun <S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any> getRelationsSync(rel: KIRelationProperty, source: S): Try<Iterable<T>> {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun <T : KIEntity<L>, L : Any, S : KIEntity<K>, K : Any> bookRelationSync(rel: Relation<S, T, K, L>): Try<Boolean> {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun <T : KIEntity<L>, L : Any, S : KIEntity<K>, K : Any> unbookRelationSync(rel: Relation<S, T, K, L>): Try<Boolean> {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
 }
 
 class RemoteTest : Spek({
@@ -127,12 +214,24 @@ class RemoteTest : Spek({
         val channel = Channel<QueryMsg>()
         val chResp = Channel<QueryResultMsg>()
         val ds: DataStoreFacade = mock()
-        whenever(ds.name).thenReturn("test")
+        val kodein = Kodein {
+            import(coreKodein)
+        }
         //Page(Paging(0, 1), listOf(RemoteEntity(java.time.LocalDate.now(), "", ",", ds)))
-        whenever(ds.query<RemoteEntity, LocalDate>(any())).thenReturn(Try { CompletableDeferred(Try { QueryResult(Query<RemoteEntity, LocalDate>(NOFILTER.cast(), listOf()), mapOf("entities" to EntityProjectionResult(EntityProjection(Ordering.NATURAL.cast(), Paging.ALL, null), Page(Paging(0, 1), listOf(RemoteEntity(java.time.LocalDate.now(), "", ",", ds)))))) }) })
+        whenever(ds.query<RemoteEntity, LocalDate>(any())).thenReturn(Try {
+            CompletableDeferred(Try {
+                val projection = EntityProjection<RemoteEntity, LocalDate>(Ordering.NATURAL.cast(), Paging.ALL, null)
+                @Suppress("UNCHECKED_CAST")
+                QueryResult(Query<RemoteEntity, LocalDate>(NOFILTER.cast(), listOf()), mapOf(
+                        projection to
+                                EntityProjectionResult(projection, Page(Paging(0, 1),
+                                        listOf(RemoteEntity(java.time.LocalDate.now(), "", ",", ds))))) as Map<Projection<RemoteEntity, LocalDate>, ProjectionResult<RemoteEntity, LocalDate>>
+                )
+            })
+        })
         val dispatcher: CoroutineDispatcher = newFixedThreadPoolContext(4, "test")
-        val remInc = RemIn(ds.name, dispatcher, channel, chResp)
-        RemOut(ds, channel, chResp, dispatcher)
+        val remInc = RemIn("test", dispatcher, channel, chResp)
+        RemOut(kodein, "test", ds, channel, chResp)
 
         on("querying") {
             val tq = remInc.query<RemoteEntity, LocalDate>(Query(NOFILTER.cast(), listOf()))

@@ -16,10 +16,7 @@ import info.kinterest.jvm.interest.InterestEntity
 import info.kinterest.jvm.interest.InterestEntityImpl
 import info.kinterest.paging.Page
 import info.kinterest.paging.Paging
-import info.kinterest.query.EntityProjection
-import info.kinterest.query.EntityProjectionResult
-import info.kinterest.query.Query
-import info.kinterest.query.QueryResult
+import info.kinterest.query.*
 import info.kinterest.sorting.Ordering
 import info.kinterest.sorting.asc
 import kotlinx.coroutines.experimental.CompletableDeferred
@@ -33,6 +30,8 @@ import org.jetbrains.spek.api.dsl.given
 import org.jetbrains.spek.api.dsl.it
 import org.jetbrains.spek.api.dsl.on
 import kotlin.math.min
+
+val meta1 = InterestEntityImpl.Companion.Meta
 
 class QueryManagerTest : Spek({
     given("a query manager and three DataStores") {
@@ -84,7 +83,8 @@ class QueryManagerTest : Spek({
                         } else throw Exception()
                         EntityProjectionResult(it, page)
                     }
-                    QueryResult(query, ps.associateBy { it.name })
+                    @Suppress("UNCHECKED_CAST")
+                    QueryResult(query, ps.associateBy { it.projection } as Map<Projection<InterestEntity, Long>, ProjectionResult<InterestEntity, Long>>)
 
                 })
             }
@@ -105,7 +105,8 @@ class QueryManagerTest : Spek({
                         } else throw Exception()
                         EntityProjectionResult(it, page)
                     }
-                    QueryResult(query, ps.associateBy { it.name })
+                    @Suppress("UNCHECKED_CAST")
+                    QueryResult(query, ps.associateBy { it.projection } as Map<Projection<InterestEntity, Long>, ProjectionResult<InterestEntity, Long>>)
                 })
             }
         }
@@ -125,7 +126,8 @@ class QueryManagerTest : Spek({
                         } else throw Exception()
                         EntityProjectionResult(it, page)
                     }
-                    QueryResult(query, ps.associateBy { it.name })
+                    @Suppress("UNCHECKED_CAST")
+                    QueryResult(query, ps.associateBy { it.projection } as Map<Projection<InterestEntity, Long>, ProjectionResult<InterestEntity, Long>>)
                 })
             }
         }
@@ -189,11 +191,12 @@ class QueryManagerTest : Spek({
             }
         }
 
+        val projection1 = EntityProjection<InterestEntity, Long>(Ordering.NATURAL.cast(), Paging(0, 100))
         on("querying one DataStore") {
             logger.debug { "querying from one DataStores" }
             val res = qm.query(Query<InterestEntity, Long>(EntityFilter.FilterWrapper(StaticEntityFilter<InterestEntity, Long>(setOf(1, 2, 3, 4, 5, 6),
-                    InterestEntityImpl.Companion.Meta)).cast(),
-                    listOf(EntityProjection(Ordering.NATURAL.cast(), Paging(0, 100))), setOf(ds1)))
+                    InterestEntityImpl.Companion.Meta), meta).cast(),
+                    listOf(projection1), setOf(ds1)))
             val td = runBlocking { res.getOrElse { throw it }.await() }
             it("should be successfull") {
                 res.isSuccess.`should be true`()
@@ -204,9 +207,9 @@ class QueryManagerTest : Spek({
 
             it("should contain the proper result") {
                 queryResult.projections.size `should equal` 1
-                queryResult.projections["entities"].`should not be null`()
-                queryResult.projections["entities"] `should be instance of` EntityProjectionResult::class
-                val proj = queryResult.projections["entities"] as EntityProjectionResult
+                queryResult.projections[projection1].`should not be null`()
+                queryResult.projections[projection1] `should be instance of` EntityProjectionResult::class
+                val proj = queryResult.projections[projection1] as EntityProjectionResult
                 proj.page.entities.toSet() `should equal` el1.toSet()
             }
         }
@@ -215,8 +218,8 @@ class QueryManagerTest : Spek({
             logger.debug { "querying from two DataStores" }
             val res = qm.query(Query<InterestEntity, Long>(
                     EntityFilter.FilterWrapper(StaticEntityFilter<InterestEntity, Long>(setOf(1, 2, 3, 4, 5, 6),
-                            InterestEntityImpl.Companion.Meta)).cast(),
-                    listOf(EntityProjection(Ordering.NATURAL.cast(), Paging(0, 100))), setOf(ds1, ds3)))
+                            InterestEntityImpl.Companion.Meta), meta).cast(),
+                    listOf(projection1), setOf(ds1, ds3)))
             val td = runBlocking { res.getOrElse { throw it }.await() }
             it("should be successful") {
                 res.isSuccess.`should be true`()
@@ -227,17 +230,18 @@ class QueryManagerTest : Spek({
 
             it("should contain the proper result") {
                 logger.debug { queryResult }
-                queryResult.projections["entities"] `should be instance of` EntityProjectionResult::class
-                val proj = queryResult.projections["entities"] as EntityProjectionResult
+                queryResult.projections[projection1] `should be instance of` EntityProjectionResult::class
+                val proj = queryResult.projections[projection1] as EntityProjectionResult
                 proj.page.entities.toSet() `should equal` (el1 + el3).toSet()
             }
         }
 
         on("querying two DataStores with a page") {
             logger.debug { "querying from two DataStores with page" }
+            val projection = EntityProjection<InterestEntity, Long>(Ordering.NATURAL.cast(), Paging(0, 2))
             val res = qm.query(Query<InterestEntity, Long>(EntityFilter.FilterWrapper(
-                    StaticEntityFilter<InterestEntity, Long>(setOf(1, 2, 3, 4, 5, 6), InterestEntityImpl.Companion.Meta)).cast(),
-                    listOf(EntityProjection(Ordering.NATURAL.cast(), Paging(0, 2))), setOf(ds1, ds3)))
+                    StaticEntityFilter<InterestEntity, Long>(setOf(1, 2, 3, 4, 5, 6), InterestEntityImpl.Companion.Meta), meta),
+                    listOf(projection), setOf(ds1, ds3)))
             val td = runBlocking(pool) { res.getOrElse { throw it }.await() }
             it("should be successful") {
                 res.isSuccess.`should be true`()
@@ -248,17 +252,18 @@ class QueryManagerTest : Spek({
 
             it("should contain the proper result") {
                 logger.debug { queryResult }
-                queryResult.projections["entities"] `should be instance of` EntityProjectionResult::class
-                val proj = queryResult.projections["entities"] as EntityProjectionResult
+                queryResult.projections[projection] `should be instance of` EntityProjectionResult::class
+                val proj = queryResult.projections[projection] as EntityProjectionResult
                 proj.page.entities.toSet() `should equal` (el1).toSet()
             }
         }
 
         on("querying two DataStores with the next page") {
             logger.debug { "querying from two DataStores with next page" }
+            val projection = EntityProjection<InterestEntity, Long>(Ordering.NATURAL.cast(), Paging(0, 2).next)
             val res = qm.query(Query<InterestEntity, Long>(
-                    EntityFilter.FilterWrapper(StaticEntityFilter<InterestEntity, Long>(setOf(1, 2, 3, 4, 5, 6), InterestEntityImpl.Companion.Meta)).cast(),
-                    listOf(EntityProjection(Ordering.NATURAL.cast(), Paging(0, 2).next)), setOf(ds1, ds3)))
+                    EntityFilter.FilterWrapper(StaticEntityFilter<InterestEntity, Long>(setOf(1, 2, 3, 4, 5, 6), InterestEntityImpl.Companion.Meta), meta),
+                    listOf(projection), setOf(ds1, ds3)))
             val td = runBlocking { res.getOrElse { throw it }.await() }
             it("should be successfull") {
                 res.isSuccess.`should be true`()
@@ -269,17 +274,17 @@ class QueryManagerTest : Spek({
 
             it("should contain the proper result") {
                 logger.debug { queryResult }
-                queryResult.projections["entities"] `should be instance of` EntityProjectionResult::class
-                val proj = queryResult.projections["entities"] as EntityProjectionResult
+                queryResult.projections[projection] `should be instance of` EntityProjectionResult::class
+                val proj = queryResult.projections[projection] as EntityProjectionResult
                 proj.page.entities.toSet() `should equal` (el3).toSet()
             }
         }
 
         on("querying three DataStores with a page and an ordering") {
             logger.debug { "querying from two DataStores with page and ordering" }
-            val projection = EntityProjection<InterestEntity, Long>(Ordering(listOf(InterestEntityImpl.Companion.Meta.props["name"]!!.asc())), Paging(0, 2))
+            val projection = EntityProjection<InterestEntity, Long>(Ordering(listOf(meta1.props["name"]!!.asc())), Paging(0, 2))
             val query = Query(
-                    EntityFilter.FilterWrapper(StaticEntityFilter<InterestEntity, Long>(setOf(1, 2, 3, 4, 5, 6), InterestEntityImpl.Companion.Meta)).cast(),
+                    EntityFilter.FilterWrapper(StaticEntityFilter<InterestEntity, Long>(setOf(1, 2, 3, 4, 5, 6), InterestEntityImpl.Companion.Meta), meta),
                     listOf(projection), setOf(ds1, ds3, ds2))
             val res = qm.query(query)
             val td = runBlocking(pool) { res.getOrElse { throw it }.await() }
@@ -292,38 +297,40 @@ class QueryManagerTest : Spek({
 
             it("should contain the proper result") {
                 logger.debug { queryResult }
-                queryResult.projections["entities"] `should be instance of` EntityProjectionResult::class
-                val proj = queryResult.projections["entities"] as EntityProjectionResult
+                queryResult.projections[projection] `should be instance of` EntityProjectionResult::class
+                val proj = queryResult.projections[projection] as EntityProjectionResult
                 proj.page.entities.toSet() `should equal` (el3).toSet()
                 proj.page.entities.first().name `should equal` "fg"
                 proj.page.entities[1].name `should equal` "wx"
             }
 
-            val resNext = qm.query(query.copy(projections = listOf(EntityProjection(projection.ordering, projection.paging.next))))
+            val entityProjection1 = EntityProjection(projection.ordering, projection.paging.next)
+            val resNext = qm.query(query.copy(projections = listOf(entityProjection1)))
             val dn = runBlocking(pool) { resNext.getOrElse { throw it }.await() }
             val pNext = dn.getOrElse { throw it }
 
             it("the next page should contain the proper result") {
                 logger.debug { "pNext: $pNext" }
-                pNext.projections["entities"] `should be instance of` EntityProjectionResult::class
-                val proj = pNext.projections["entities"] as EntityProjectionResult
+                pNext.projections[entityProjection1] `should be instance of` EntityProjectionResult::class
+                val proj = pNext.projections[entityProjection1] as EntityProjectionResult
                 proj.page.entities.map { it.name } `should equal` listOf("xa", "za")
             }
 
             val paging = (Paging(0, 2).next).next
+            val entityProjection = EntityProjection<InterestEntity, Long>(
+                    Ordering(listOf(meta1.props["name"]!!.asc())),
+                    paging)
             val resLast = qm.query(
                     query.copy(projections = listOf(
-                            EntityProjection(
-                                    Ordering(listOf(InterestEntityImpl.Companion.Meta.props["name"]!!.asc())),
-                                    paging)))
+                            entityProjection))
             )
             val dl = runBlocking(pool) { resLast.getOrElse { throw it }.await() }
             val pLast = dl.getOrElse { throw it }
 
             it("the last page should contain the proper result") {
                 logger.debug { "pLast: $pLast" }
-                pLast.projections["entities"] `should be instance of` EntityProjectionResult::class
-                val proj = pLast.projections["entities"] as EntityProjectionResult
+                pLast.projections[entityProjection] `should be instance of` EntityProjectionResult::class
+                val proj = pLast.projections[entityProjection] as EntityProjectionResult
                 proj.page.entities.map { it.name } `should equal` listOf("zb", "zc")
             }
         }

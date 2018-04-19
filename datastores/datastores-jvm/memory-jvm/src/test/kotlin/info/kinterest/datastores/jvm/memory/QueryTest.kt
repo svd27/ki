@@ -54,15 +54,16 @@ class QueryTest : Spek({
             }
             val queryResult = td.getOrElse { throw it }
             it("should return a proper page") {
-                queryResult.projections["entities"] `should be instance of` EntityProjectionResult::class
-                val proj = queryResult.projections["entities"] as EntityProjectionResult
+                queryResult.projections[projection] `should be instance of` EntityProjectionResult::class
+                val proj = queryResult.projections[projection] as EntityProjectionResult
                 proj.page.entities.count() `should equal` 3
                 proj.page.entities.elementAt(0).name `should equal` "Aanne"
             }
         }
 
         on("changing the page") {
-            val q1 = Query(q.f, listOf(EntityProjection(projection.ordering, projection.paging.next)))
+            val projection1 = EntityProjection(projection.ordering, projection.paging.next)
+            val q1 = Query(q.f, listOf(projection1))
             val tq = base.ds.query(q1)
             it("should initially work") {
                 tq.isSuccess.`should be true`()
@@ -71,8 +72,8 @@ class QueryTest : Spek({
             val queryResult = runBlocking { qd.await() }.getOrElse { throw it }
 
             it("should work") {
-                queryResult.projections["entities"] `should be instance of` EntityProjectionResult::class
-                val proj = queryResult.projections["entities"] as EntityProjectionResult
+                queryResult.projections[projection1] `should be instance of` EntityProjectionResult::class
+                val proj = queryResult.projections[projection1] as EntityProjectionResult
                 proj.page.entities.elementAt(0).name `should equal` "Danne"
             }
 

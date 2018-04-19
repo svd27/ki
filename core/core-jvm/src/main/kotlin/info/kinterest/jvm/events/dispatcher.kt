@@ -20,14 +20,16 @@ class Dispatcher<T>(pool: CoroutineDispatcher? = null) {
 
     init {
         launch(dispatcher) {
-            select<Unit> {
-                _subscribing.onReceive {
-                    outgoing += it
+            while (isActive)
+                select<Unit> {
+                    _subscribing.onReceive {
+                        logger.debug { "subscribe $it" }
+                        outgoing += it
+                    }
+                    _unsubscribe.onReceive {
+                        outgoing -= it
+                    }
                 }
-                _unsubscribe.onReceive {
-                    outgoing -= it
-                }
-            }
         }
         launch(dispatcher) {
             for (t in incoming) {

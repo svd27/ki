@@ -37,6 +37,23 @@ data class Ordering<E : KIEntity<K>, out K : Any>(private val order: Iterable<Or
 
     fun isIn(e: E, range: Pair<E, E>) = compare(e, range.first) >= 0 && compare(e, range.second) < 0
 
+    @Suppress("UNCHECKED_CAST")
+    val mapComparator = object : Comparator<Map<String, Any?>> {
+        override fun compare(a: Map<String, Any?>, b: Map<String, Any?>): Int {
+            if (this === NATURAL) return 0
+            for (o in order) {
+                val va = a[o.prop.name] as Comparable<Any>?
+                val vb = b[o.prop.name] as Comparable<Any>?
+                if (va == null) return if (nullPlacement == NullPlacement.NULLLASY) 1 else -1
+                if (vb == null) return if (nullPlacement == NullPlacement.NULLLASY) -1 else 1
+                var res = va.compareTo(vb)
+                if (o.direction == OrderDirection.DESCENDING) res *= -1
+                if (res != 0) return res
+            }
+            return 0
+        }
+    }
+
     companion object {
         val NATURAL = Ordering<Nothing, Nothing>(listOf())
     }

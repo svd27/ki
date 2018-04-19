@@ -1,7 +1,7 @@
 package info.kinterest.jvm.filter
 
+import info.kinterest.MetaProvider
 import info.kinterest.core.jvm.filters.parser.parse
-import info.kinterest.jvm.MetaProvider
 import org.amshove.kluent.`should equal`
 import org.jetbrains.spek.api.Spek
 import org.jetbrains.spek.api.dsl.given

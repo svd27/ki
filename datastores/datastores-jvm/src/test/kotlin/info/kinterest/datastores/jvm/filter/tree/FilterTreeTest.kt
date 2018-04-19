@@ -101,7 +101,10 @@ class FilterTreeTest : Spek({
                 }
             }
 
-            fun close() = runBlocking { f.listener = null; ch.close(); job.join() }
+            fun close() = runBlocking {
+                f.listener = null
+                ch.close()
+            }
             fun wait(): Int = runBlocking(base.context) { withTimeout(1000) { ping.receive() } }
         }
         f.listener = listener.ch
@@ -159,13 +162,14 @@ class FilterTreeTest : Spek({
             val e = base.retrieve<SomeEntity, Long>(listOf(2)).getOrElse { throw it }.first()
             e.dob = LocalDate.now().minusDays(2)
             it("should hit our filter") {
-                e.dob `should equal` LocalDate.now().minusDays(2)
                 listener.wait()
+                e.dob `should equal` LocalDate.now().minusDays(2)
+
                 listener.total `should equal` 2
             }
         }
         afterGroup {
-            logger.debug { "after ${Runtime.getRuntime().availableProcessors()}" }
+            logger.debug { "cpus ${Runtime.getRuntime().availableProcessors()}" }
             listener.close()
 
         }
