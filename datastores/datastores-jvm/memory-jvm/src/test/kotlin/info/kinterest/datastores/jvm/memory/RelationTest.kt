@@ -133,7 +133,17 @@ class RelationTest : Spek({
         }
 
         on("adding a relation twice to an entity") {
-
+            val p1 = base.retrieve<RelPerson, Long>(listOf(0)).getOrElse { throw it }.first()
+            val p2 = base.retrieve<RelPerson, Long>(listOf(1)).getOrElse { throw it }.first()
+            val p3 = base.retrieve<RelPerson, Long>(listOf(2)).getOrElse { throw it }.first()
+            p3.friends.add(p1)
+            p3.friends.add(p1)
+            waiter.waitFor { it is EntityRelationsAdded<*, *, *, *> && it.relations.any { it.source == p3 && it.target == p1 } }
+            it("should only have one relation") {
+                p3.friends.size `should equal` 1
+                val incomingRelations = (p1 as KIJvmEntity<*, *>).getIncomingRelations(RelPersonJvm.meta.PROP_FRIENDS, RelPersonJvm.meta).getOrElse { throw it }
+                incomingRelations.count() `should equal` 1
+            }
         }
     }
 })
