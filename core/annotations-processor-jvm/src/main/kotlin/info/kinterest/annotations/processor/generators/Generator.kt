@@ -6,7 +6,7 @@ import javax.lang.model.element.TypeElement
 import javax.tools.Diagnostic
 
 interface Generator {
-    val store : String
+    val type: String
     fun generate(type:TypeElement, round:RoundEnvironment, env:ProcessingEnvironment) : Pair<String,String>?
 }
 

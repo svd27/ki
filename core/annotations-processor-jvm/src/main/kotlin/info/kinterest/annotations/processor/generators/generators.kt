@@ -1,41 +1,70 @@
+@file:Suppress("PLATFORM_CLASS_MAPPED_TO_KOTLIN")
+
 package info.kinterest.annotations.processor.generators
 
 import info.kinterest.*
-import info.kinterest.annotations.Entity
-import info.kinterest.datastores.jvm.memory.JvmMemoryDataStore
-import info.kinterest.datastores.jvm.memory.KIJvmMemEntity
+import info.kinterest.datastores.DataStoreFacade
+import info.kinterest.functional.Try
+import info.kinterest.functional.getOrElse
+import info.kinterest.jvm.KIJvmEntity
+import info.kinterest.jvm.annotations.Entity
+import info.kinterest.jvm.annotations.Relation
 import info.kinterest.meta.*
 import org.jetbrains.annotations.Nullable
 import org.yanex.takenoko.*
+import java.util.Set
 import javax.annotation.processing.ProcessingEnvironment
 import javax.annotation.processing.RoundEnvironment
 import javax.lang.model.element.*
-import javax.lang.model.type.*
+import javax.lang.model.type.DeclaredType
+import javax.lang.model.type.ExecutableType
+import javax.lang.model.type.PrimitiveType
+import javax.lang.model.type.TypeMirror
 import javax.tools.Diagnostic
 import kotlin.reflect.KClass
 
-class EntityInfo(val type: TypeElement, env: ProcessingEnvironment) {
+class EntityInfo(val type: TypeElement, val env: ProcessingEnvironment) {
     val srcPkg = type.qualifiedName.split('.').dropLast(1).joinToString(separator = ".")
-    val targetPkg = "$srcPkg.${JvmMemoryGenerator.store}"
+    val targetPkg = "$srcPkg.${JvmGenerator.type}"
     val root: TypeElement
     val parent: TypeElement?
+    val hierarchy: List<TypeElement>
+
+    val rels: List<Pair<TypeElement, ExecutableElement>>
 
     init {
         env.note("targetPkg: $targetPkg")
-        fun findEntitySuper(t: TypeElement): TypeElement = t.interfaces.filterIsInstance<DeclaredType>().firstOrNull {
-            it.getAnnotation(Entity::class.java) != null
-        }?.let {
-            findEntitySuper(it.asElement() as TypeElement)
-        } ?: t
-        root = findEntitySuper(type)
-        parent = type.interfaces.filterIsInstance<DeclaredType>().firstOrNull { it.getAnnotation(Entity::class.java) != null }?.asElement() as? TypeElement
+        //type.getAnnotation(Relations::class.java)?.let{ env.note("rel: $it") }
+        fun findSuperEntity(t: TypeElement): TypeElement? = t.interfaces.filterIsInstance<DeclaredType>().map { it.asElement() }.filter { it.getAnnotation(Entity::class.java) != null }.filterIsInstance<TypeElement>().firstOrNull()
+        parent = findSuperEntity(type)
+        var par = listOf(findSuperEntity(type))
+        while (par.lastOrNull() != null) {
+            par += findSuperEntity(par.last()!!)
+        }
+        hierarchy = par.filterNotNull()
+        rels = type.enclosedElements.filterIsInstance<ExecutableElement>().filter { env.note("rel check: $it ${it.annotationMirrors}"); it.getAnnotation(Relation::class.java) != null }.map { type to it } + hierarchy.flatMap { type -> type.enclosedElements.filterIsInstance<ExecutableElement>().filter { it.getAnnotation(Relation::class.java) != null }.map { type to it } }
+        env.note("RELS: $rels")
+
+        root = hierarchy.lastOrNull() ?: type
     }
 
 
-    val name = type.simpleName.toString() + JvmMemoryGenerator.suffix
-    val idGetter = type.enclosedElements.filter { el: Element? -> el is ExecutableElement }.first { it.simpleName.toString().equals("getId") }
-    val idExecutableType: ExecutableType = idGetter.asType() as ExecutableType
-    val idDecType = when (idExecutableType.returnType) {
+    private fun TypeElement.findGetter(name: String): ExecutableElement? {
+        env.note("find $name in $this")
+        val direct = findGetterDirect(name)
+        return if (direct == null)
+            (this.interfaces).map { env.note("super $it ${it::class}"); it }.filterIsInstance<DeclaredType>().map { te -> te.asElement() }.filterIsInstance<TypeElement>().map {
+                this@EntityInfo.env.note("checking $it ${it.typeParameters.map { it.genericElement }}")
+                it.findGetter(name)
+            }.firstOrNull()
+        else direct
+    }
+
+    private fun TypeElement.findGetterDirect(name: String): ExecutableElement? = enclosedElements.filterIsInstance<ExecutableElement>().firstOrNull { it.simpleName.toString() == "get${name.capitalize()}" }
+    val name = type.simpleName.toString() + JvmGenerator.suffix
+    private val idGetter = type.findGetter("id")!!
+    private val idExecutableType: ExecutableType = idGetter.asType() as ExecutableType
+    private val idDecType = when (idExecutableType.returnType) {
         is DeclaredType -> idExecutableType.returnType as DeclaredType
         else -> throw IllegalStateException("wrong type ${idExecutableType.returnType}")
     }
@@ -46,26 +75,68 @@ class EntityInfo(val type: TypeElement, env: ProcessingEnvironment) {
     val idTypeStr = idType.qualifiedName.normalize()
     val idKoType: KoType = parseType(idType.qualifiedName.normalize())
 
-    val fields: List<FieldInfo> = type.enclosedElements.filterIsInstance<ExecutableElement>().filter {
-        env.note("filter: $it")
-        it.simpleName.toString() != "getId" && Modifier.STATIC !in it.modifiers && it.simpleName.startsWith("get")
-                && it.simpleName.toString().length > 3
-    }.map {
-        val nm = it.simpleName.toString().substring(3).decapitalize()
-        val setterNm = "set${nm.capitalize()}"
-        val setter = type.enclosedElements.filterIsInstance<ExecutableElement>().filter { it.simpleName.toString() == setterNm }
-        FieldInfo(
-                nm,
-                it.returnType,
-                setter.isEmpty(),
-                it.getAnnotation(Nullable::class.java) != null
-        )
+    val fields: List<FieldInfo> = (hierarchy + type).flatMap { t ->
+        t.enclosedElements.filterIsInstance<ExecutableElement>().filter {
+            it.simpleName.toString() !in rels.map { it.second.simpleName.toString() }
+        }.filter {
+            it.simpleName.toString() != "getId" && Modifier.STATIC !in it.modifiers && it.simpleName.startsWith("get")
+                    && it.simpleName.toString().length > 3
+        }.map {
+            val nm = it.simpleName.toString().substring(3).decapitalize()
+            val setterNm = "set${nm.capitalize()}"
+            val setter = t.enclosedElements.filterIsInstance<ExecutableElement>().filter { it.simpleName.toString() == setterNm }
+            FieldInfo(
+                    nm,
+                    it.returnType,
+                    setter.isEmpty(),
+                    it.getAnnotation(Nullable::class.java) != null
+            )
+        }
     }
 
-    val versioned = type.getAnnotation(info.kinterest.annotations.Versioned::class.java) != null
+    val relations: List<RelationInfo> = rels.map { val rel = RelationInfo(it.second, it.first); env.note("rel: ${it.second} ${it.second.simpleName} prop: ${rel.property}"); rel }
+
+    val versioned = type.interfaces.any { it -> it is DeclaredType && it.asElement().simpleName.toString() == KIVersionedEntity::class.simpleName }
 
     class IdInfo(val type: TypeElement, val generateKey: Boolean)
 
+    inner class RelationInfo(val element: ExecutableElement, type1: TypeElement) {
+        val multi: Boolean
+        val typeName: String
+        val readOnly: Boolean = type1.enclosedElements.firstOrNull { it.simpleName.toString() == element.simpleName.toString().replaceFirst("get", "set") } == null
+        val nullable: Boolean = element.getAnnotation(Nullable::class.java) != null
+        val property: String = element.simpleName.toString().substring(3).decapitalize()
+        val targetVal: AnnotationValue
+        val targetIdVal: AnnotationValue
+        val target: String
+        val targetId: String
+        val mutableCollection: Boolean
+        val metaName: String
+        val metaType: String
+
+        init {
+            var replaceAfter = element.returnType.toString().replaceAfter('<', "")
+            if (replaceAfter != element.returnType.toString()) replaceAfter = replaceAfter.dropLast(1)
+            multi = Try { Class.forName(replaceAfter) == Set::class.java }.getOrElse { false }
+
+            val annotation = element.annotationMirrors.first { it.annotationType.toString() == Relation::class.qualifiedName }
+
+            targetVal = annotation!!.elementValues.entries.first { it.key.simpleName.toString() == "target" }.value
+            targetIdVal = annotation.elementValues.entries.first { it.key.simpleName.toString() == "targetId" }.value
+            env.note("${annotation.elementValues}")
+            target = targetVal.value.toString()
+            targetId = targetIdVal.value.toString().normalize()
+            mutableCollection = (annotation.elementValues.entries.firstOrNull { it.key.simpleName.toString() == "mutableCollection" }?.value?.value
+                    ?: true) as Boolean
+            env.note("$target $targetId $mutableCollection")
+            metaName = "PROP_${property.toUpperCase()}"
+            metaType = "${KIRelationProperty::class.qualifiedName}"
+            val type = if (multi) {
+                element.returnType.toString().replace("java.util.Set", if (mutableCollection) "kotlin.MutableSet" else "kotlin.Set")
+            } else element.returnType.toString()
+            typeName = type + if (nullable) "?" else ""
+        }
+    }
 
     class FieldInfo(val name: String, _type: TypeMirror, val readOnly: Boolean, val nullable: Boolean, val transient: Boolean = false) {
         val type: Typing = when (_type) {
@@ -122,10 +193,11 @@ fun String.normalize(): String = if (startsWith("java.lang")) {
         java.lang.Integer::class.java.canonicalName -> Int::class.qualifiedName!!
         java.lang.Long::class.java.canonicalName -> Long::class.qualifiedName!!
         java.lang.Short::class.java.canonicalName -> Short::class.qualifiedName!!
+        java.lang.Object::class.java.canonicalName -> Any::class.qualifiedName!!
 
         java.lang.String::class.java.canonicalName -> String::class.qualifiedName!!
 
-        else -> toString()
+        else -> this
     }
 } else {
     this
@@ -137,14 +209,26 @@ sealed class Typing {
     }
 
     class Primitive(val type: PrimitiveType) : Typing() {
-        override fun toString(): String = type.toString()
+        override fun toString(): String = type.normalise()
+    }
+
+    fun PrimitiveType.normalise() = when (toString()) {
+        "boolean" -> "kotlin.Boolean"
+        "byte" -> "kotlin.Byte"
+        "char" -> "kotlin.Char"
+        "short" -> "kotlin.Short"
+        "int" -> "kotlin.Int"
+        "long" -> "kotlin.Long"
+        "float" -> "kotlin.FLoar"
+        "double" -> "kotlin.Double"
+        else -> DONTDOTHIS("unknown type $this")
     }
 }
 
-object JvmMemoryGenerator : Generator {
-    override val store: String
-        get() = "jvm.mem"
-    val suffix = store.split('.').map { it.capitalize() }.joinToString("")
+object JvmGenerator : Generator {
+    override val type: String
+        get() = "jvm"
+    val suffix = type.split('.').map { it.capitalize() }.joinToString("")
 
 
     override fun generate(type: TypeElement, round: RoundEnvironment, env: ProcessingEnvironment): Pair<String, String>? = kotlin.run {
@@ -153,18 +237,28 @@ object JvmMemoryGenerator : Generator {
         env.messager.printMessage(Diagnostic.Kind.NOTE, "found element $type")
         entity.name to
                 kotlinFile(packageName = entity.targetPkg) {
-                    import(parseType(Versioned::class.java))
+                    import(parseType(KIProperty::class.java))
+                    import(parseType(RelationDelegate::class.java))
+                    import(parseType(RelationNullableDelegate::class.java))
+                    import(parseType(RelationRODelegate::class.java))
+                    import(parseType(RelationNullableRODelegate::class.java))
+                    import(parseType(RelationMutableSet::class.java))
+                    import(parseType(RelationSet::class.java))
+
+                    env.note("import: ${Try::class.qualifiedName!!.replaceAfterLast('.', "*")}")
+                    extraImport(Try::class.qualifiedName!!.replaceAfterLast('.', "getOrElse"))
+                    //import(Try::class.qualifiedName!!.replaceAfterLast('.', "*"))
+
                     classDeclaration(entity.name) {
                         primaryConstructor() {
-                            property("store", parseType(JvmMemoryDataStore::class.qualifiedName!!), VAL)
+                            param("_store", parseType(DataStoreFacade::class.qualifiedName!!))
                             param("id", entity.idKoType)
                         }
                         extends(
-                                parseType("${KIJvmMemEntity::class.qualifiedName}<${entity.type.simpleName},${entity.idTypeStr}>"),
-                                "store", "id")
-                        implements(KoType.Companion.parseType("${entity.type.qualifiedName}"))
-                        if (entity.versioned)
-                            implements(parseType("Versioned<Long>"))
+                                parseType("${KIJvmEntity::class.qualifiedName}<${entity.type.simpleName},${entity.idTypeStr}>"),
+                                "_store", "id")
+                        implements(parseType("${entity.type.qualifiedName}"))
+
                         property("_meta", null, OVERRIDE + VAL) {
                             getter(KoModifierList.Empty, true) {
                                 append("Meta")
@@ -177,10 +271,10 @@ object JvmMemoryGenerator : Generator {
                         }
 
                         if (entity.versioned)
-                            property<Long>("_version", VAL + OVERRIDE) {
+                            property<Any>("_version", VAL + OVERRIDE) {
                                 getter(KoModifierList.Empty, true) {
                                     append("""
-                                        store.version<${entity.type.simpleName},${entity.idTypeStr}>(id)!!
+                                        _store.version(_meta, id)
                                     """.trimIndent())
                                 }
                             }
@@ -188,15 +282,46 @@ object JvmMemoryGenerator : Generator {
                         entity.fields.forEach {
                             val mod = if (it.readOnly) VAL else VAR
                             property(it.name, it.koType, OVERRIDE + mod) {
-                                val typeStr = it.typeName.let { if (it.endsWith("?")) it.dropLast(1) else it }
                                 getter(KoModifierList.Empty, true) {
-                                    append("""store.getProp<${entity.type.simpleName},${entity.idTypeStr},$typeStr>(id, Meta.${it.metaName})""")
+                                    append("""getValue(Meta.${it.metaName})""")
                                     if (!it.nullable) append("!!")
                                 }
                                 if (!it.readOnly) {
                                     setter(KoModifierList.Empty, true, "value") {
-                                        val suffix = if (entity.versioned) ",_version" else ""
-                                        append("""Unit.apply { store.setProp<${entity.type.simpleName},${entity.idTypeStr},$typeStr>(id, Meta.${it.metaName}, value$suffix) }""")
+                                        if (entity.versioned) {
+                                            append("setValue(Meta.${it.metaName}, _version, value)")
+                                        } else {
+                                            append("setValue(Meta.${it.metaName}, value)")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+
+
+                        entity.relations.forEach {
+                            val mod = if (it.readOnly) VAL else VAR
+                            property(it.property, parseType(it.typeName), OVERRIDE + mod) {
+                                if (!it.multi) {
+                                    if (it.readOnly) {
+                                        if (it.nullable) {
+                                            delegate("RelationNullableRODelegate(_store, Meta.${it.metaName})")
+                                        } else {
+                                            delegate("RelationRODelegate(_store, Meta.${it.metaName})")
+                                        }
+                                    } else {
+                                        if (it.nullable)
+                                            delegate("RelationNullableDelegate(_store, Meta.${it.metaName})")
+                                        else
+                                            delegate("RelationDelegate(_store, Meta.${it.metaName})")
+                                    }
+                                } else {
+                                    require(!it.nullable)
+                                    if (!it.mutableCollection) {
+                                        initializer("RelationSet(this, _store, Meta.${it.metaName})")
+                                    } else {
+                                        initializer("RelationMutableSet(this, _store, Meta.${it.metaName})")
                                     }
                                 }
                             }
@@ -204,13 +329,12 @@ object JvmMemoryGenerator : Generator {
 
                         function("asTransient", OVERRIDE) {
                             body(true) {
-                                val fields = entity.fields.map(EntityInfo.FieldInfo::name).joinToString(",")
-                                append("Transient(id,$fields)")
+                                append("Transient(this)")
                             }
                         }
 
                         companionDeclaration("") {
-                            implements(parseType("info.kinterest.jvm.KIJvmEntitySupport<${entity.type.simpleName},${entity.idTypeStr}>"))
+                            implements(parseType(EntitySupport::class.java))
                             property("meta", null, VAL + OVERRIDE) {
                                 getter(KoModifierList.Empty, true) {
                                     append("Meta")
@@ -226,7 +350,11 @@ object JvmMemoryGenerator : Generator {
                                 property("parent", parseType("${KClass::class.qualifiedName}<*>").nullable, OVERRIDE + VAL) {
                                     initializer(entity.parent?.let { "${entity.parent}::class" } ?: "null")
                                 }
+                                property("versioned", parseType(Boolean::class.java), OVERRIDE + VAL) {
+                                    initializer(entity.versioned)
+                                }
                                 entity.fields.forEach {
+                                    env.note("${it.name} ${it.propMetaType} ${it.typeName} ${it.type}")
                                     if (it.propMetaType == KISimpleTypeProperty::class)
                                         property(it.metaName, parseType("${it.propMetaType.qualifiedName}<${it.typeName}>"), VAL) {
                                             initializer("props[\"${it.name}\"] as ${it.propMetaType.qualifiedName}<${it.typeName}>")
@@ -237,23 +365,49 @@ object JvmMemoryGenerator : Generator {
                                         }
                                     }
                                 }
+                                entity.relations.forEach {
+                                    property(it.metaName, parseType(it.metaType), VAL) {
+                                        initializer("props[\"${it.property}\"] as ${it.metaType}")
+                                    }
+                                }
+                                property("hierarchy", parseType("List<KIEntityMeta>"), OVERRIDE + VAL) {
+                                    val hier = entity.hierarchy.joinToString(",", "listOf(", ")") { "${it.simpleName}Jvm.meta" }
+                                    initializer(hier)
+                                }
                             }
 
                             classDeclaration("Transient") {
                                 implements(parseType(entity.type.qualifiedName.toString()))
-                                implements("${TransientEntity::class.qualifiedName}<${entity.idTypeStr}>")
+
                                 primaryConstructor {
+                                    property("_store", parseType(DataStore::class.java), VAL + OVERRIDE)
                                     property("_id", parseType(entity.idTypeStr).nullable, VAL + PRIVATE)
-                                    property("values", parseType("Map<String,Any?>"), OVERRIDE + VAL)
-                                }
-                                secondaryConstructor {
-                                    param("id", parseType(entity.idTypeStr).nullable)
+                                    if (entity.versioned)
+                                        param("version", parseType(Any::class.java).nullable, VAL + PRIVATE)
                                     entity.fields.forEach {
-                                        param(it.name, it.koType)
+                                        property(it.name, it.koType, OVERRIDE + if (it.readOnly) VAL else VAR)
                                     }
-                                    val map = entity.fields.map { "\"${it.name}\" to ${it.name}" }.joinToString(",", "mapOf(", ")")
-                                    val arg = arrayOf("id", map)
-                                    delegateCall("this", *arg)
+                                    entity.relations.forEach {
+                                        property(it.property, parseType(it.typeName), OVERRIDE + if (it.readOnly) VAL else VAR)
+                                    }
+                                }
+                                if (entity.versioned)
+                                    secondaryConstructor {
+                                        param("_store", parseType(DataStore::class.java))
+                                        param("_id", parseType(entity.idTypeStr).nullable)
+                                        entity.fields.forEach {
+                                            param(it.name, it.koType)
+                                        }
+                                        val args = listOf("_store", "_id", "null") +
+                                                entity.fields.map { it.name } + entity.relations.map { "e." + if (it.multi) "${it.element.simpleName}.toMutableSet()" else it.element.simpleName }
+                                        delegateCall("this", *args.toTypedArray())
+                                    }
+                                secondaryConstructor {
+                                    param("e", parseType(entity.type.qualifiedName.toString()))
+                                    val args = listOf("e._store", "e.id") +
+                                            (if (entity.versioned) listOf("e._version") else listOf()) +
+                                            entity.fields.map { "e.${it.name}" } + entity.relations.map { "e." + if (it.multi) "${it.property}.toMutableSet()" else it.property }
+                                    delegateCall("this", *args.toTypedArray())
                                 }
                                 property("id", parseType(entity.idTypeStr), VAL + OVERRIDE) {
                                     getter(KoModifierList.Empty, true) {
@@ -261,53 +415,77 @@ object JvmMemoryGenerator : Generator {
                                     }
                                 }
 
-                                property("_store", parseType("${DataStore::class.qualifiedName}"), VAL + OVERRIDE) {
-                                    getter(KoModifierList.Empty, true) {
-                                        append("TODO()")
-                                    }
-                                }
 
                                 property("_meta", parseType("${KIEntityMeta::class.qualifiedName}"), VAL + OVERRIDE) {
                                     getter(KoModifierList.Empty, true) {
-                                        append("TODO()")
+                                        append("Meta")
                                     }
                                 }
 
-                                entity.fields.forEach {
-                                    if (it.readOnly) {
-                                        property(it.name, it.koType, OVERRIDE + VAL) {
-                                            delegate("values")
-                                        }
-                                    } else {
-                                        property(it.name, it.koType, OVERRIDE + VAR) {
-                                            initializer("values[\"${it.name}\"] as ${it.typeName}")
-                                            setter("v", "TODO()")
+                                if (entity.versioned) {
+                                    property("_version", parseType(Any::class.java), VAL + OVERRIDE) {
+                                        getter(KoModifierList.Empty, true) {
+                                            append("if(version==null) TODO() else version")
                                         }
                                     }
-
                                 }
+
 
                                 function("asTransient", OVERRIDE) {
-                                    body(true) { append("this") }
+                                    body(true) { append("Transient(this)") }
                                 }
 
-                            }
-
-                            function("transient", OVERRIDE) {
-                                param("id", parseType(entity.idTypeStr).nullable)
-                                param("values", parseType("Map<String,Any?>"))
-                                body(true) {
-                                    append("Transient(id, values)")
+                                function("getValue", OVERRIDE) {
+                                    typeParam("V")
+                                    typeParam("P:KIProperty<V>")
+                                    param("p", "P")
+                                    returnType("V?")
+                                    body(true) {
+                                        append("""when(p) {
+                                              Meta.idProperty -> id
+                                              ${entity.fields.map { "Meta.${it.metaName} -> ${it.name}" }.joinToString("\n")}
+                                              ${entity.relations.map { "Meta.${it.metaName} -> ${it.property}" }.joinToString("\n")}
+                                              else -> TODO(p.name)
+                                            } as V?
+                                        """.trimIndent())
+                                    }
                                 }
-                            }
 
-                            function("create", OVERRIDE) {
-                                typeParam("DS", parseType("${DataStore::class.qualifiedName}"))
-                                param("ds", parseType("DS"))
-                                param("id", parseType(entity.idTypeStr))
-                                param("values", parseType("Map<String,Any?>"))
-                                body(true) {
-                                    append("(ds as JvmMemoryDataStore).create(Meta.me, id, values) as Unit")
+                                function("setValue", OVERRIDE) {
+                                    typeParam("V")
+                                    typeParam("P:KIProperty<V>")
+                                    param("p", "P")
+                                    param("v", "V?")
+                                    body(true) {
+                                        append("""when(p) {
+                                              ${entity.fields.filter { !it.readOnly }.map {
+                                            "Meta.${it.metaName} -> ${it.name} = v as ${(renderType(parseType(it.typeName)))}"
+                                        }.joinToString("\n")}
+                                        ${entity.relations.filter { !it.readOnly }.map {
+                                            "Meta.${it.metaName} -> ${it.property} = v as ${(renderType(parseType(it.typeName)))}"
+                                        }.joinToString("\n")}
+                                              else -> TODO()
+                                            }
+                                        """.trimIndent())
+                                    }
+                                }
+
+                                function("setValue", OVERRIDE) {
+                                    typeParam("V")
+                                    typeParam("P:KIProperty<V>")
+                                    param("p", "P")
+                                    param("version", "Any")
+                                    param("v", "V?")
+                                    body(true) {
+                                        append("""when(p) {
+                                              ${entity.fields.filter { !it.readOnly }.map { "Meta.${it.metaName} -> ${it.name} = v as ${renderType(parseType(it.typeName))}" }.joinToString("\n")}
+                                              ${entity.relations.filter { !it.readOnly }.map {
+                                            "Meta.${it.metaName} -> ${it.property} = v as ${(renderType(parseType(it.typeName)))}"
+                                        }.joinToString("\n")}
+                                              else -> TODO()
+                                            }
+                                        """.trimIndent())
+                                    }
                                 }
                             }
                         }
@@ -315,3 +493,4 @@ object JvmMemoryGenerator : Generator {
                 }.accept(PrettyPrinter(PrettyPrinterConfiguration()))
     }
 }
+

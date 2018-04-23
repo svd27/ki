@@ -4,38 +4,60 @@ import com.github.salomonbrys.kodein.Kodein
 import com.github.salomonbrys.kodein.KodeinInjector
 import com.github.salomonbrys.kodein.instance
 import info.kinterest.*
+import info.kinterest.datastores.IRelationTrace
 import info.kinterest.datastores.jvm.DataStoreConfig
 import info.kinterest.datastores.jvm.DataStoreFactory
 import info.kinterest.datastores.jvm.DataStoreJvm
+import info.kinterest.datastores.jvm.RelationTrace
+import info.kinterest.functional.Try
+import info.kinterest.functional.flatten
+import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.KIJvmEntity
 import info.kinterest.jvm.KIJvmEntityMeta
-import info.kinterest.jvm.KIJvmEntitySupport
-import info.kinterest.jvm.events.Dispatcher
-import info.kinterest.jvm.filter.EntityFilter
+import info.kinterest.jvm.addIncomingRelation
+import info.kinterest.jvm.query.DiscriminatorsJvm
+import info.kinterest.jvm.query.DistinctDiscriminators
+import info.kinterest.jvm.removeIncomingRelation
 import info.kinterest.meta.KIEntityMeta
 import info.kinterest.meta.KIProperty
+import info.kinterest.meta.KIRelationProperty
+import info.kinterest.meta.Relation
+import info.kinterest.paging.Page
+import info.kinterest.query.*
+import info.kinterest.sorting.Ordering
 import kotlinx.coroutines.experimental.*
+import kotlinx.coroutines.experimental.channels.Channel
+import mu.KLogging
 import mu.KotlinLogging
 import org.mapdb.DB
 import org.mapdb.DBMaker
 import org.mapdb.HTreeMap
+import org.mapdb.StoreTx
+import org.mapdb.serializer.SerializerJava
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.util.concurrent.Executors
+import kotlin.coroutines.experimental.AbstractCoroutineContextElement
+import kotlin.coroutines.experimental.CoroutineContext
 import kotlin.reflect.KClass
 import kotlin.reflect.full.companionObjectInstance
 
-abstract class KIJvmMemEntity<E : KIEntity<T>, T : Comparable<T>>(override val _store: DataStore, override val id: T) : KIJvmEntity<E, T>()
 
 class JvmMemoryDataStoreFactory : DataStoreFactory {
     override lateinit var kodein: Kodein
     override val injector: KodeinInjector = KodeinInjector()
+    override val events: Channel<DataStoreEvent> by instance()
 
     init {
         onInjected({ k -> kodein = k })
     }
 
 
-    override fun create(cfg: DataStoreConfig): DataStore = JvmMemoryDataStore(JvmMemCfg(cfg)).apply { inject(kodein) }
+    override fun create(cfg: DataStoreConfig): DataStoreJvm = run {
+        val ds = JvmMemoryDataStore(JvmMemCfg(cfg)).apply { inject(kodein) }
+        runBlocking { events.send(StoreReady(ds)) }
+        ds
+    }
 }
 
 
@@ -47,30 +69,27 @@ class JvmMemCfg(cfg: DataStoreConfig) : DataStoreConfig by cfg {
 val log = KotlinLogging.logger { }
 
 class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
-    private val events: Dispatcher<EntityEvent<*, *>> by instance("entities")
-    @Suppress("MemberVisibilityCanBePrivate")
-    val pool = CommonPool
+    private val pool: CoroutineDispatcher = newFixedThreadPoolContext(8, "jvm.mem")
     private val dir = cfg.dir
     private val _metas = mutableMapOf<KClass<*>, KIJvmEntityMeta>()
+    //TODO: remove this, metas should be handled only by MetaProvider
     private val metas: MutableMap<KClass<*>, KIJvmEntityMeta> = object : MutableMap<KClass<*>, KIJvmEntityMeta> by _metas {
         override fun get(key: KClass<*>): KIJvmEntityMeta? = run {
             if (key !in this) {
-                val pck = key.qualifiedName!!.split('.').dropLast(1).joinToString(".", postfix = ".jvm.mem.")
-                val cn = "$pck${key.simpleName}JvmMem"
+                val pck = key.qualifiedName!!.split('.').dropLast(1).joinToString(".", postfix = ".jvm.")
+                val cn = "$pck${key.simpleName}Jvm"
                 val kc = java.lang.Class.forName(cn).kotlin
-                assert(kc.companionObjectInstance is KIJvmEntitySupport<*, *>)
-                val meta = kc.companionObjectInstance!!.cast<KIJvmEntitySupport<*, *>>().meta
-                this[key] = meta
+                assert(kc.companionObjectInstance is EntitySupport)
+                val meta = kc.companionObjectInstance!!.cast<EntitySupport>().meta
+                this[key] = meta as KIJvmEntityMeta
                 metaProvider.register(meta)
             }
-            if (key !in this) throw DataStoreError.MetaDataNotFound(key, this@JvmMemoryDataStore)
+            if (key !in this) throw DataStoreError.MetaDataNotFound(key.cast(), this@JvmMemoryDataStore)
             _metas[key]
         }
     }
 
-    operator fun get(kc: KClass<*>): KIJvmEntityMeta = run {
-        metas[kc]!!
-    }
+    operator fun get(kc: KClass<*>): KIJvmEntityMeta = metas[kc]!!
 
     val db: DB
 
@@ -83,32 +102,60 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
 
     }
 
-    override fun getValues(type: KIEntityMeta, id: Any): Map<String, Any?>? = buckets[type.me]?.get(id)
-    override fun getValues(type: KIEntityMeta, id: Any, vararg props: KIProperty<*>): Map<String, Any?>? = getValues(type, id, props.toList())
-    override fun getValues(type: KIEntityMeta, id: Any, props: Iterable<KIProperty<*>>): Map<String, Any?>? = getValues(type, id)?.filterKeys { key -> props.any { it.name == key } }
+    override fun getValues(type: KIEntityMeta, id: Any): Deferred<Try<Map<String, Any?>?>> = async(pool) { Try { buckets[type]?.get(id) } }
+    override fun getValues(type: KIEntityMeta, id: Any, vararg props: KIProperty<*>): Deferred<Try<Map<String, Any?>?>> = getValues(type, id, props.toList())
+    override fun getValues(type: KIEntityMeta, id: Any, props: Iterable<KIProperty<*>>): Deferred<Try<Map<String, Any?>?>> = getValues(type, id).map { it.map { it?.filterKeys { key -> props.any { it.name == key } } } }
 
-    override fun setValues(type: KIEntityMeta, id: Any, values: Map<KIProperty<*>, Any?>) {
-        buckets[type.me]?.let { bucket ->
-            bucket.set(id, values.map { it.key.name to it.value }.toMap())
+    override fun setValues(type: KIEntityMeta, id: Any, values: Map<KIProperty<*>, Any?>): Deferred<Try<Unit>> =
+            async(pool) {
+                Try {
+                    buckets[type]?.let { bucket ->
+                        bucket.set(id, values.map { it.key.name to it.value }.toMap())
+                    }
+                    Unit
+                }
+            }
+
+
+    override fun setValues(type: KIEntityMeta, id: Any, version: Any, values: Map<KIProperty<*>, Any?>): Deferred<Try<Unit>> = async(pool) {
+        Try {
+            require(version is Long)
+            buckets[type]?.let { bucket ->
+                bucket.set(id, version as Long, values.map { it.key.name to it.value }.toMap())
+            }
+            Unit
         }
     }
 
-    override fun <E : KIEntity<K>, K : Any> query(type: KIEntityMeta, f: EntityFilter<E, K>): Try<Deferred<Try<Iterable<K>>>> = Try {
-        val bucket = buckets[type.me.cast()]
-        bucket?.let {
-            async {
-                Try { bucket.query(f) }
+    override fun <E : KIEntity<K>, K : Any> querySync(query: Query<E, K>): Try<QueryResult<E, K>> = runBlocking { query(query).getOrElse { throw it }.await() }
+
+    override fun <E : KIEntity<K>, K : Any> query(query: Query<E, K>): Try<Deferred<Try<QueryResult<E, K>>>> = Try {
+        val bucket = buckets[query.f.meta]!!
+        async(pool) {
+            Try {
+                bucket.query(query)
             }
-        } ?: throw DataStoreError.MetaDataNotFound(type.me.cast(), this)
+        }
+    }
+
+    override fun <E : KIEntity<K>, K : Any> retrieveLenient(type: KIEntityMeta, ids: Iterable<K>): Try<Deferred<Try<Iterable<E>>>> = Try {
+        buckets[type]?.let { bucket ->
+            val idf = ids.filter { bucket[it] != null }
+            if (idf.isEmpty()) CompletableDeferred(Try { listOf<E>() })
+            else retrieve<E, K>(type, idf).getOrElse { throw it }
+        } ?: throw DataStoreError.MetaDataNotFound(type.me, this)
     }
 
     override fun <E : KIEntity<K>, K : Any> retrieve(type: KIEntityMeta, ids: Iterable<K>): Try<Deferred<Try<Iterable<E>>>> = Try {
-        val b = buckets[type.me as KClass<*>]
+        val b = buckets[type]
+        log.debug { "retrieving $ids" }
         b?.let { ab ->
             async(pool) {
                 Try {
                     ab.let { bucket ->
+                        log.debug { "async retrieving $ids" }
                         ids.map { id ->
+                            log.debug { "retrieving $id" }
                             if (bucket[id] == null) throw DataStoreError.EntityError.EntityNotFound(type, id, this@JvmMemoryDataStore)
                             @Suppress("UNCHECKED_CAST")
                             type.new(this@JvmMemoryDataStore, id) as E
@@ -116,134 +163,329 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
                     }
                 }
             }
-        } ?: throw DataStoreError.BatchError("failure to retrieve", type.me.cast(), this)
+        } ?: throw DataStoreError.BatchError("failure to retrieve $ids", type.me.cast(), this)
 
     }
 
-    inline operator fun <reified E : KIEntity<K>, K : Any, reified V : Any> get(id: K, prop: KIProperty<V>): Try<V?> = Try {
-        buckets[E::class]!!.let { bucket ->
-            if (bucket[id] == null) throw DataStoreError.EntityError.EntityNotFound(this[E::class]!!, id, this)
-            bucket[id]?.get(prop.name)?.cast<V?>()
-        }
-    }
 
-    inline fun <reified E : KIEntity<K>, K : Any, reified V : Any> getProp(id: K, prop: KIProperty<V>): V? = run {
-        buckets[E::class]!!.let { bucket ->
-            bucket[id]?.get(prop.name)?.cast()
-        }
-    }
-
-    inline fun <reified E : KIEntity<K>, K : Any, reified V : Any>
-            setProp(id: K, prop: KIProperty<V>, v: V?): Deferred<Try<Unit>> =
-            async(pool) {
-                Try {
-                    buckets[E::class]!!.let { bucket ->
-                        log.trace { "setProp $id in $bucket entity: ${bucket[id]}" }
-                        bucket[id] = mapOf(prop.name to v)
-                        log.trace { "after setProp $id in $bucket entity: ${bucket[id]}" }
-                    }
-                }
-            }
-
-    inline fun <reified E : KIEntity<K>, K : Any, reified V : Any>
-            setProp(id: K, prop: KIProperty<V>, v: V?, version: Long): Deferred<Try<Unit>> =
-            prop(E::class, id, prop, v, version)
-
-    fun <E : KIEntity<K>, K : Any, V : Any> prop(type: KClass<*>, id: K, prop: KIProperty<V>, v: V?, version: Long): Deferred<Try<Unit>> = async(pool) {
-        Try {
-            buckets[type]!!.let { bucket: Bucket ->
-                log.trace { ">>> setProp $id in $bucket entity: ${bucket[id]} version: $version version current: ${bucket.version(id)}" }
-                bucket[id, version] = mapOf(prop.name to v)
-                log.trace { "<<< setProp $id in $bucket entity: ${bucket[id]} version: $version version current: ${bucket.version(id)}" }
-            }
-        }
-    }
-
-    override fun <K : Any> delete(type: KIEntityMeta, entities: Iterable<K>): Try<Deferred<Either<DataStoreError, Iterable<K>>>> = Try {
+    override fun <E : KIEntity<K>, K : Any> delete(type: KIEntityMeta, entities: Iterable<E>): Try<Deferred<Try<Iterable<K>>>> = Try {
         async {
-            Try {
-                buckets[type.me as KClass<*>]!!.delete(entities)
-            }.fold({ ex ->
-                Either.left<DataStoreError, Iterable<K>>(DataStoreError.BatchError(
-                        "error deleting entities", type, this@JvmMemoryDataStore, ex))
-            },
-                    { res -> Either.right(res) })
+            buckets[type]!!.delete(entities)
         }
     }
 
-    override fun <K : Any> create(type: KIEntityMeta, entities: Iterable<Pair<K, Map<String, Any?>>>): Try<Deferred<Try<Iterable<K>>>> = Try {
-        val b = buckets.get(type.me as KClass<*>)
-        b?.let { bucket ->
+
+    override fun <E : KIEntity<K>, K : Any> create(type: KIEntityMeta, entities: Iterable<E>): Try<Deferred<Try<Iterable<E>>>> = Try {
+        buckets[type]?.let { bucket ->
             async {
-                bucket.create(entities).cast<Try<Iterable<K>>>()
+                Try { bucket.create(entities) }
             }
         } ?: throw DataStoreError.MetaDataNotFound(type.me, this)
     }
 
-    fun <K : Comparable<K>> create(type: KClass<*>, id: K, values: Map<String, Any?>): Try<Deferred<Try<K>>> = Try {
-        async(pool) {
+    override fun <S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any> addRelation(rel: Relation<S, T, K, L>): Try<Deferred<Try<Boolean>>> = Try {
+        async {
             Try {
-                @Suppress("UNCHECKED_CAST")
-                val meta = this@JvmMemoryDataStore[type]
+                db.tx {
+                    val target = rel.target
+                    if (rel.rel.container == Set::class && getRelationsSync<S, K, T, L>(rel.rel, rel.source).getOrElse { throw it }.contains(rel.target)) false
+                    else if (target is KIJvmEntity<*, *>) {
+                        val success = target.addIncomingRelation(rel).getOrElse { throw it }
+                        if (success) {
+                            Try { buckets[rel.source._meta]?.addRelation(rel) }.getOrElse { target.removeIncomingRelation(rel); throw it }
+                                    ?: false
+                        } else false
+                    } else throw DataStoreError.EntityError.EntityNotFound(rel.target._meta, rel.target.id, this@JvmMemoryDataStore)
+                }
+            }
+        }
+    }
 
-                meta.let { m ->
-                    buckets[m.me]!!.let { bucket ->
-                        assert(bucket.bucket[id] == null)
-                        if (bucket[id] != null) throw DataStoreError.EntityError.EntityExists(meta, id, this@JvmMemoryDataStore)
-                        bucket.create(listOf(id to values))
-                        id
+    override fun <S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any> removeRelation(rel: Relation<S, T, K, L>): Try<Deferred<Try<Boolean>>> = Try {
+        async {
+            Try {
+                db.tx {
+                    val target = rel.target
+                    if (target is KIJvmEntity<*, *>) {
+                        val success = target.removeIncomingRelation(rel).getOrElse { throw it }
+                        if (success) {
+                            Try { buckets[rel.source._meta]?.removeRelation(rel) }.getOrElse {
+                                target.removeIncomingRelation(rel); throw it
+                            } ?: false
+                        } else false
+                    } else throw DataStoreError.EntityError.EntityNotFound(rel.target._meta, rel.target.id, this@JvmMemoryDataStore)
+                }
+            }
+        }
+    }
+
+    override fun <S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any> getRelations(rel: KIRelationProperty, source: S): Try<Deferred<Try<Iterable<T>>>> = Try {
+        buckets.get(source._meta)?.let { bucket ->
+            async { bucket.getRelations<S, K, T, L>(rel, source) }
+        } ?: throw DataStoreError.MetaDataNotFound(source._meta.me, this)
+    }
+
+    override fun <S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any> getRelationsSync(rel: KIRelationProperty, source: S): Try<Iterable<T>> = getRelations<S, K, T, L>(rel, source).map { runBlocking { it.await().getOrElse { throw it } } }
+
+    override fun <T : KIEntity<L>, L : Any, S : KIEntity<K>, K : Any> bookRelationSync(rel: Relation<S, T, K, L>): Try<Boolean> = Try {
+        buckets[this[rel.target._meta.me]]?.bookRelation(rel)?.getOrElse { throw it }
+                ?: throw DataStoreError.MetaDataNotFound(rel.target._meta.me, this)
+    }
+
+    override fun <T : KIEntity<L>, L : Any, S : KIEntity<K>, K : Any> unbookRelationSync(rel: Relation<S, T, K, L>): Try<Boolean> = Try {
+        buckets[this[rel.target._meta.me]]?.unbookRelation(rel)?.getOrElse { throw it }
+                ?: throw DataStoreError.MetaDataNotFound(rel.target._meta.me, this)
+    }
+
+    override fun getBookedRelationsSync(rel: KIRelationProperty, entity: KIEntity<Any>, sourceMeta: KIEntityMeta): Try<Iterable<IRelationTrace>> = Try {
+        buckets[entity._meta]?.getBookedRelations(rel, entity, sourceMeta) ?: emptyList()
+    }
+
+    override fun <K : Any> version(type: KIEntityMeta, id: K): Any = buckets[type]!!.version(id)
+
+
+    inner internal class Buckets(val map: MutableMap<KIEntityMeta, Bucket>) : Map<KIEntityMeta, Bucket> by map {
+        override fun get(key: KIEntityMeta): Bucket? = if (key in map) map[key] else {
+            if (key.parent == null)
+                map[key] = RootBucket(key)
+            else map[key] = SubTypeBucket(key, this[key.hierarchy.first()]!!)
+            map[key]
+        }
+    }
+
+
+    internal interface Bucket {
+        val db: DB
+        val ds: JvmMemoryDataStore
+        val meta: KIEntityMeta
+        val versioned: Boolean
+        @Suppress("UNCHECKED_CAST")
+        val bucket: HTreeMap<Any, MutableMap<String, Any?>>
+
+        operator fun get(keys: Iterable<Any>): Iterable<Map<String, Any?>>
+        operator fun get(k: Any): MutableMap<String, Any?>?
+        operator fun set(k: Any, values: Map<String, Any?>): Map<String, Any?>
+        fun <E : KIEntity<K>, K : Any> create(entities: Iterable<E>): Iterable<E>
+        fun <E : KIEntity<K>, K : Any> delete(entities: Iterable<E>): Try<Iterable<K>>
+        fun version(id: Any): Long
+        @Suppress("UNUSED_PARAMETER")
+        fun index(k: Any, values: Map<String, Any?>)
+
+        fun <S : KIEntity<L>, L : Any, T : KIEntity<K>, K : Any> bookRelation(rel: Relation<S, T, L, K>): Try<Boolean> = Try {
+            bucket[rel.target.id]?.let {
+                db.tx {
+                    @Suppress("UNCHECKED_CAST")
+                    var incomings: Map<String, Map<String, List<RelationTrace>>> = it.getOrElse(INCOMING) { mapOf<String, Map<String, List<RelationTrace>>>() } as Map<String, Map<String, List<RelationTrace>>>
+                    var tracesMap: Map<String, List<RelationTrace>> = incomings.getOrElse(rel.source._meta.name) { mapOf() }
+                    var traces = tracesMap.getOrElse(rel.rel.name) { listOf() }
+                    traces += RelationTrace(rel.target._meta.name, rel.source.id, rel.target._store.name)
+                    tracesMap += rel.rel.name to traces
+                    incomings += rel.source._meta.name to tracesMap
+
+                    it[INCOMING] = incomings
+                    bucket[rel.target.id] = it
+                }
+            } ?: throw DataStoreError.EntityError.EntityNotFound(meta, rel.target.id, ds)
+            true
+        }
+
+        fun <S : KIEntity<L>, L : Any, T : KIEntity<K>, K : Any> unbookRelation(rel: Relation<S, T, L, K>): Try<Boolean> = Try {
+            bucket[rel.target.id]?.let {
+                db.tx {
+                    @Suppress("UNCHECKED_CAST")
+                    var incomings: Map<String, Map<String, List<RelationTrace>>> = it.getOrElse(INCOMING) { mapOf<String, Map<String, List<RelationTrace>>>() } as Map<String, Map<String, List<RelationTrace>>>
+                    var tracesMap: Map<String, List<RelationTrace>> = incomings.getOrElse(rel.source._meta.name) { mapOf() }
+                    var traces = tracesMap.getOrElse(rel.rel.name) { listOf() }
+                    traces -= RelationTrace(rel.target._meta.name, rel.source.id, rel.target._store.name)
+                    if (traces.isEmpty()) tracesMap -= rel.rel.name
+                    else tracesMap += rel.rel.name to traces
+                    if (tracesMap.isEmpty()) incomings -= rel.source._meta.name
+                    else incomings += rel.source._meta.name to tracesMap
+
+                    it[INCOMING] = incomings
+                    bucket[rel.target.id] = it
+                }
+            } ?: throw DataStoreError.EntityError.EntityNotFound(meta, rel.target.id, ds)
+            true
+        }
+
+        fun getBookedRelations(rel: KIRelationProperty, entity: KIEntity<*>, sourceMeta: KIEntityMeta): Iterable<RelationTrace> = bucket[entity.id]?.let {
+            @Suppress("UNCHECKED_CAST")
+            val incomings: Map<String, Map<String, List<RelationTrace>>> = it.getOrElse(INCOMING) {
+                mapOf<String, Map<String, List<RelationTrace>>>()
+            } as Map<String, Map<String, List<RelationTrace>>>
+            (incomings[sourceMeta.name]?.get(rel.name))
+        } ?: emptyList()
+
+
+
+        operator fun set(k: Any, version: Long, values: Map<String, Any?>): Map<String, Any?>
+
+        fun <E : KIEntity<K>, K : Any> baseQuery(query: Query<E, K>): Sequence<Pair<E, Map<String, Any?>>>
+
+        @Suppress("UNCHECKED_CAST")
+        fun <E : KIEntity<K>, K : Any> query(query: Query<E, K>): QueryResult<E, K> = run {
+            val fs = baseQuery(query)
+
+
+            val pres = query.projections.map { proj ->
+                loadProjection(proj, fs.toList().asSequence())
+            }.associateBy { it.projection }
+            QueryResult(query, pres)
+        }
+
+        fun <E : KIEntity<K>, K : Any> loadProjection(proj: Projection<E, K>, fs: Sequence<Pair<E, Map<String, Any?>>>): ProjectionResult<E, K> {
+            fun count(prop: KIProperty<*>, values: Map<String, Any?>): Long = when (prop) {
+                is KIRelationProperty -> {
+                    val rels = values[RELATIONS] as Map<String, List<RelationTrace>>
+                    rels.getOrElse(prop.name) { listOf() }.size.toLong()
+                }
+                else -> if (values[prop.name] != null) 1 else 0
+            }
+            return when (proj) {
+                is ValueProjection<E, K, *> ->
+                    when (proj) {
+                        is CountProjection<E, K> -> CountProjectionResult(proj, fs.map { count(proj.property, it.second) }.sum())
+                        is ScalarProjection<E, K, *> ->
+                            when (proj) {
+                                is SumProjection<E, K, *> -> ScalarProjectionResult(proj as SumProjection<E, K, Number>, fs.map { it.second[proj.property.name] }.filterIsInstance<Number>().reduce { n1, n2 -> ScalarProjection.add(n1, n2) })
+                            }
+                    }
+
+                is EntityProjection<E, K> -> {
+                    val sortedWith = if (proj.ordering === Ordering.NATURAL) fs.map { it.first } else fs.map { it.first }.sortedWith(proj.ordering as Comparator<in E>)
+                    val entities = if (proj.paging.size >= 0) {
+                        val windowed = sortedWith.windowed(proj.paging.size, proj.paging.size, true)
+                        windowed.drop(proj.paging.offset / proj.paging.size).firstOrNull() ?: listOf()
+                    } else sortedWith.drop(proj.paging.offset).toList()
+
+                    EntityProjectionResult(proj, Page(proj.paging, entities, if (proj.paging.size >= 0 && entities.size >= proj.paging.size) 1 else 0))
+                }
+                is BucketProjection<E, K, *> -> {
+                    @Suppress("UNCHECKED_CAST")
+                    val bucketProjection = proj as BucketProjection<E, K, Any>
+                    @Suppress("UNCHECKED_CAST")
+                    val disc = bucketProjection.discriminators as DiscriminatorsJvm<E, K, Any>
+                    when (disc) {
+                        is DistinctDiscriminators -> {
+                            val buckets = fs.groupBy { it.second.get(disc.property.name) }.map { entry ->
+                                val sequence = entry.value.asSequence()
+                                val projectionBucket = ProjectionBucket(
+                                        disc.property,
+                                        disc.discriminatorFor(entry.key),
+                                        bucketProjection)
+                                @Suppress("UNCHECKED_CAST")
+                                projectionBucket to loadProjection(projectionBucket, sequence) as ProjectionBucketResult<E, K, Any>
+
+                            }.toMap()
+                            BucketProjectionResult(bucketProjection, buckets)
+                        }
                     }
                 }
-
+                is ProjectionBucket<E, K, *> -> {
+                    val projectionBucket = proj as ProjectionBucket<E, K, Any>
+                    ProjectionBucketResult(projectionBucket.bucket.projections.map {
+                        loadProjection(it, fs).run { this.projection to this }
+                    }.toMap(), projectionBucket)
+                }
             }
         }
-    }
 
-    @Suppress("UNCHECKED_CAST")
-    inline operator fun <reified E : KIEntity<K>, K : Any> get(id: K): E? = this[E::class].new(this, id) as? E
-
-    operator inline fun <reified E : KIEntity<K>, reified K : Any> contains(id: K): Boolean = buckets[this[E::class].me]!![id] != null
-
-    inline fun <reified E : KIEntity<K>, K : Any> version(id: K): Long? = buckets[E::class]!!.version(id)
-
-    private fun <R> DB.tx(tx: DB.() -> R): R = try {
-        val res = this.tx()
-        commit()
-        res
-    } catch (e: Throwable) {
-        rollback()
-        throw e
-    }
-
-    inner class Buckets(val map: MutableMap<KClass<*>, Bucket>) : Map<KClass<*>, Bucket> by map {
-        override fun get(key: KClass<*>): Bucket? = if (key in map) map[key] else {
-            metas[key]?.let { meta ->
-                map[meta.me] = Bucket(meta)
-                map[meta.me]
+        fun <S : KIEntity<K>, T : KIEntity<L>, K : Any, L : Any> addRelation(rel: Relation<S, T, K, L>): Boolean = db.tx {
+            val res = bucket[rel.source.id]?.let {
+                @Suppress("UNCHECKED_CAST")
+                val rels = it.getOrElse(RELATIONS) { mapOf<String, List<RelationTrace>>() } as Map<String, List<RelationTrace>>
+                val trace = RelationTrace(rel.target._meta.name, rel.target.id, rel.target._store.name)
+                if (rel.rel.container == Set::class && rels[rel.rel.name]?.contains(trace) ?: false)
+                    false
+                else {
+                    it += RELATIONS to (rels + (rel.rel.name to (rels.getOrDefault(rel.rel.name, listOf()) + trace)))
+                    logger.debug { "rel: $rel entity: $it" }
+                    bucket[rel.source.id] = it
+                    launch { ds.events.incoming.send(EntityRelationsAdded(listOf(rel))) }
+                    true
+                }
             }
+
+            res
+        } ?: throw DataStoreError.EntityError.EntityNotFound(rel.source._meta, rel.source.id, ds)
+
+        fun <S : KIEntity<K>, T : KIEntity<L>, K : Any, L : Any> removeRelation(rel: Relation<S, T, K, L>): Boolean = db.tx {
+            val res = bucket[rel.source.id]?.let {
+                @Suppress("UNCHECKED_CAST")
+                val rels = it.getOrElse(RELATIONS) { mapOf<String, List<RelationTrace>>() } as Map<String, List<RelationTrace>>
+                logger.trace { "rels before remove: $rels" }
+
+                val list = rels.getOrDefault(rel.rel.name, listOf())
+                val relationTrace = RelationTrace(rel.target._meta.name, rel.target.id, rel.target._store.name)
+                val res = relationTrace in list
+                it += RELATIONS to (rels + (rel.rel.name to (list - relationTrace)))
+                logger.trace { "rels after remove ${it[RELATIONS]}" }
+                logger.debug { "rel: $rel entity: $it" }
+                bucket[rel.source.id] = it
+                res
+            }
+            launch { ds.events.incoming.send(EntityRelationsRemoved(listOf(rel))) }
+            res
+        } ?: throw DataStoreError.EntityError.EntityNotFound(rel.source._meta, rel.source.id, ds)
+
+
+        fun <S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any> getRelations(rel: KIRelationProperty, source: S): Try<Iterable<T>> = Try {
+            logger.debug { "rel: $rel, source: $source ${bucket[source.id]}" }
+            bucket[source.id]?.let { values ->
+                values[RELATIONS]?.let {
+                    @Suppress("UNCHECKED_CAST")
+                    val rels = it as Map<String, List<RelationTrace>>
+                    @Suppress("UNCHECKED_CAST")
+                    val ids = rels.getOrElse(rel.name) { listOf() }.map { it.id as L }
+                    val dss = rels.getOrElse(rel.name) { listOf() }.map { DataStore(it.ds) }.toSet()
+                    if (ids.isEmpty()) listOf() else
+                        runBlocking { ds.qm.retrieve<T, L>(ds.metaProvider.meta(rel.target)!!, ids, dss).getOrElse { throw it }.await() }.getOrElse { throw it }
+                }
+            } ?: throw DataStoreError.EntityError.EntityNotFound(meta, source.id, ds)
         }
+
+
+
     }
 
-    inner class Bucket(val meta: KIJvmEntityMeta) {
-        val versioned = Versioned::class.java.isAssignableFrom(meta.impl.java)
+    inner internal open class RootBucket(final override val meta: KIEntityMeta) : Bucket {
+        override final val db: DB
+            get() = this@JvmMemoryDataStore.db
+        override val ds
+            get() = this@JvmMemoryDataStore
+        override val versioned = meta.versioned
         @Suppress("UNCHECKED_CAST")
-        val bucket = db.hashMap(meta.name).createOrOpen() as HTreeMap<Any, MutableMap<String, Any?>>
+        override val bucket = db.hashMap(meta.name).valueSerializer(SerializerJava.JAVA).createOrOpen() as HTreeMap<Any, MutableMap<String, Any?>>
 
-        operator fun get(keyes: Iterable<Any>): Iterable<Map<String, Any?>> = keyes.map { get(it) }.filterNotNull()
+        override operator fun get(keys: Iterable<Any>): Iterable<Map<String, Any?>> = keys.mapNotNull { get(it) }
 
-        operator fun get(k: Any): MutableMap<String, Any?>? = bucket[k]?.apply {
+        override operator fun get(k: Any): MutableMap<String, Any?>? = bucket[k]?.apply {
             put("id", k)
             if (versioned) put("_version", version(k))
         }?.cast<MutableMap<String, Any?>>()
 
-        operator fun set(k: Any, values: Map<String, Any?>): Map<String, Any?> = run {
+        override operator fun set(k: Any, values: Map<String, Any?>): Map<String, Any?> = db.tx {
             assert(!versioned)
-            log.trace { "set $k $values" }
-            db.set(k, values)
+            require(!versioned)
+            log.trace { "write $k $values" }
+            write(k, values)
+        }
+
+        override operator fun set(k: Any, version: Long, values: Map<String, Any?>): Map<String, Any?> = db.tx {
+            assert(versioned)
+            if (bucket[k] == null) throw DataStoreError.EntityError.EntityNotFound(meta, k, this@JvmMemoryDataStore)
+            val versionName = versionName(k)
+            val current = Try { db.atomicLong(versionName).open() }.getOrElse {
+                throw DataStoreError.EntityError.VersionNotFound(meta, k, this@JvmMemoryDataStore, cause = it)
+            }
+            if (current.compareAndSet(version, version + 1)) {
+                write(k, values)
+            } else throw DataStoreError.OptimisticLockException(meta, k, current, version, this@JvmMemoryDataStore)
         }
 
         @Suppress("UNCHECKED_CAST")
-        internal fun DB.set(k: Any, values: Map<String, Any?>): Map<String, Any?> = tx {
+        internal fun write(k: Any, values: Map<String, Any?>): Map<String, Any?> = run {
             val e = bucket[k]!!
             val changed = values.filter { entry -> e[entry.key] != entry.value }
             val olds = changed.map { it.key to e[it.key] }.toMap()
@@ -253,85 +495,218 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
             index(k, changed)
             changed.apply {
                 launch(pool) {
-                    val upds = changed.map { val prop = meta.props[it.key]; EntityUpdateEvent<Any>(prop as KIProperty<Any>, olds[it.key], e[it.key]) }
-                    events.incoming.send(EntityUpdatedEvent(k as Comparable<Any>, this@Bucket.meta as KIEntityMeta, upds))
+                    val upds = changed.map { val prop = meta.props[it.key]; EntityUpdated(prop as KIProperty<Any>, olds[it.key], e[it.key]) }
+                    events.incoming.send(EntityUpdatedEvent(meta.new(this@JvmMemoryDataStore, k), upds))
                 }
                 Unit
             }
-        }
-
-        internal operator fun set(k: Any, version: Long, values: Map<String, Any?>): Map<String, Any?> = db.run {
-            assert(versioned)
-            if (bucket[k] == null) throw DataStoreError.EntityError.EntityNotFound(meta, k, this@JvmMemoryDataStore)
-            val versionName = versionName(k)
-            val current = Try { db.atomicLong(versionName).open() }.getOrElse {
-                throw DataStoreError.EntityError.VersionNotFound(meta, k, this@JvmMemoryDataStore, cause = it)
-            }
-            if (current.compareAndSet(version, version + 1)) {
-                db.set(k, values)
-            } else throw DataStoreError.OptimisticLockException(meta, k, current, version, this@JvmMemoryDataStore)
         }
 
 
         private fun versionName(k: Any) = "${meta.me.simpleName}.$k._version"
 
-        fun create(entites: Iterable<Pair<Any, Map<String, Any?>>>): Try<Iterable<Any>> = Try {
+        override fun <E : KIEntity<K>, K : Any> create(entities: Iterable<E>): Iterable<E> = run {
             db.tx {
-                entites.map { (id, values) ->
-                    val map = values.toMutableMap()
-                    Try { bucket[id] = map }.getOrElse { throw DataStoreError.EntityError.EntityExists(meta, id, this@JvmMemoryDataStore) }
+                fun relations(e: E): Map<String, List<RelationTrace>>? = e._meta.props.values.filterIsInstance<KIRelationProperty>().map { rel ->
+                    rel.name to if (e.getValue(rel) is Collection<*>) {
+                        @Suppress("UNCHECKED_CAST")
+                        (e.getValue(rel) as Collection<KIJvmEntity<*, *>>).map { target -> Relation(rel, e, target) to RelationTrace(target._meta.name, target.id, target._store.name) }
+                    } else {
+                        val target = e.getValue(rel) as KIJvmEntity<*, *>
+                        listOf(Relation(rel, e, target) to RelationTrace(target._meta.name, target.id, target._store.name))
+                    }
+                }.map {
+                    it.first to it.second.map {
+                        it.first.target.addIncomingRelation(it.first); it.second
+                    }
+                }.toMap()
+                entities.map { e ->
+                    e to
+                            e._meta.props.filter { it.value !is KIRelationProperty }.map {
+                                it.value.name to e.getValue(it.value)
+                            }.toMap() +
+                            (TYPES to e._meta.types.map { it.name }.toTypedArray()) +
+                            (TYPE to e._meta.name) +
+                            (RELATIONS to relations(e))
+                }.map { (e, values) ->
+                    val id = e.id
+                    @Suppress("UNCHECKED_CAST")
+                    if (id in bucket) throw DataStoreError.EntityError.EntityExists(meta, id, this@JvmMemoryDataStore)
+
                     if (versioned) Try { db.atomicLong(versionName(id), 0).create() }.getOrElse {
                         throw DataStoreError.EntityError.VersionAlreadyExists(meta, id, this@JvmMemoryDataStore, it)
                     }
-                    id
+                    val map = values.toMutableMap()
+                    bucket[id] = map
+                    @Suppress("UNCHECKED_CAST")
+                    e._meta.new(this@JvmMemoryDataStore, id) as E
+                }.apply {
+                    if (isNotEmpty())
+                        runBlocking { events.incoming.send(EntityCreateEvent(this@apply)) }
                 }
-            }.apply {
-                val created = this
-                launch(pool) {
-                    for (c in created) {
-                        @Suppress("UNCHECKED_CAST")
-                        events.incoming.send(EntityCreateEvent(c as Comparable<Any>, meta))
+            }
+        }
+
+
+        override fun <E : KIEntity<K>, K : Any> delete(entities: Iterable<E>): Try<Iterable<K>> = Try {
+            db.tx {
+                val trans = entities.map { it.asTransient() as E }
+                val res = entities.map { db.delete(it.id).second }
+                launch {
+                    events.incoming.send(EntityDeleteEvent(trans))
+                }
+                res
+            }
+        }
+
+        private fun <K : Any> DB.delete(id: K): Pair<MutableMap<String, Any?>, K> = run {
+            if (id !in bucket) Try.raise<Pair<MutableMap<String, Any?>, K>>(DataStoreError.EntityError.EntityNotFound(meta, id, this@JvmMemoryDataStore).cast())
+            bucket[id]?.let {
+                it[INCOMING]?.let {
+                    if (it is Map<*, *>) {
+                        it.values.forEach {
+                            (it as? List<*>)?.let { require(it.isEmpty()) }
+                        }
                     }
                 }
-                Unit
-            }
-        }
-
-        fun <K : Any> delete(ids: Iterable<K>): Iterable<K> = db.tx {
-            ids.map { db.delete(it) }.map { del -> if (del.first == null) null else del.second }.filterNotNull().apply {
-                launch(pool) {
-                    @Suppress("UNCHECKED_CAST")
-                    for (id in this@apply) events.incoming.send(EntityDeleteEvent(id, meta))
+                it[RELATIONS]?.let {
+                    if (it is Map<*, *>) {
+                        @Suppress("UNCHECKED_CAST")
+                        val map = it as Map<String, List<RelationTrace>>
+                        map.forEach { entry ->
+                            entry.value.forEach {
+                                val tr = ds.qm.retrieve(ds.metaProvider.meta(it.type)!!, listOf(it.id), setOf(DataStore(it.ds)))
+                                val res = tr.map { runBlocking { it.await() } }.flatten().getOrElse { throw it }.first()
+                                val e = res as KIJvmEntity<*, *>
+                                e.removeIncomingRelation(Relation(meta.props[entry.key]!!.cast(), meta.new(this@JvmMemoryDataStore, id), e))
+                            }
+                        }
+                    }
                 }
-                Unit
             }
-        }
-
-        private fun <K : Any> DB.delete(id: K): Pair<MutableMap<String, Any?>?, K> = run {
             if (versioned) {
                 val atomic = atomicLong(versionName(id)).open()
                 getStore().delete(atomic.recid, defaultSerializer)
 
             }
-            bucket.remove(id) to id
-
+            bucket.remove(id)!! to id
         }
 
-        fun version(id: Any): Long = db.atomicLong(versionName(id)).open().get()
+        override fun version(id: Any): Long = db.atomicLong(versionName(id)).open().get()
 
         @Suppress("UNUSED_PARAMETER")
-        fun index(k: Any, values: Map<String, Any?>) {
+        override fun index(k: Any, values: Map<String, Any?>) {
 
         }
 
-        fun <K : Any> query(f: EntityFilter<*, K>): Iterable<K> = run {
-            bucket.iterator().asSequence().filter { entry ->
-                f.matches(entry.value.apply {
-                    put("id", entry.key)
-                })
-            }.map { it.key as K }.asIterable()
-        }
+        @Suppress("UNCHECKED_CAST")
+        override fun <E : KIEntity<K>, K : Any> baseQuery(query: Query<E, K>): Sequence<Pair<E, Map<String, Any?>>> = bucket.iterator().asSequence().map { entry -> metaProvider.meta(entry.value[TYPE]!!.toString())!!.new(this@JvmMemoryDataStore, entry.key as K) as E to entry.value }.filter { query.f.matches(it.first) }
+
+
     }
 
-    val buckets = Buckets(mutableMapOf())
+    inner internal class SubTypeBucket(override val meta: KIEntityMeta, val parent: Bucket) : Bucket {
+        override val db: DB
+            get() = this@JvmMemoryDataStore.db
+        override val ds
+            get() = this@JvmMemoryDataStore
+        override val bucket: HTreeMap<Any, MutableMap<String, Any?>>
+            get() = parent.bucket
+        override val versioned: Boolean
+            get() = meta.versioned
+
+        override fun get(keys: Iterable<Any>): Iterable<Map<String, Any?>> = parent.get(keys).filter {
+            val types = it[TYPES]
+            types is Array<*> && meta.name in types
+        }
+
+        fun typeFilter(m: Map<String, Any?>): Boolean = m[TYPES].let {
+            it is Array<*> && meta.name in it
+        }
+
+        override fun get(k: Any): MutableMap<String, Any?>? = parent.get(k)?.let {
+            val types = it[TYPES]
+            if (types is Array<*> && meta.name in types) it else null
+        }
+
+        override fun set(k: Any, values: Map<String, Any?>): Map<String, Any?> = parent.set(k, values)
+        override fun set(k: Any, version: Long, values: Map<String, Any?>): Map<String, Any?> = parent.set(k, version, values)
+
+        override fun <E : KIEntity<K>, K : Any> create(entities: Iterable<E>): Iterable<E> = parent.create(entities)
+
+        override fun <E : KIEntity<K>, K : Any> delete(entities: Iterable<E>): Try<Iterable<K>> = parent.delete(entities)
+        override fun version(id: Any): Long = parent.version(id)
+
+        @Suppress("UNCHECKED_CAST")
+        override fun <E : KIEntity<K>, K : Any> baseQuery(query: Query<E, K>): Sequence<Pair<E, Map<String, Any?>>> = bucket.iterator().asSequence().filter {
+            typeFilter(it.value)
+        }.map { entry -> metaProvider.meta(entry.value[TYPE]!!.toString())!!.new(this@JvmMemoryDataStore, entry.key as K) as E to entry.value }.filter {
+            query.f.matches(it.first)
+        }
+
+        override fun index(k: Any, values: Map<String, Any?>) {
+
+        }
+
+    }
+
+    private val buckets = Buckets(mutableMapOf())
+
+    companion object : KLogging() {
+        val TYPES = "_types"
+        val TYPE = "_type"
+        val INCOMING = "_incoming"
+        val RELATIONS = "_relations"
+    }
 }
+
+var thread: Thread = Thread("tx")
+val newSingleThreadExecutor = Executors.newSingleThreadExecutor { r -> thread = Thread(r, "tx"); log.info { "created $thread" }; thread }
+private val txDispatcher: CoroutineDispatcher = newSingleThreadExecutor.asCoroutineDispatcher()
+private val txEntry = newFixedThreadPoolContext(2, "txe")
+
+private interface TX : CoroutineContext.Element {
+    var tx: List<DB.() -> Any?>
+
+    companion object TX : CoroutineContext.Key<info.kinterest.datastores.jvm.memory.TX>
+}
+
+
+private fun TXList(): TX = object : AbstractCoroutineContextElement(TX), TX {
+    override var tx: List<DB.() -> Any?> = listOf()
+}
+
+private val txlist = TXList()
+
+private val txl = ThreadLocal<TX>()
+
+//private val log = KLogging()
+fun <R> DB.doTx(tx: DB.() -> R): R = Try {
+    txl.get().tx += tx
+    val res = tx()
+    txl.get().tx -= tx
+    if (txl.get().tx.isEmpty()) {
+        log.trace { "commit" }
+        commit()
+    } else log.trace { "${txl.get()} so no commit" }
+    res
+}.fold({
+    txl.get().tx -= tx
+    if (txl.get().tx.isEmpty())
+        if (getStore() is StoreTx) rollback()
+    throw it
+}, { it }
+)
+
+internal fun <R> DB.tx(tx: DB.() -> R): R = run {
+    log.trace { "tx current ${Thread.currentThread()} tx thread $thread" }
+    if (Thread.currentThread() === thread) {
+        log.trace { "tx in tx thread $thread" }
+        doTx(tx)
+    } else runBlocking(txDispatcher) {
+        log.trace { "start new tx in $txDispatcher current: ${Thread.currentThread()} tx thread $thread" }
+        txl.set(txlist)
+        doTx(tx)
+    }
+}
+

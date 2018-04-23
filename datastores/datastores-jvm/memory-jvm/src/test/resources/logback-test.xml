@@ -15,4 +15,7 @@
     <logger name="info.kinterest" level="DEBUG" additivity="false">
         <appender-ref ref="STDOUT"/>
     </logger>
+    <logger name="info.kinterest.datastores.jvm.memory" level="INFO" additivity="false">
+        <appender-ref ref="STDOUT"/>
+    </logger>
 </configuration>

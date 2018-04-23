@@ -1,89 +1,141 @@
 package info.kinterest
 
+import info.kinterest.datastores.DataStoreFacade
+import info.kinterest.filter.FilterWrapper
+import info.kinterest.filter.IdFilter
+import info.kinterest.functional.getOrDefault
+import info.kinterest.functional.getOrElse
 import info.kinterest.meta.KIEntityMeta
+import info.kinterest.meta.KIProperty
+import info.kinterest.meta.KIRelationProperty
+import info.kinterest.meta.Relation
+import info.kinterest.query.CountProjection
+import info.kinterest.query.CountProjectionResult
+import info.kinterest.query.Query
+import kotlin.properties.ReadOnlyProperty
+import kotlin.properties.ReadWriteProperty
+import kotlin.reflect.KClass
+import kotlin.reflect.KProperty
 
-val NULL: Any? = null
-
-expect interface Klass<T : Any> {
-    val simpleName: String?
-}
 
 expect class UUID
 
-interface Keyed<out T:Any> {
+interface Keyed<out T : Any> {
     val id: T
 }
 
-expect interface DataStore {
-    val name: String
-}
-
-interface DataStoreManager {
-    val type: String
-    val dataStores: Map<String, DataStore>
-    fun add(ds: DataStore)
-}
-
-/**
- * this will be a singleton on any platform instance
- */
-interface DataStores {
-    val types: Map<String, DataStoreManager>
-    fun add(type: String, m: DataStoreManager)
-}
-
-interface KIEntity<out T:Any> : Keyed<T> {
-    val _store: DataStore
-    val _meta: KIEntityMeta
-    fun asTransient(): TransientEntity<T>
-}
-
-interface TransientEntity<out T:Any> : KIEntity<T> {
-    val values: Map<String, Any?>
-}
-
-interface EntitySupport<out E : KIEntity<K>, K:Any> {
-    /**
-     * creates a new transient entity, requires that all properties are given in their ctor order
-     */
-    fun transient(id: K?, values: Map<String, Any?>): TransientEntity<K>
-
-    fun <DS : DataStore> create(ds: DS, id: K, values: Map<String, Any?>)
-}
-
-interface Versioned<V> {
-    val _version: V
-}
-
-sealed class KIError(msg: String, cause: Throwable?) : Exception(msg, cause)
-class KIFatalError(msg: String, cause: Throwable?) : KIError(msg, cause)
-
-sealed class KIRecoverableError(msg: String, cause: Throwable?, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
-        KIError(msg, cause)
-
-class FilterError(msg: String, cause: Throwable? = null, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
-        KIRecoverableError(msg, cause, enableSuppression, writeableStackTrace)
-
-sealed class DataStoreError(val ds: DataStore, msg: String, cause: Throwable?, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
-        KIRecoverableError(msg, cause, enableSuppression, writeableStackTrace) {
-    sealed class EntityError(val meta: KIEntityMeta, val key: Any, ds: DataStore, msg: String, cause: Throwable? = null) : DataStoreError(ds, msg, cause) {
-        class EntityNotFound(meta: KIEntityMeta, key: Any, ds: DataStore, cause: Throwable? = null, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
-                EntityError(meta, key, ds, "Entity ${meta.name} with Key $key not found in DataStore ${ds.name}", cause)
-
-        class EntityExists(meta: KIEntityMeta, key: Any, ds: DataStore, cause: Throwable? = null, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
-                EntityError(meta, key, ds, "Entity ${meta.name} with Key $key already exists in DataStore ${ds.name}", cause)
-        class VersionNotFound(meta: KIEntityMeta, key: Any, ds: DataStore, cause: Throwable? = null, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
-                EntityError(meta, key, ds,"version for Entity ${meta.name} with id $key not found", cause)
-
-        class VersionAlreadyExists(meta: KIEntityMeta, key: Any, ds: DataStore, cause: Throwable? = null) :
-                EntityError(meta, key, ds, "version for Entity ${meta.name} with id $key not found", cause)
+open class DataStore(open val name: String) {
+    override fun equals(other: Any?): Boolean = if (other === this) true else {
+        if (other is DataStore) name == other.name else false
     }
 
-    class MetaDataNotFound(val kc: Klass<*>, ds: DataStore, cause: Throwable? = null, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
-            DataStoreError(ds, "Metadata for Entity ${kc} not found", cause, enableSuppression, writeableStackTrace)
+    override fun hashCode(): Int = name.hashCode()
+}
 
-    class OptimisticLockException(val meta: KIEntityMeta, val key: Any, val expectedVersion: Any, val actualVersion: Any, ds: DataStore, cause: Throwable? = null, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) :
-            DataStoreError(ds, "wrong version for ${meta.name} with id $key, expected: $expectedVersion, actual: $actualVersion", cause, enableSuppression, writeableStackTrace)
+interface KITransientEntity<out T : Any> : Keyed<T> {
+    @Suppress("PropertyName")
+    val _meta: KIEntityMeta
 
-    class BatchError(msg: String, val meta: KIEntityMeta, ds: DataStore, cause: Throwable? = null, enableSuppression: Boolean = false, writeableStackTrace: Boolean = true) : DataStoreError(ds, msg, cause, enableSuppression, writeableStackTrace)
+    fun <V : Any?, P : KIProperty<V>> getValue(prop: P): V?
+    fun asTransient(): KITransientEntity<T>
+
+}
+
+interface KIEntity<out K : Any> : KITransientEntity<K> {
+    @Suppress("PropertyName")
+    val _store: DataStore
+
+    fun <V : Any?, P : KIProperty<V>> setValue(prop: P, v: V?)
+    fun <V : Any?, P : KIProperty<V>> setValue(prop: P, version: Any, v: V?)
+}
+
+interface KIVersionedEntity<out K : Any> : KIEntity<K> {
+    @Suppress("PropertyName")
+    val _version: Any
+}
+
+open class RelationSet<S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any>(val source: S, val store: DataStoreFacade, val rel: KIRelationProperty) : Set<T> {
+    override val size: Int
+        get() = run {
+            val projection = CountProjection<S, K>(rel)
+            store.querySync(Query<S, K>(FilterWrapper(IdFilter<S, K>(setOf(source.id), source._meta)), listOf(projection))).getOrElse { throw it }.projections[projection]?.let {
+                (it as CountProjectionResult<S, K>).count.toInt()
+            } ?: throw Exception("Bad Result")
+        }
+
+    override fun contains(element: T): Boolean = iterator().asSequence().any { it == element }
+
+    override fun containsAll(elements: Collection<T>): Boolean = run {
+        val content = iterator().asSequence().toSet()
+        elements.all { it in content }
+    }
+
+    override fun isEmpty(): Boolean = size == 0
+
+    override fun iterator(): Iterator<T> = store.getRelationsSync<S, K, T, L>(rel, source).getOrElse { throw it }.iterator()
+}
+
+class RelationMutableSet<S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any>(source: S, store: DataStoreFacade, rel: KIRelationProperty) : RelationSet<S, K, T, L>(source, store, rel), MutableSet<T> {
+    override fun add(element: T): Boolean = store.addRelation(Relation(rel, source, element)).isSuccess
+
+    override fun addAll(elements: Collection<T>): Boolean = elements.all { add(it) }
+
+
+    override fun clear() {
+        iterator().forEach { remove(it) }
+    }
+
+    override fun iterator(): MutableIterator<T> = store.getRelationsSync<S, K, T, L>(rel, source).getOrElse { throw it }.toMutableSet().iterator()
+
+    override fun remove(element: T): Boolean = store.removeRelation(Relation(rel, source, element)).isSuccess
+
+    override fun removeAll(elements: Collection<T>): Boolean = elements.all { remove(it) }
+
+    override fun retainAll(elements: Collection<T>): Boolean {
+        TODO("not implemented")
+    }
+}
+
+
+open class RelationRODelegate<E : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any>(val store: DataStoreFacade, val rel: KIRelationProperty) : ReadOnlyProperty<E, T> {
+    override fun getValue(thisRef: E, property: KProperty<*>): T = store.getRelationsSync<E, K, T, L>(rel, thisRef).getOrDefault { throw it }.first()
+}
+
+open class RelationNullableRODelegate<E : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any>(val store: DataStoreFacade, val rel: KIRelationProperty) : ReadOnlyProperty<E, T?> {
+    override fun getValue(thisRef: E, property: KProperty<*>): T? = store.getRelationsSync<E, K, T, L>(rel, thisRef).getOrDefault { throw it }.firstOrNull()
+}
+
+
+open class RelationDelegate<E : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any>(val store: DataStoreFacade, val rel: KIRelationProperty) : ReadWriteProperty<E, T> {
+    override fun getValue(thisRef: E, property: KProperty<*>): T = store.getRelationsSync<E, K, T, L>(rel, thisRef).getOrDefault { throw it }.first()
+    override fun setValue(thisRef: E, property: KProperty<*>, value: T) {
+        store.replaceRelation(rel, thisRef, value)
+    }
+}
+
+open class RelationNullableDelegate<E : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any>(val store: DataStoreFacade, val rel: KIRelationProperty) : ReadWriteProperty<E, T?> {
+    override fun getValue(thisRef: E, property: KProperty<*>): T? = store.getRelationsSync<E, K, T, L>(rel, thisRef).getOrDefault { throw it }.firstOrNull()
+    override fun setValue(thisRef: E, property: KProperty<*>, value: T?) {
+        if (value != null)
+            store.replaceRelation(rel, thisRef, value)
+        else {
+            val old = getValue(thisRef, property)
+            if (old != null) store.removeRelation(Relation<E, T, K, L>(rel, thisRef, old))
+        }
+    }
+}
+
+class MetaProvider() {
+    private val metas: MutableMap<String, KIEntityMeta> = mutableMapOf()
+    private val metaByClass: MutableMap<KClass<*>, KIEntityMeta> = mutableMapOf()
+    fun meta(entity: String): KIEntityMeta? = metas[entity]
+    fun meta(klass: KClass<*>) = metaByClass[klass]
+    fun register(meta: KIEntityMeta) {
+        metas[meta.name] = meta
+        metaByClass[meta.me.cast()] = meta
+    }
+}
+
+interface EntitySupport {
+    val meta: KIEntityMeta
 }
