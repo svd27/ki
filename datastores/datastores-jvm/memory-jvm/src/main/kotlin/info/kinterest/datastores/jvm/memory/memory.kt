@@ -12,7 +12,12 @@ import info.kinterest.datastores.jvm.RelationTrace
 import info.kinterest.functional.Try
 import info.kinterest.functional.flatten
 import info.kinterest.functional.getOrElse
-import info.kinterest.jvm.*
+import info.kinterest.jvm.KIJvmEntity
+import info.kinterest.jvm.KIJvmEntityMeta
+import info.kinterest.jvm.addIncomingRelation
+import info.kinterest.jvm.query.DiscriminatorsJvm
+import info.kinterest.jvm.query.DistinctDiscriminators
+import info.kinterest.jvm.removeIncomingRelation
 import info.kinterest.meta.KIEntityMeta
 import info.kinterest.meta.KIProperty
 import info.kinterest.meta.KIRelationProperty
@@ -48,7 +53,7 @@ class JvmMemoryDataStoreFactory : DataStoreFactory {
     }
 
 
-    override fun create(cfg: DataStoreConfig): DataStore = run {
+    override fun create(cfg: DataStoreConfig): DataStoreJvm = run {
         val ds = JvmMemoryDataStore(JvmMemCfg(cfg)).apply { inject(kodein) }
         runBlocking { events.send(StoreReady(ds)) }
         ds
@@ -321,6 +326,15 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
         @Suppress("UNCHECKED_CAST")
         fun <E : KIEntity<K>, K : Any> query(query: Query<E, K>): QueryResult<E, K> = run {
             val fs = baseQuery(query)
+
+
+            val pres = query.projections.map { proj ->
+                loadProjection(proj, fs.toList().asSequence())
+            }.associateBy { it.projection }
+            QueryResult(query, pres)
+        }
+
+        fun <E : KIEntity<K>, K : Any> loadProjection(proj: Projection<E, K>, fs: Sequence<Pair<E, Map<String, Any?>>>): ProjectionResult<E, K> {
             fun count(prop: KIProperty<*>, values: Map<String, Any?>): Long = when (prop) {
                 is KIRelationProperty -> {
                     val rels = values[RELATIONS] as Map<String, List<RelationTrace>>
@@ -328,30 +342,53 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
                 }
                 else -> if (values[prop.name] != null) 1 else 0
             }
+            return when (proj) {
+                is ValueProjection<E, K, *> ->
+                    when (proj) {
+                        is CountProjection<E, K> -> CountProjectionResult(proj, fs.map { count(proj.property, it.second) }.sum())
+                        is ScalarProjection<E, K, *> ->
+                            when (proj) {
+                                is SumProjection<E, K, *> -> ScalarProjectionResult(proj as SumProjection<E, K, Number>, fs.map { it.second[proj.property.name] }.filterIsInstance<Number>().reduce { n1, n2 -> ScalarProjection.add(n1, n2) })
+                            }
+                    }
 
-            val pres = query.projections.map { proj ->
-                when (proj) {
-                    is ValueProjection<E, K, *> ->
-                        when (proj) {
-                            is CountProjection<E, K> -> CountProjectionResult(proj, fs.map { count(proj.property, it.second) }.sum())
-                            is ScalarProjection<E, K, *> ->
-                                when (proj) {
-                                    is SumProjection<E, K, *> -> ScalarProjectionResult(proj as SumProjection<E, K, Number>, fs.map { it.second[proj.property.name] }.filterIsInstance<Number>().reduce { n1, n2 -> ScalarProjection.add(n1, n2) })
-                                }
+                is EntityProjection<E, K> -> {
+                    val sortedWith = if (proj.ordering === Ordering.NATURAL) fs.map { it.first } else fs.map { it.first }.sortedWith(proj.ordering as Comparator<in E>)
+                    val entities = if (proj.paging.size >= 0) {
+                        val windowed = sortedWith.windowed(proj.paging.size, proj.paging.size, true)
+                        windowed.drop(proj.paging.offset / proj.paging.size).firstOrNull() ?: listOf()
+                    } else sortedWith.drop(proj.paging.offset).toList()
+
+                    EntityProjectionResult(proj, Page(proj.paging, entities, if (proj.paging.size >= 0 && entities.size >= proj.paging.size) 1 else 0))
+                }
+                is BucketProjection<E, K, *> -> {
+                    @Suppress("UNCHECKED_CAST")
+                    val bucketProjection = proj as BucketProjection<E, K, Any>
+                    @Suppress("UNCHECKED_CAST")
+                    val disc = bucketProjection.discriminators as DiscriminatorsJvm<E, K, Any>
+                    when (disc) {
+                        is DistinctDiscriminators -> {
+                            val buckets = fs.groupBy { it.second.get(disc.property.name) }.map { entry ->
+                                val sequence = entry.value.asSequence()
+                                val projectionBucket = ProjectionBucket(
+                                        disc.property,
+                                        disc.discriminatorFor(entry.key),
+                                        bucketProjection)
+                                @Suppress("UNCHECKED_CAST")
+                                projectionBucket to loadProjection(projectionBucket, sequence) as ProjectionBucketResult<E, K, Any>
+
+                            }.toMap()
+                            BucketProjectionResult(bucketProjection, buckets)
                         }
-
-                    is EntityProjection<E, K> -> {
-                        val sortedWith = if (proj.ordering === Ordering.NATURAL) fs.map { it.first } else fs.map { it.first }.sortedWith(proj.ordering as Comparator<in E>)
-                        val entities = if (proj.paging.size >= 0) {
-                            val windowed = sortedWith.windowed(proj.paging.size, proj.paging.size, true)
-                            windowed.drop(proj.paging.offset / proj.paging.size).firstOrNull() ?: listOf()
-                        } else sortedWith.drop(proj.paging.offset).toList()
-
-                        EntityProjectionResult(proj, Page(proj.paging, entities, if (proj.paging.size >= 0 && entities.size >= proj.paging.size) 1 else 0))
                     }
                 }
-            }.associateBy { it.projection }
-            QueryResult(query, pres)
+                is ProjectionBucket<E, K, *> -> {
+                    val projectionBucket = proj as ProjectionBucket<E, K, Any>
+                    ProjectionBucketResult(projectionBucket.bucket.projections.map {
+                        loadProjection(it, fs).run { this.projection to this }
+                    }.toMap(), projectionBucket)
+                }
+            }
         }
 
         fun <S : KIEntity<K>, T : KIEntity<L>, K : Any, L : Any> addRelation(rel: Relation<S, T, K, L>): Boolean = db.tx {
@@ -513,7 +550,12 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
 
         override fun <E : KIEntity<K>, K : Any> delete(entities: Iterable<E>): Try<Iterable<K>> = Try {
             db.tx {
-                entities.map { db.delete(it.id).second }
+                val trans = entities.map { it.asTransient() as E }
+                val res = entities.map { db.delete(it.id).second }
+                launch {
+                    events.incoming.send(EntityDeleteEvent(trans))
+                }
+                res
             }
         }
 

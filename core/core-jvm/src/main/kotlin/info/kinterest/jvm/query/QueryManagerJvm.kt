@@ -44,11 +44,11 @@ class QueryManagerJvm(val filterTree: FilterTree) : QueryManager {
         }
     }
 
-    fun addFilter(f: EntityFilter.FilterWrapper<*, *>) {
+    fun addFilter(f: EntityFilter.LiveFilterWrapper<*, *>) {
         filterTree += f
     }
 
-    fun removeFilter(f: EntityFilter.FilterWrapper<*, *>) {
+    fun removeFilter(f: EntityFilter.LiveFilterWrapper<*, *>) {
         filterTree -= f
     }
 

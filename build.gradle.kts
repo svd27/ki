@@ -24,7 +24,7 @@ buildscript {
 
     val dokkaVersion = "0.9.16-eap-3"
     dependencies {
-        classpath ("org.jetbrains.kotlin:kotlin-gradle-plugin:1.2.30")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.2.40")
         classpath("org.junit.platform:junit-platform-gradle-plugin:1.1.0")
         classpath("com.kncept.junit5.reporter:junit-reporter:1.1.0")
         classpath("org.jetbrains.dokka:dokka-gradle-plugin:${dokkaVersion}")

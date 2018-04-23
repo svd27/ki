@@ -1,6 +1,7 @@
 package info.kinterest.jvm.interest
 
 import info.kinterest.*
+import info.kinterest.filter.FilterEvent
 import info.kinterest.functional.Try
 import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.filter.EntityFilter
@@ -11,6 +12,7 @@ import kotlinx.coroutines.experimental.channels.Channel
 import kotlinx.coroutines.experimental.launch
 import kotlinx.coroutines.experimental.newFixedThreadPoolContext
 import kotlinx.coroutines.experimental.runBlocking
+import mu.KLogging
 
 open class InterestJvm<E : KIEntity<K>, K : Any>(override val id: Any, q: Query<E, K>, protected val manager: InterestManager, private val subscriber: suspend (Iterable<InterestContainedEvent<Interest<E, K>, E, K>>) -> Unit) : Interest<E, K> {
     override val query: Query<E, K>
@@ -26,32 +28,36 @@ open class InterestJvm<E : KIEntity<K>, K : Any>(override val id: Any, q: Query<
             field = value
         }
 
-    override var result: QueryResult<E, K> = QueryResult.empty()
+    override var result: QueryResult<E, K> = QueryResult.empty(q.f.meta)
 
-    private val events: Channel<EntityEvent<E, K>> = Channel()
+    private val events: Channel<FilterEvent<E, K>> = Channel()
     @Suppress("UNCHECKED_CAST")
-    private val filter = (q.f as EntityFilter.FilterWrapper<E, K>)
+    private val filter = (q.f as EntityFilter.LiveFilterWrapper<E, K>)
 
     init {
         launch(pool) {
             for (ev in events) {
-                result.digest(this@InterestJvm, listOf(ev), { evts: Iterable<ProjectionEvent<E, K>> -> fire(listOf(InterestProjectionEvent(this@InterestJvm, evts))) })
+                logger.debug { "digesting $ev in $result" }
+                var pevts: List<ProjectionEvent<E, K>> = listOf()
+                result.digest(this@InterestJvm, listOf(ev), { evts: Iterable<ProjectionEvent<E, K>> -> pevts += evts })
+                if (pevts.size > 0) fire(listOf(InterestProjectionEvent(this@InterestJvm, pevts)))
             }
         }
 
         filter.listener = events
+        manager.qm.filterTree += filter
+        manager.created(this@InterestJvm)
 
         launch(pool) {
             _query = q
-            manager.qm.addFilter(query.f as EntityFilter.FilterWrapper<*, *>)
-            manager.created(this@InterestJvm)
         }
     }
 
     fun close() {
+        manager.qm.filterTree -= filter
         filter.listener = null
         events.close()
-        manager.qm.removeFilter(query.f as EntityFilter.FilterWrapper<*, *>)
+        manager.qm.removeFilter(query.f as EntityFilter.LiveFilterWrapper<*, *>)
     }
 
 
@@ -71,7 +77,7 @@ open class InterestJvm<E : KIEntity<K>, K : Any>(override val id: Any, q: Query<
 
     override fun toString(): String = "Interrest($id, $query)"
 
-    companion object {
+    companion object : KLogging() {
         val pool: CoroutineDispatcher = newFixedThreadPoolContext(8, "interests")
     }
 }

@@ -13,4 +13,5 @@ data class Paging(val offset: Int, val size: Int) {
 
 data class Page<out E : KIEntity<K>, out K : Any>(val paging: Paging, val entities: List<E>, val more: Int = 0) {
     operator fun get(idx: Int): E? = if (idx < entities.size) entities[idx] else null
+    inline val size: Int get() = entities.size
 }

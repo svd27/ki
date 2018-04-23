@@ -4,6 +4,7 @@ package info.kinterest.jvm.filter.tree
 
 import info.kinterest.*
 import info.kinterest.filter.Filter
+
 import info.kinterest.jvm.events.Dispatcher
 import info.kinterest.jvm.filter.*
 import info.kinterest.meta.KIEntityMeta
@@ -39,25 +40,26 @@ class FilterTree(events: Dispatcher<EntityEvent<*, *>>, load: Int) {
     }
 
     sealed class Node(val load: Int) {
-        abstract operator fun plus(f: FilterWrapper<*, *>): Node
-        abstract operator fun minus(f: FilterWrapper<*, *>): Node
+        abstract operator fun plus(f: LiveFilterWrapper<*, *>): Node
+        abstract operator fun minus(f: LiveFilterWrapper<*, *>): Node
         sealed class EntityBasedNode(load: Int, val meta: KIEntityMeta) : Node(load) {
-            abstract val filters: Set<FilterWrapper<*, *>>
-            abstract override fun plus(f: FilterWrapper<*, *>): EntityBasedNode
+            abstract val filters: Set<LiveFilterWrapper<*, *>>
+            abstract override fun plus(f: LiveFilterWrapper<*, *>): EntityBasedNode
 
-            abstract override fun minus(f: FilterWrapper<*, *>): EntityBasedNode
-            abstract fun collect(ev: EntityEvent<*, *>): Set<FilterWrapper<*, *>>
+            abstract override fun minus(f: LiveFilterWrapper<*, *>): EntityBasedNode
+            abstract fun collect(ev: EntityEvent<*, *>): Set<LiveFilterWrapper<*, *>>
 
-            class EntityNode(load: Int, meta: KIEntityMeta, override val filters: Set<FilterWrapper<*, *>> = setOf()) : EntityBasedNode(load, meta) {
-                override operator fun plus(f: FilterWrapper<*, *>): EntityBasedNode = if (f !in filters) {
+            class EntityNode(load: Int, meta: KIEntityMeta, override val filters: Set<LiveFilterWrapper<*, *>> = setOf()) : EntityBasedNode(load, meta) {
+                override operator fun plus(f: LiveFilterWrapper<*, *>): EntityBasedNode = if (f !in filters) {
                     if (filters.size >= load) EntitySplitNode(load, meta, filters) else EntityNode(load, meta, filters + f)
                 } else this
 
-                override fun minus(f: FilterWrapper<*, *>): EntityNode = EntityNode(load, meta, filters - f)
+                override fun minus(f: LiveFilterWrapper<*, *>): EntityNode = EntityNode(load, meta, filters - f)
                 override fun collect(ev: EntityEvent<*, *>) = filters
             }
 
-            class EntitySplitNode(load: Int, meta: KIEntityMeta, override val filters: Set<FilterWrapper<*, *>>) : EntityBasedNode(load, meta) {
+            class EntitySplitNode(load: Int, meta: KIEntityMeta, override val filters: Set<LiveFilterWrapper<*, *>>) : EntityBasedNode(load, meta) {
+                private var allFilter: Set<LiveFilterWrapper<*, *>> = setOf()
                 private var idNode: IDNode = IDNode(load, meta, setOf())
                 private var propertyNodes: Map<KIProperty<*>, PropertyNode> = mapOf()
 
@@ -67,6 +69,7 @@ class FilterTree(events: Dispatcher<EntityEvent<*, *>>, load: Int) {
                         val bests = fit.second.findBest()
                         for (sf in bests) {
                             when (sf) {
+                                is AllFit -> allFilter += fit.first
                                 is IdFit -> idNode += fit.first
                                 is PropertyFit -> {
                                     val props = if (sf.f.prop in propertyNodes) {
@@ -79,23 +82,23 @@ class FilterTree(events: Dispatcher<EntityEvent<*, *>>, load: Int) {
                     }
                 }
 
-                override fun plus(f: FilterWrapper<*, *>): EntityBasedNode = EntitySplitNode(load, meta, filters + f)
+                override fun plus(f: LiveFilterWrapper<*, *>): EntityBasedNode = EntitySplitNode(load, meta, filters + f)
 
-                override fun minus(f: FilterWrapper<*, *>): EntityBasedNode = if (filters.size <= load / 2) {
+                override fun minus(f: LiveFilterWrapper<*, *>): EntityBasedNode = if (filters.size <= load / 2) {
                     EntityNode(load, meta, filters - f)
                 } else {
                     EntitySplitNode(load, meta, filters - f)
                 }
 
-                override fun collect(ev: EntityEvent<*, *>) = idNode.collect(ev) + propertyNodes.map { it.value }.flatMap { it.collect(ev) }
+                override fun collect(ev: EntityEvent<*, *>) = idNode.collect(ev) + propertyNodes.map { it.value }.flatMap { it.collect(ev) } + allFilter
             }
 
-            class IDNode(load: Int, meta: KIEntityMeta, override val filters: Set<FilterWrapper<*, *>>) : EntityBasedNode(load, meta) {
-                override fun plus(f: FilterWrapper<*, *>): IDNode = IDNode(load, meta, filters + f)
+            class IDNode(load: Int, meta: KIEntityMeta, override val filters: Set<LiveFilterWrapper<*, *>>) : EntityBasedNode(load, meta) {
+                override fun plus(f: LiveFilterWrapper<*, *>): IDNode = IDNode(load, meta, filters + f)
 
-                override fun minus(f: FilterWrapper<*, *>): IDNode = IDNode(load, meta, filters - f)
+                override fun minus(f: LiveFilterWrapper<*, *>): IDNode = IDNode(load, meta, filters - f)
 
-                override fun collect(ev: EntityEvent<*, *>): Set<FilterWrapper<*, *>> = when (ev) {
+                override fun collect(ev: EntityEvent<*, *>): Set<LiveFilterWrapper<*, *>> = when (ev) {
                     is EntityCreateEvent<*, *> -> filters
                     is EntityDeleteEvent<*, *> -> filters
                     is EntityRelationEvent<*, *, *, *> -> emptySet()
@@ -103,13 +106,13 @@ class FilterTree(events: Dispatcher<EntityEvent<*, *>>, load: Int) {
                 }
             }
 
-            class PropertyNode(load: Int, meta: KIEntityMeta, private val property: KIProperty<*>, override val filters: Set<FilterWrapper<*, *>>) : EntityBasedNode(load, meta) {
+            class PropertyNode(load: Int, meta: KIEntityMeta, private val property: KIProperty<*>, override val filters: Set<LiveFilterWrapper<*, *>>) : EntityBasedNode(load, meta) {
 
-                override fun plus(f: FilterWrapper<*, *>): PropertyNode = PropertyNode(load, meta, property, filters + f)
+                override fun plus(f: LiveFilterWrapper<*, *>): PropertyNode = PropertyNode(load, meta, property, filters + f)
 
-                override fun minus(f: FilterWrapper<*, *>): PropertyNode = PropertyNode(load, meta, property, filters - f)
+                override fun minus(f: LiveFilterWrapper<*, *>): PropertyNode = PropertyNode(load, meta, property, filters - f)
 
-                override fun collect(ev: EntityEvent<*, *>): Set<FilterWrapper<*, *>> = when (ev) {
+                override fun collect(ev: EntityEvent<*, *>): Set<LiveFilterWrapper<*, *>> = when (ev) {
                     is EntityCreateEvent, is EntityDeleteEvent -> filters
                     is EntityUpdatedEvent ->
                         if (ev.updates.any { it.prop == property })
@@ -122,18 +125,18 @@ class FilterTree(events: Dispatcher<EntityEvent<*, *>>, load: Int) {
 
         class Root(load: Int, val entities: Map<KIEntityMeta, EntityBasedNode> = mapOf()) : Node(load) {
             operator fun get(meta: KIEntityMeta): EntityBasedNode = entities.getOrElse(meta) { EntityBasedNode.EntityNode(load, meta) }
-            override operator fun plus(f: FilterWrapper<*, *>): Root = run {
+            override operator fun plus(f: LiveFilterWrapper<*, *>): Root = run {
                 val ne = entities + (f.meta to this[f.meta] + f)
                 Root(load, ne)
             }
 
-            override fun minus(f: FilterWrapper<*, *>): Root = if (f !in this[f.meta].filters) this else {
+            override fun minus(f: LiveFilterWrapper<*, *>): Root = if (f !in this[f.meta].filters) this else {
                 val ne = entities + (f.meta to this[f.meta] - f)
                 Root(load, ne)
             }
 
 
-            fun collect(ev: EntityEvent<*, *>): Set<FilterWrapper<*, *>> = when (ev) {
+            fun collect(ev: EntityEvent<*, *>): Set<LiveFilterWrapper<*, *>> = when (ev) {
                 is EntityCreateEvent -> ev.entities.firstOrNull()?.let { e -> this[e._meta].collect(ev) } ?: setOf()
                 is EntityDeleteEvent -> ev.entities.firstOrNull()?.let { e -> this[e._meta].collect(ev) } ?: setOf()
                 is EntityUpdatedEvent -> this[ev.entity._meta].collect(ev)
@@ -148,14 +151,13 @@ class FilterTree(events: Dispatcher<EntityEvent<*, *>>, load: Int) {
     }
 
 
-    operator fun plusAssign(filter: FilterWrapper<*, *>): Unit = this.let {
+    operator fun plusAssign(filter: LiveFilterWrapper<*, *>) {
         root += filter
-        Unit
     }
 
-    operator fun minusAssign(filter: FilterWrapper<*, *>): Unit = this.let {
-        root -= filter
-        Unit
+    operator fun minusAssign(filter: Filter<*, *>) {
+        if (filter is LiveFilterWrapper)
+            root -= filter
     }
 
     companion object : KLogging()
@@ -172,6 +174,7 @@ sealed class Fit(open val f: EntityFilter<*, *>) {
     sealed class SimpleFit(f: EntityFilter<*, *>) : Fit(f) {
         class IdFit(override val f: IdFilter<*, *>) : SimpleFit(f)
         class PropertyFit(override val f: PropertyFilter<*, *, *>) : SimpleFit(f)
+        class AllFit(override val f: EntityFilter.AllFilter<*, *>) : SimpleFit(f)
     }
 
     fun findBest(): Set<SimpleFit> = when (this) {
@@ -184,12 +187,13 @@ sealed class Fit(open val f: EntityFilter<*, *>) {
 typealias OrFit = Fit.OrFit
 typealias AndFit = Fit.AndFit
 typealias IdFit = Fit.SimpleFit.IdFit
+typealias AllFit = Fit.SimpleFit.AllFit
 typealias PropertyFit = Fit.SimpleFit.PropertyFit
 
 fun bestFit(f: Filter<*, *>): Fit =
         when (f) {
             is EntityFilter.Empty -> DONTDOTHIS()
-            is FilterWrapper -> bestFit(f.f)
+            is LiveFilterWrapper -> bestFit(f.f)
             is CombinationFilter -> {
                 val operandsFit = f.operands.map { bestFit(it) }
                 when (f) {
@@ -204,11 +208,13 @@ fun bestFit(f: Filter<*, *>): Fit =
             }
             is IdFilter -> IdFit(f)
             is PropertyFilter<*, *, *> -> PropertyFit(f)
+            is EntityFilter.AllFilter<*, *> -> Fit.SimpleFit.AllFit(f)
             else -> throw Exception("bad filter $f ${f::class}")
         }
 
 object FitComparator : Comparator<Fit> {
     override fun compare(f1: Fit, f2: Fit): Int = when (f1) {
+        is AllFit -> 1
         is IdFit -> when (f2) {
             is IdFit -> when (f1.f) {
                 is StaticEntityFilter -> -1

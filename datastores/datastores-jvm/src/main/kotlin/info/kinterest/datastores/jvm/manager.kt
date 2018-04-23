@@ -1,7 +1,6 @@
 package info.kinterest.datastores.jvm
 
 import com.github.salomonbrys.kodein.*
-import info.kinterest.DataStore
 import info.kinterest.DataStoreEvent
 import info.kinterest.EntityEvent
 import info.kinterest.MetaProvider
@@ -19,7 +18,7 @@ interface DataStoreFactory : KodeinInjected {
     var kodein : Kodein
     val events: Channel<DataStoreEvent>
 
-    fun create(cfg: DataStoreConfig) : DataStore
+    fun create(cfg: DataStoreConfig): DataStoreJvm
 }
 
 class DataStoreFactoryProvider : KodeinInjected {

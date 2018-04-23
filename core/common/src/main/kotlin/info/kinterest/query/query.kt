@@ -1,15 +1,18 @@
 package info.kinterest.query
 
 import info.kinterest.*
+import info.kinterest.filter.AbstractFilterWrapper
+import info.kinterest.filter.Filter
+import info.kinterest.filter.FilterEvent
 import info.kinterest.filter.FilterWrapper
-import info.kinterest.filter.NOFILTER
 import info.kinterest.functional.Try
 import info.kinterest.functional.getOrElse
+import info.kinterest.meta.KIEntityMeta
 import kotlinx.coroutines.experimental.Deferred
 import kotlinx.coroutines.experimental.async
 
 data class Query<E : KIEntity<K>, K : Any>(
-        val f: FilterWrapper<E, K>,
+        val f: AbstractFilterWrapper<E, K>,
         val projections: Iterable<Projection<E, K>>,
         val ds: Set<DataStore> = ALL
 ) {
@@ -45,18 +48,28 @@ data class Query<E : KIEntity<K>, K : Any>(
     }
 }
 
-class QueryResult<E : KIEntity<K>, K : Any>(val q: Query<E, K>, var projections: Map<Projection<E, K>, ProjectionResult<E, K>>) {
-    fun <I : Interest<E, K>> digest(i: I, evts: Iterable<EntityEvent<E, K>>, events: (Iterable<ProjectionEvent<E, K>>) -> Unit) {
-        projections.forEach {
-            projections += it.key to it.value.digest(i, evts, events)
+data class QueryResult<E : KIEntity<K>, K : Any>(val q: Query<E, K>, var projections: Map<Projection<E, K>, ProjectionResult<E, K>>) {
+    fun <I : Interest<E, K>> digest(i: I, evts: Iterable<FilterEvent<E, K>>, events: (Iterable<ProjectionEvent<E, K>>) -> Unit) {
+        println("${QueryResult::class.simpleName}: digest $evts with $projections")
+        projections.toMap().forEach {
+            val digest = it.value.digest(i, evts, events)
+            println("${it.key} ${it.value} -> ${digest}")
+            projections += it.key to digest
         }
+    }
+
+    fun retrieve(path: Path, qm: QueryManager): Try<Deferred<Try<ProjectionResult<E, K>>>> = Try {
+        projections.values.firstOrNull {
+            println("${it.projection.path} subpath of $path says ${it.projection.path.isSubPath(path)}")
+            path.isSubPath(it.projection.path)
+        }?.retrieve(path, q, qm)?.getOrElse { throw it } ?: throw QueryError(q, qm, "$path not found in $this")
     }
 
     companion object {
         fun <E : KIEntity<K>, K : Any> combine(q: Query<E, K>, results: Iterable<QueryResult<E, K>>): QueryResult<E, K> =
                 QueryResult(q, q.projections.map { p -> p.combine(results.map { it.projections[p]!! }) }.associateBy { it.projection })
 
-        fun <E : KIEntity<K>, K : Any> empty(): QueryResult<E, K> = QueryResult(Query(NOFILTER, listOf()), linkedMapOf()).cast()
+        fun <E : KIEntity<K>, K : Any> empty(meta: KIEntityMeta): QueryResult<E, K> = QueryResult(Query(FilterWrapper(Filter.nofilter(meta)), emptyList()), emptyMap())
     }
 
 

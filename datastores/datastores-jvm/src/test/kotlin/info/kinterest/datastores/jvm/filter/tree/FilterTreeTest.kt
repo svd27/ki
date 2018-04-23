@@ -1,10 +1,10 @@
 package info.kinterest.datastores.jvm.filter.tree
 
 import com.github.salomonbrys.kodein.instance
-import info.kinterest.EntityEvent
 import info.kinterest.core.jvm.filters.parse
 import info.kinterest.datastores.jvm.DataStoreConfig
 import info.kinterest.datastores.jvm.filter.tree.jvm.SomeEntityJvm
+import info.kinterest.filter.FilterEvent
 import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.filter.filter
 import info.kinterest.jvm.filter.tree.FilterTree
@@ -86,7 +86,7 @@ class FilterTreeTest : Spek({
             parse("name >= \"W\"", SomeEntityJvm.meta)
         }
         val listener = object {
-            val ch = Channel<EntityEvent<*, *>>()
+            val ch = Channel<FilterEvent<*, *>>()
             val ping = Channel<Int>()
             var total = 0
             val job: Job

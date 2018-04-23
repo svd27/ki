@@ -7,7 +7,6 @@ import kotlinx.coroutines.experimental.channels.Channel
 import kotlinx.coroutines.experimental.runBlocking
 
 class InterestManager(val qm: QueryManagerJvm) {
-    @Volatile
     private var _interests: List<InterestJvm<*, *>> = listOf()
     val interests: List<Interest<*, *>> get() = _interests
     val events = Channel<InterestEvent<Interest<KIEntity<Any>, Any>, KIEntity<Any>, Any>>(100)

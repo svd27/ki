@@ -111,7 +111,7 @@ object TestSimpleFilter : Spek({
         }
         on("filtering on ids") {
             it("should be a property filter") {
-                ids `should be instance of` EntityFilter.FilterWrapper::class
+                ids `should be instance of` EntityFilter.LiveFilterWrapper::class
                 ids.f `should be instance of` IdComparisonFilter::class
                 val idf = ids.f as IdComparisonFilter
                 val gt = idf.valueFilter as GTFilter<TestFilter, String, String>

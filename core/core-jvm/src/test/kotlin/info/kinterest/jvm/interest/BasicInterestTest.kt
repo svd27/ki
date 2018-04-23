@@ -8,6 +8,7 @@ import info.kinterest.functional.Try
 import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.KIJvmEntityMeta
 import info.kinterest.jvm.events.Dispatcher
+import info.kinterest.jvm.filter.LiveFilterWrapper
 import info.kinterest.jvm.filter.filter
 import info.kinterest.jvm.filter.tree.FilterTree
 import info.kinterest.jvm.query.QueryManagerJvm
@@ -159,7 +160,7 @@ class BasicInterestTest : Spek({
                         EntityUpdated(it.key.cast(), old, e.name)
                     }
                     logger.debug { "sending $upds to $f" }
-                    f.digest(EntityUpdatedEvent(entity, upds))
+                    (f as? LiveFilterWrapper)?.digest(EntityUpdatedEvent(entity, upds))
                 }
             }
             t.getOrElse { logger.debug(it) { } }

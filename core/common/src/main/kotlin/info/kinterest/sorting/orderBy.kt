@@ -35,7 +35,11 @@ data class Ordering<E : KIEntity<K>, out K : Any>(private val order: Iterable<Or
         return 0
     }
 
-    fun isIn(e: E, range: Pair<E, E>) = compare(e, range.first) >= 0 && compare(e, range.second) < 0
+    fun isIn(e: E, range: Pair<E?, E?>) = range.first?.let {
+        compare(e, it)
+    } ?: 1 >= 0 && range.second?.let {
+        compare(e, it)
+    } ?: -1 < 0
 
     @Suppress("UNCHECKED_CAST")
     val mapComparator = object : Comparator<Map<String, Any?>> {

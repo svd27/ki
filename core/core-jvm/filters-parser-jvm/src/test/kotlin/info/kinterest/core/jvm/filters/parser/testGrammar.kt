@@ -78,7 +78,7 @@ object SimpleTest : Spek({
         on("parsing it") {
             it("should be parsed as a Filter") {
                 f `should be instance of` Filter::class
-                f `should be instance of` EntityFilter.FilterWrapper::class
+                f `should be instance of` EntityFilter.LiveFilterWrapper::class
                 f.f `should be instance of` GTFilter::class
             }
         }
@@ -91,7 +91,7 @@ object SimpleTest : Spek({
             }
             it("should not fail") {}
             it("should be a proper filter") {
-                f `should be instance of` EntityFilter.FilterWrapper::class
+                f `should be instance of` EntityFilter.LiveFilterWrapper::class
             }
         }
     }

@@ -28,7 +28,6 @@ class EventWaiter<E : KIEvent>(channel: Channel<E>) {
         if (evt != null) evt else withTimeout(500) {
             var res: E? = null
             for (e in out) {
-                logger.debug { "received $e" }
                 if (check(e)) {
                     res = e; break
                 }

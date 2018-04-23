@@ -7,7 +7,7 @@ import info.kinterest.datastores.DataStoreFacade
 import info.kinterest.datastores.IRelationTrace
 import info.kinterest.datastores.QueryMsg
 import info.kinterest.datastores.QueryResultMsg
-import info.kinterest.filter.NOFILTER
+import info.kinterest.filter.FilterWrapper
 import info.kinterest.functional.Try
 import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.coreKodein
@@ -31,10 +31,38 @@ import org.jetbrains.spek.api.Spek
 import org.jetbrains.spek.api.dsl.given
 import org.jetbrains.spek.api.dsl.it
 import org.jetbrains.spek.api.dsl.on
+import kotlin.reflect.KClass
+
+val remmeta: KIEntityMeta = object : KIEntityMeta() {
+    override val root: KClass<*>
+        get() = TODO("not implemented") //To change initializer of created properties use File | Settings | File Templates.
+    override val impl: KClass<*>
+        get() = TODO("not implemented") //To change initializer of created properties use File | Settings | File Templates.
+    override val me: KClass<*>
+        get() = TODO("not implemented") //To change initializer of created properties use File | Settings | File Templates.
+    override val parent: KClass<*>?
+        get() = TODO("not implemented") //To change initializer of created properties use File | Settings | File Templates.
+    override val name: String
+        get() = TODO("not implemented") //To change initializer of created properties use File | Settings | File Templates.
+    override val versioned: Boolean
+        get() = TODO("not implemented") //To change initializer of created properties use File | Settings | File Templates.
+    override val idProperty: KIProperty<*>
+        get() = TODO("not implemented") //To change initializer of created properties use File | Settings | File Templates.
+    override val props: Map<String, KIProperty<*>>
+        get() = TODO("not implemented") //To change initializer of created properties use File | Settings | File Templates.
+    override val hierarchy: List<KIEntityMeta>
+        get() = TODO("not implemented") //To change initializer of created properties use File | Settings | File Templates.
+    override val types: List<KIEntityMeta>
+        get() = TODO("not implemented") //To change initializer of created properties use File | Settings | File Templates.
+
+    override fun <K : Any> new(ds: DataStore, id: K): KIEntity<K> {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+}
 
 class RemoteEntity(override val id: LocalDate, val name: String, var token: String, override val _store: DataStore) : KIEntity<LocalDate> {
-    override val _meta: KIEntityMeta
-        get() = TODO("not implemented") //To change initializer of created properties use File | Settings | File Templates.
+    override val _meta: KIEntityMeta = remmeta
+
 
     override fun asTransient(): RemoteEntity {
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
@@ -222,19 +250,19 @@ class RemoteTest : Spek({
             CompletableDeferred(Try {
                 val projection = EntityProjection<RemoteEntity, LocalDate>(Ordering.NATURAL.cast(), Paging.ALL, null)
                 @Suppress("UNCHECKED_CAST")
-                QueryResult(Query<RemoteEntity, LocalDate>(NOFILTER.cast(), listOf()), mapOf(
+                QueryResult(Query<RemoteEntity, LocalDate>(FilterWrapper.nofilter(remmeta), listOf()), mapOf(
                         projection to
                                 EntityProjectionResult(projection, Page(Paging(0, 1),
                                         listOf(RemoteEntity(java.time.LocalDate.now(), "", ",", ds))))) as Map<Projection<RemoteEntity, LocalDate>, ProjectionResult<RemoteEntity, LocalDate>>
                 )
             })
         })
-        val dispatcher: CoroutineDispatcher = newFixedThreadPoolContext(4, "test")
+        val dispatcher: CoroutineDispatcher = newFixedThreadPoolContext(2, "test")
         val remInc = RemIn("test", dispatcher, channel, chResp)
         RemOut(kodein, "test", ds, channel, chResp)
 
         on("querying") {
-            val tq = remInc.query<RemoteEntity, LocalDate>(Query(NOFILTER.cast(), listOf()))
+            val tq = remInc.query<RemoteEntity, LocalDate>(Query(FilterWrapper.nofilter(remmeta), listOf()))
             it("should be a success") {
                 tq.isSuccess.`should be true`()
             }

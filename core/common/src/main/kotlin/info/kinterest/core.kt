@@ -58,7 +58,7 @@ open class RelationSet<S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any>(val s
     override val size: Int
         get() = run {
             val projection = CountProjection<S, K>(rel)
-            store.querySync(Query<S, K>(FilterWrapper(IdFilter<S, K>(setOf(source.id), source._meta), source._meta), listOf(projection))).getOrElse { throw it }.projections[projection]?.let {
+            store.querySync(Query<S, K>(FilterWrapper(IdFilter<S, K>(setOf(source.id), source._meta)), listOf(projection))).getOrElse { throw it }.projections[projection]?.let {
                 (it as CountProjectionResult<S, K>).count.toInt()
             } ?: throw Exception("Bad Result")
         }
