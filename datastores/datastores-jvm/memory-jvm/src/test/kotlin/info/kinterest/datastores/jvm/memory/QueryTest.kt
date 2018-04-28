@@ -23,7 +23,7 @@ import org.jetbrains.spek.api.dsl.on
 import java.time.LocalDate
 
 class QueryTest : Spek({
-    val meta = QueryEntityJvm.Companion.Meta
+    val meta = QueryEntityJvm.Meta
     given("a query") {
         val base = BaseMemTest(object : DataStoreConfig {
             override val name: String
@@ -35,7 +35,7 @@ class QueryTest : Spek({
         })
         base.metaProvider.register(meta)
         repeat(26) {
-            base.create<QueryEntity, String>(QueryEntityJvm.Companion.Transient(base.ds, "${'A' + it}", "${'Z' - it}anne", null, LocalDate.now()))
+            base.create<QueryEntity, String>(QueryEntityJvm.Transient(base.ds, "${'A' + it}", "${'Z' - it}anne", null, LocalDate.now()))
         }
         val f = filter<QueryEntity, String>(meta) {
             parse("""id > "H" """, meta)

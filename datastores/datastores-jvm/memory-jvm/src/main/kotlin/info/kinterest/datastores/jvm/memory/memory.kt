@@ -343,7 +343,7 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
                 else -> if (values[prop.name] != null) 1 else 0
             }
             return when (proj) {
-                is ValueProjection<E, K, *> ->
+                is ValueProjection<E, K> ->
                     when (proj) {
                         is CountProjection<E, K> -> CountProjectionResult(proj, fs.map { count(proj.property, it.second) }.sum())
                         is ScalarProjection<E, K, *> ->

@@ -36,17 +36,17 @@ class ProjectionTest : Spek({
     base.metaProvider.register(RelPersonJvm.meta)
     given("a datastore with some entities") {
         repeat(5) {
-            base.create<RelPerson, Long>(RelPersonJvm.Companion.Transient(base.ds, it.toLong(), "AA", mutableSetOf()))
+            base.create<RelPerson, Long>(RelPersonJvm.Transient(base.ds, it.toLong(), "AA", mutableSetOf()))
         }
         repeat(7) {
-            base.create<RelPerson, Long>(RelPersonJvm.Companion.Transient(base.ds, (it + 5).toLong(), "BB", mutableSetOf()))
+            base.create<RelPerson, Long>(RelPersonJvm.Transient(base.ds, (it + 5).toLong(), "BB", mutableSetOf()))
         }
         on("querying a BucketProjection on them") {
             val filter = EntityFilter.AllFilter<RelPerson, Long>(RelPersonJvm.meta)
             val discriminators = DistinctDiscriminators<RelPerson, Long, String>(RelPersonJvm.meta, RelPersonJvm.meta.PROP_NAME)
             val en = EntityProjection<RelPerson, Long>(Ordering.NATURAL.cast(), Paging(0, 10))
             val count = CountProjection<RelPerson, Long>(RelPersonJvm.meta.PROP_NAME, null)
-            val bucketProjection = BucketProjection<RelPerson, Long, String>(null, listOf(en, count), discriminators, RelPersonJvm.meta.PROP_NAME)
+            val bucketProjection = BucketProjection(null, listOf(en, count), discriminators, RelPersonJvm.meta.PROP_NAME)
             val q = Query(LiveFilterWrapper(filter), setOf(bucketProjection))
             val rd = base.ds.query(q).getOrElse { throw it }
             val res = runBlocking { rd.await().getOrElse { throw it } }
@@ -106,7 +106,7 @@ class ProjectionTest : Spek({
             val bucketsPath = Path(discriminators.name, null)
             fun pathFor(n: String) = Path("${bucketsPath.name} = $n", bucketsPath)
             waiterInterest.waitFor { it is InterestProjectionEvent && it.evts.any { it is ProjectionLoaded && it.projection.path == bucketProjection.path } }
-            val entity = base.create<RelPerson, Long>(RelPersonJvm.Companion.Transient(base.ds, 100, "AA", mutableSetOf()))
+            base.create<RelPerson, Long>(RelPersonJvm.Transient(base.ds, 100, "AA", mutableSetOf()))
             it("should reflect the change") {
                 val wait = {
                     waiterInterest.waitFor {
@@ -122,6 +122,7 @@ class ProjectionTest : Spek({
                 br.buckets.values.any { it is ReloadProjectionResult }.`should be true`()
                 val res = runBlocking { interest.result.retrieve(pathFor("AA"), base.ds.qm).getOrElse { throw it }.await() }.getOrElse { throw it }
                 res `should be instance of` ProjectionBucketResult::class
+                @Suppress("UNCHECKED_CAST")
                 val rb = res as ProjectionBucketResult<RelPerson, Long, String>
                 rb.result.values.any { it is CountProjectionResult }.`should be true`()
                 val cr = rb.result.values.first { it is CountProjectionResult } as CountProjectionResult<RelPerson, Long>
@@ -129,7 +130,7 @@ class ProjectionTest : Spek({
             }
 
             it("should create a new bucket") {
-                base.create<RelPerson, Long>(RelPersonJvm.Companion.Transient(base.ds, 101, "CC", mutableSetOf()))
+                base.create<RelPerson, Long>(RelPersonJvm.Transient(base.ds, 101, "CC", mutableSetOf()))
                 val wait = {
                     waiterInterest.waitFor {
                         logger.debug { it }
@@ -143,6 +144,7 @@ class ProjectionTest : Spek({
 
                 val res = runBlocking { interest.result.retrieve(pathFor("CC"), base.ds.qm).getOrElse { throw it }.await() }.getOrElse { throw it }
                 res `should be instance of` ProjectionBucketResult::class
+                @Suppress("UNCHECKED_CAST")
                 val rb = res as ProjectionBucketResult<RelPerson, Long, String>
                 rb.result.values.any { it is CountProjectionResult }.`should be true`()
                 val cr = rb.result.values.first { it is CountProjectionResult } as CountProjectionResult<RelPerson, Long>
@@ -170,7 +172,7 @@ class ProjectionTest : Spek({
             val pathCount = Path(count.name, pathFor("BB"))
             val bbres = interest.result.retrieve(pathCount, base.ds.qm)
             val bb = runBlocking { bbres.getOrElse { throw it }.await() }.getOrElse { throw it }
-            it("shold have a proper projection") {
+            it("should have a proper projection") {
                 bb `should be instance of` CountProjectionResult::class
                 val cr = bb as CountProjectionResult
                 cr.result `should equal` 7
@@ -182,12 +184,15 @@ class ProjectionTest : Spek({
                 val wait = { waiterInterest.waitFor { it is InterestProjectionEvent && it.evts.any { it is ProjectionChanged && it.projection.name.contains("BB") } } }
                 wait `should not throw` AnyException
             }
-            val bbres1 = interest.result.retrieve(pathCount, base.ds.qm)
-            it("should retrieve") {
-                bbres1.isSuccess.`should be true`()
-            }
-            val bb1 = runBlocking { bbres1.getOrElse { throw it }.await().getOrElse { throw it } }
+
             it("shold have a changed projection") {
+                val wait = { waiterInterest.waitFor { it is InterestProjectionEvent && it.evts.any {
+                    logger.debug { "wait: $it" }
+                    it is ProjectionChanged && it.projection.name.contains("BB") } } }
+                wait `should not throw` AnyException
+                val bbres1 = interest.result.retrieve(pathCount, base.ds.qm)
+                bbres1.isSuccess.`should be true`()
+                val bb1 = runBlocking { bbres1.getOrElse { throw it }.await().getOrElse { throw it } }
                 bb1 `should be instance of` CountProjectionResult::class
                 val cr = bb1 as CountProjectionResult
                 cr.result `should equal` 6

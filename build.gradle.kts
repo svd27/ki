@@ -1,7 +1,4 @@
 import org.gradle.util.GradleVersion
-import org.jetbrains.dokka.DokkaConfiguration
-import org.jetbrains.dokka.gradle.DokkaPlugin
-import org.jetbrains.dokka.gradle.DokkaTask
 import org.jetbrains.kotlin.gradle.dsl.Coroutines
 import org.jetbrains.kotlin.gradle.dsl.KotlinCompile
 import org.jetbrains.kotlin.gradle.dsl.KotlinProjectExtension
@@ -14,7 +11,7 @@ import java.net.URI
  * This is a general purpose Gradle build.
  * Learn how to create Gradle builds at https://guides.gradle.org/creating-new-gradle-builds/
  */
-println("Gradle Version: ${GradleVersion.current().version}")
+println("Gradle Version: ${GradleVersion.current()}")
 buildscript {
     repositories {
         jcenter()
@@ -27,7 +24,7 @@ buildscript {
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.2.40")
         classpath("org.junit.platform:junit-platform-gradle-plugin:1.1.0")
         classpath("com.kncept.junit5.reporter:junit-reporter:1.1.0")
-        classpath("org.jetbrains.dokka:dokka-gradle-plugin:${dokkaVersion}")
+        //classpath("org.jetbrains.dokka:dokka-gradle-plugin:${dokkaVersion}")
     }
 }
 
@@ -41,15 +38,7 @@ plugins {
     `build-scan`
 }
 
-
-tasks.withType<DokkaTask>().forEach {
-    it.outputFormat = "html"
-    it.outputDirectory = File(buildDir, "javadoc").absolutePath
-}
-
-apply {
-    plugin("org.jetbrains.dokka")
-}
+apply(plugin = "kotlin-platform-common")
 
 
 buildScan {
@@ -57,13 +46,8 @@ buildScan {
     setLicenseAgree("yes")
 }
 
-apply {
-    plugin("kotlin-platform-common")
-}
-
 allprojects {
     group = "info.kinterest"
-    plugins { maven }
 
     afterEvaluate {
         configure<KotlinProjectExtension> {

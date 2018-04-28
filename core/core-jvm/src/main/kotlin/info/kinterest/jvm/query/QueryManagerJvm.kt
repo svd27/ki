@@ -17,7 +17,7 @@ import kotlinx.coroutines.experimental.selects.select
 import mu.KLogging
 
 
-class QueryManagerJvm(val filterTree: FilterTree) : QueryManager {
+class QueryManagerJvm(val filterTree: FilterTree, override val metas: MetaProvider) : QueryManager {
     var _stores: Set<DataStoreFacade> = setOf()
     override val stores: Set<DataStoreFacade>
         get() = _stores

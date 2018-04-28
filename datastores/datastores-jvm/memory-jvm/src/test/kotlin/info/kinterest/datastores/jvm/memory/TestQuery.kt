@@ -52,7 +52,7 @@ class TestQuery : Spek( {
 
         val keys = ('A'..'Z').map { id ->
 
-            base.create<QueryEntity, String>(QueryEntityJvm.Companion.Transient(base.ds, "$id", "sasa", null, LocalDate.now()))
+            base.create<QueryEntity, String>(QueryEntityJvm.Transient(base.ds, "$id", "sasa", null, LocalDate.now()))
         }.map { it.getOrElse { throw it } }
 
         val f = parse<QueryEntity, String>("QueryEntity{job < \"a\"}", meta)

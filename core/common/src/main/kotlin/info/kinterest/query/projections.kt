@@ -27,8 +27,6 @@ fun <T, R> Deferred<T>.map(map: (T) -> R): Deferred<R> = async {
     map(await())
 }
 
-fun <T> Deferred<Deferred<T>>.flatten(): Deferred<T> = async { await().await() }
-
 sealed class Projection<E : KIEntity<K>, K : Any>(val name: String, var parent: Projection<E, K>? = null) {
     open fun adapt(ds: Iterable<DataStoreFacade>): Projection<E, K> = this
     abstract fun combine(results: Iterable<ProjectionResult<E, K>>): ProjectionResult<E, K>
@@ -96,11 +94,11 @@ class EntityProjection<E : KIEntity<K>, K : Any>(var ordering: Ordering<E, K>, v
 }
 
 @Suppress("EqualsOrHashCode")
-sealed class ValueProjection<E : KIEntity<K>, K : Any, V : Any>(open val property: KIProperty<Any>, name: String, parent: Projection<E, K>?) : Projection<E, K>(name, parent) {
-    override fun equals(other: Any?): Boolean = super.equals(other) && other is ValueProjection<*, *, *>
+sealed class ValueProjection<E : KIEntity<K>, K : Any>(open val property: KIProperty<Any>, name: String, parent: Projection<E, K>?) : Projection<E, K>(name, parent) {
+    override fun equals(other: Any?): Boolean = super.equals(other) && other is ValueProjection<*, *>
 }
 
-class CountProjection<E : KIEntity<K>, K : Any>(property: KIProperty<Any>, parent: Projection<E, K>? = null) : ValueProjection<E, K, Long>(property, "count(${property.name})", parent) {
+class CountProjection<E : KIEntity<K>, K : Any>(property: KIProperty<Any>, parent: Projection<E, K>? = null) : ValueProjection<E, K>(property, "count(${property.name})", parent) {
     override fun combine(results: Iterable<ProjectionResult<E, K>>): ProjectionResult<E, K> =
             CountProjectionResult(this,
                     results.filterIsInstance<CountProjectionResult<E, K>>().map { it.count }.reduce { n1, n2 -> n1 + n2 })
@@ -108,7 +106,7 @@ class CountProjection<E : KIEntity<K>, K : Any>(property: KIProperty<Any>, paren
     override fun clone(): Projection<E, K> = CountProjection(property, parent)
 }
 
-sealed class ScalarProjection<E : KIEntity<K>, K : Any, S : Number>(property: KIProperty<S>, name: String, parent: Projection<E, K>?) : ValueProjection<E, K, S>(property, name, parent) {
+sealed class ScalarProjection<E : KIEntity<K>, K : Any, S : Number>(property: KIProperty<S>, name: String, parent: Projection<E, K>?) : ValueProjection<E, K>(property, name, parent) {
     companion object {
         @Suppress("IMPLICIT_CAST_TO_ANY", "UNCHECKED_CAST")
         fun <V : Number> add(v1: V, v2: V): V = when (v1) {
@@ -121,7 +119,7 @@ sealed class ScalarProjection<E : KIEntity<K>, K : Any, S : Number>(property: KI
             else -> throw Exception("Bad type ${v1::class}")
         } as V
 
-        @Suppress("IMPLICIT_CAST_TO_ANY", "UNCHECKED_CAST")
+        @Suppress("IMPLICIT_CAST_TO_ANY", "UNCHECKED_CAST", "unused")
         fun <V : Number> max(v1: V, v2: V): V = when (v1) {
             is Byte -> maxOf(v1, v2.toByte())
             is Short -> maxOf(v1, v2.toShort())
@@ -186,19 +184,23 @@ class ProjectionBucketResult<E : KIEntity<K>, K : Any, B : Any>(result: Map<Proj
 
     private fun relevant(ev: FilterEvent<E, K>): FilterEvent<E, K>? = when (ev) {
         is FilterCreateEvent<*, *> -> {
-            val filtered = ev.entities.filter { bucket.discriminator.inside(it.getValue(bucket.property) as B?) }
+            val filtered = ev.entities.filter { bucket.discriminator.inside(it.getValue(bucket.property)) }
+            @Suppress("UNCHECKED_CAST")
             if (filtered.isEmpty()) null else FilterCreateEvent<E, K>(filtered as Iterable<E>, ev.want, ev.filter)
         }
         is FilterDeleteEvent<*, *> -> {
-            val filtered = ev.entities.filter { bucket.discriminator.inside(it.getValue(bucket.property) as B?) }
+            val filtered = ev.entities.filter { bucket.discriminator.inside(it.getValue(bucket.property)) }
+            @Suppress("UNCHECKED_CAST")
             if (filtered.isEmpty()) null else FilterDeleteEvent<E, K>(filtered as Iterable<E>, ev.want, ev.filter)
         }
         is FilterUpdateEvent<*, *> -> {
+            @Suppress("UNCHECKED_CAST")
             val want = bucket.discriminator.asFilter().wants(ev.upds as EntityUpdatedEvent<E, K>)
             if (want in setOf(FilterWant.OUTOUT, FilterWant.NONE)) null
             else ev
         }
         is FilterRelationEvent<*, *> -> {
+            @Suppress("UNCHECKED_CAST")
             val want = bucket.discriminator.asFilter().wants(ev.upds as EntityRelationEvent<E, K, *, *>)
             if (want in setOf(FilterWant.OUTOUT, FilterWant.NONE)) null
             else ev
@@ -416,7 +418,7 @@ class EntityProjectionResult<E : KIEntity<K>, K : Any>(override val projection: 
     override fun clone(projection: Projection<E, K>): ProjectionResult<E, K> = EntityProjectionResult(projection as EntityProjection<E, K>, page)
 }
 
-sealed class ValueProjectionResult<E : KIEntity<K>, K : Any, V : Any>(override val projection: ValueProjection<E, K, V>, val result: V) : ProjectionResult<E, K>(projection) {
+sealed class ValueProjectionResult<E : KIEntity<K>, K : Any, V : Any>(override val projection: ValueProjection<E, K>, val result: V) : ProjectionResult<E, K>(projection) {
     override fun <I : Interest<E, K>> digest(i: I, evts: Iterable<FilterEvent<E, K>>, events: (Iterable<ProjectionEvent<E, K>>) -> Unit): ProjectionResult<E, K> = run {
         val el = evts.any { e ->
             when (e) {

@@ -3,6 +3,7 @@ package info.kinterest.jvm.query
 import com.nhaarman.mockito_kotlin.doReturn
 import com.nhaarman.mockito_kotlin.mock
 import com.nhaarman.mockito_kotlin.whenever
+import info.kinterest.MetaProvider
 import info.kinterest.StoreReady
 import info.kinterest.cast
 import info.kinterest.datastores.DataStoreFacade
@@ -135,7 +136,7 @@ class QueryManagerTest : Spek({
         val meta = InterestEntityImpl.Companion.Meta
 
 
-        val qm = QueryManagerJvm(FilterTree(Dispatcher(), 2))
+        val qm = QueryManagerJvm(FilterTree(Dispatcher(), 2), MetaProvider())
         runBlocking {
             qm.dataStores.send(StoreReady(ds1))
             qm.dataStores.send(StoreReady(ds2))

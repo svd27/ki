@@ -66,8 +66,8 @@ object TestEvents : Spek ({
             dispatcher.subscribing.send(listener.ch)
         }
         base.metaProvider.register(TestEventsEntityJvm.meta)
-        TestEventsEntityJvm.Companion.Transient(base.ds, UUID.randomUUID(), "svd", LocalDate.now())
-        val e = base.create<TestEventsEntity, UUID>(TestEventsEntityJvm.Companion.Transient(base.ds, UUID.randomUUID(), "svd", LocalDate.now()))
+        TestEventsEntityJvm.Transient(base.ds, UUID.randomUUID(), "svd", LocalDate.now())
+        val e = base.create<TestEventsEntity, UUID>(TestEventsEntityJvm.Transient(base.ds, UUID.randomUUID(), "svd", LocalDate.now()))
         on("subscribing and creating an entity") {
             val k = e.getOrElse { log.debug(it) {} }
             log.debug { k }

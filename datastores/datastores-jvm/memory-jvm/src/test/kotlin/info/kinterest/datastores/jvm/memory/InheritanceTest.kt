@@ -56,10 +56,10 @@ class InheritanceTest : Spek({
         base.metaProvider.register(MemEmployeeJvm.meta)
         base.metaProvider.register(MemCustomerJvm.meta)
         repeat(10) {
-            base.create<MemPerson, String>(MemPersonJvm.Companion.Transient(base.ds, "$it", "${'A' + it}", "${'z' - it}"))
+            base.create<MemPerson, String>(MemPersonJvm.Transient(base.ds, "$it", "${'A' + it}", "${'z' - it}"))
         }
         repeat(10) {
-            base.create<MemEmployee, String>(MemEmployeeJvm.Companion.Transient(base.ds, "${100 + it}", "E${'a' + it}", "${'Z' - it}", "${'A' + it}"))
+            base.create<MemEmployee, String>(MemEmployeeJvm.Transient(base.ds, "${100 + it}", "E${'a' + it}", "${'Z' - it}", "${'A' + it}"))
         }
         on("querying for one type of entity") {
             val f = filter<MemEmployee, String>(MemEmployeeJvm.meta) {

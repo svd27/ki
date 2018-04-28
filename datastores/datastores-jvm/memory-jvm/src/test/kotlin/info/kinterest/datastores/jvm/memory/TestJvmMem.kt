@@ -76,7 +76,7 @@ object TestJvmMem : Spek({
 
         val mem = ds.cast<JvmMemoryDataStore>()
         mem[TestRoot::class]
-        val kdef = mem.create<TestRoot, String>(TestRootJvm.meta, listOf(TestRootJvm.Companion.Transient(mem, "a", "aname", null)))
+        val kdef = mem.create<TestRoot, String>(TestRootJvm.meta, listOf(TestRootJvm.Transient(mem, "a", "aname", null)))
         val deferred = kdef.getOrDefault { null }
         val tryk = runBlocking { deferred?.await()  }
         val k = tryk?.getOrDefault { throw it }!!.first().id
@@ -110,7 +110,7 @@ object TestJvmMem : Spek({
 
 
         fun create(k:String) : TestRoot = run {
-            val kd = mem.create<TestRoot, String>(TestRootJvm.meta, listOf(TestRootJvm.Companion.Transient(mem, k, "aname", null)))
+            val kd = mem.create<TestRoot, String>(TestRootJvm.meta, listOf(TestRootJvm.Transient(mem, k, "aname", null)))
             val def = kd.getOrDefault { throw it }
             val tk = runBlocking { def.await() }
             val key = tk.getOrDefault { throw it }.first().id
@@ -131,7 +131,7 @@ object TestJvmMem : Spek({
         }
 
         on("creating an entity with an existing id") {
-            val kd = mem.create(TestRootJvm.meta, listOf(TestRootJvm.Companion.Transient(mem, "a", "aname", null)))
+            val kd = mem.create(TestRootJvm.meta, listOf(TestRootJvm.Transient(mem, "a", "aname", null)))
             val def = kd.getOrDefault { throw it }
             val tk = runBlocking { def.await() }
             it("should fail") {
@@ -169,7 +169,7 @@ class TestVersion : Spek({
         val ds = fac.factories[cfg.type]!!.create(cfg)
 
         val mem = ds.cast<JvmMemoryDataStore>()
-        val tryDefer = mem.create<TestVersioned, Long>(TestVersionedJvm.meta, listOf(TestVersionedJvm.Companion.Transient(mem, 0.toLong(), "aname", null, "not me")))
+        val tryDefer = mem.create<TestVersioned, Long>(TestVersionedJvm.meta, listOf(TestVersionedJvm.Transient(mem, 0.toLong(), "aname", null, "not me")))
         val kdefer = tryDefer.getOrElse { throw it }
         val tryk = runBlocking { kdefer.await() }
         val k = tryk.getOrElse { throw it }.first().id
@@ -179,7 +179,7 @@ class TestVersion : Spek({
 
         @Suppress("unused")
         fun create(id: Long): TestVersioned = run {
-            val td = mem.create(TestVersionedJvm.meta, listOf(TestVersionedJvm.Companion.Transient(mem, id, "aname", null, "someone")))
+            val td = mem.create(TestVersionedJvm.meta, listOf(TestVersionedJvm.Transient(mem, id, "aname", null, "someone")))
             val kd = td.getOrElse { null }!!
             val tk = runBlocking { kd.await() }
             val key = tk.getOrElse { throw it }.first().id
@@ -272,7 +272,7 @@ object TestDelete : Spek({
 
         val mem = ds.cast<JvmMemoryDataStore>()
         fun create(k: String): TestRoot = run {
-            val kdef = mem.create<TestRoot, String>(TestRootJvm.meta, listOf(TestRootJvm.Companion.Transient(mem, k, "aname", null)))
+            val kdef = mem.create<TestRoot, String>(TestRootJvm.meta, listOf(TestRootJvm.Transient(mem, k, "aname", null)))
             val deferred = kdef.getOrElse { throw it }
             val tryk = runBlocking { deferred.await() }
             val key = tryk.getOrElse { throw it }.first().id

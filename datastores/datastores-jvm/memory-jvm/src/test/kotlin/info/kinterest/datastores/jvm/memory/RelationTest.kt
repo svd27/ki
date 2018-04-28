@@ -50,13 +50,13 @@ class RelationTest : Spek({
 
 
         repeat(2) {
-            base.create<RelPerson, Long>(RelPersonJvm.Companion.Transient(base.ds, it.toLong(), "${'A' + it}", mutableSetOf()))
+            base.create<RelPerson, Long>(RelPersonJvm.Transient(base.ds, it.toLong(), "${'A' + it}", mutableSetOf()))
         }
         on("addding a relation") {
             val p1 = base.retrieve<RelPerson, Long>(listOf(0)).getOrElse { throw it }.first()
             @Suppress("UNCHECKED_CAST")
             val p2 = base.retrieve<RelPerson, Long>(listOf(1)).getOrElse { throw it }.first() as KIJvmEntity<RelPerson, Long>
-            val addres = base.ds.addRelation(info.kinterest.meta.Relation(RelPersonJvm.Companion.Meta.PROP_FRIENDS, p1, p2))
+            val addres = base.ds.addRelation(info.kinterest.meta.Relation(RelPersonJvm.Meta.PROP_FRIENDS, p1, p2))
 
             it("should be reflected in the property") {
                 addres.isSuccess.`should be true`()
@@ -82,7 +82,7 @@ class RelationTest : Spek({
         on("adding a relation at creation time") {
             val p1 = base.retrieve<RelPerson, Long>(listOf(0)).getOrElse { throw it }.first()
             val p2 = base.retrieve<RelPerson, Long>(listOf(1)).getOrElse { throw it }.first()
-            val cr = base.create<RelPerson, Long>(RelPersonJvm.Companion.Transient(base.ds, 2, "${'A' + 2}", mutableSetOf(p1, p2)))
+            val cr = base.create<RelPerson, Long>(RelPersonJvm.Transient(base.ds, 2, "${'A' + 2}", mutableSetOf(p1, p2)))
 
 
             it("should be properly created") {

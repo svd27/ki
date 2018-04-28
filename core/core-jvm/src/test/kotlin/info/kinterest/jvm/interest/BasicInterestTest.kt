@@ -167,7 +167,7 @@ class BasicInterestTest : Spek({
             CompletableDeferred(t)
         }
 
-        val qm = QueryManagerJvm(FilterTree(Dispatcher(CommonPool), 2))
+        val qm = QueryManagerJvm(FilterTree(Dispatcher(CommonPool), 2), MetaProvider())
         runBlocking { qm.dataStores.send(StoreReady(ds)) }
 
         on("creating the interest") {

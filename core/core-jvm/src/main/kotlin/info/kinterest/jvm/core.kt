@@ -143,7 +143,7 @@ val coreKodein = Kodein.Module {
     bind<MetaProvider>() with instance(MetaProvider())
     bind<Dispatcher<EntityEvent<*, *>>>("entities") with instance(Dispatcher())
     bind<FilterTree>() with singleton { FilterTree(instance("entities"), 100) }
-    bind<QueryManagerJvm>() with singleton { QueryManagerJvm(instance()) }
+    bind<QueryManagerJvm>() with singleton { QueryManagerJvm(instance(), instance()) }
     bind<QueryManager>() with singleton { instance<QueryManagerJvm>() }
     bind<Channel<DataStoreEvent>>() with singleton { instance<QueryManagerJvm>().dataStores }
     bind<CoroutineDispatcher>("datastores") with singleton { newFixedThreadPoolContext(8, "ds") }

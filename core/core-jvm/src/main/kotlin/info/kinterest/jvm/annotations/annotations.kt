@@ -12,12 +12,20 @@ annotation class Versioned
 
 
 @Retention(AnnotationRetention.SOURCE)
+@Target(AnnotationTarget.PROPERTY_GETTER, AnnotationTarget.PROPERTY)
+annotation class Transient
+
+@Retention(AnnotationRetention.SOURCE)
 @Target(AnnotationTarget.CLASS)
 annotation class StorageTypes(val stores: Array<String>)
 
 @Retention(AnnotationRetention.SOURCE)
 @Target(AnnotationTarget.PROPERTY_GETTER)
 annotation class GeneratedId
+
+@Retention(AnnotationRetention.SOURCE)
+@Target(AnnotationTarget.PROPERTY, AnnotationTarget.PROPERTY_GETTER)
+annotation class TypeArgs(val args:Array<KClass<*>>)
 
 @Retention(AnnotationRetention.RUNTIME)
 @Target(AnnotationTarget.PROPERTY, AnnotationTarget.PROPERTY_GETTER)

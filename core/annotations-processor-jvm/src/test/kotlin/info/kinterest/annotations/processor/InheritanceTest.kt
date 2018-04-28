@@ -36,9 +36,9 @@ class InheritanceTest : Spek({
     given("a hierarchy of entities") {
         on("having generated them") {
             it("should have proper super interfaces") {
-                EmployeeJvm.Companion.Meta.parent `should equal` Person::class
-                ManagerJvm.Companion.Meta.hierarchy `should equal` listOf(EmployeeJvm.meta, PersonJvm.meta)
-                PersonJvm.Companion.Meta.hierarchy `should equal` listOf()
+                EmployeeJvm.Meta.parent `should equal` Person::class
+                ManagerJvm.Meta.hierarchy `should equal` listOf(EmployeeJvm.meta, PersonJvm.meta)
+                PersonJvm.Meta.hierarchy `should equal` listOf()
                 setOf(EmployeeJvm.meta.root, ManagerJvm.meta.root, PersonJvm.meta.root) `should equal` setOf(PersonJvm.meta.root)
             }
         }
