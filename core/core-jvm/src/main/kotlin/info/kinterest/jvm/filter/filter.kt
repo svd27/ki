@@ -151,7 +151,11 @@ sealed class EntityFilter<E : KIEntity<K>, K : Any>(override val meta: KIEntityM
 
     infix fun <P : Comparable<P>> String.neq(value: P): NEQFilter<E, K, P> = (this eq value).inverse()
     infix fun <P : Comparable<P>> String.gt(value: P): GTFilter<E, K, P> = withProp(this, value) { GTFilter(it, meta, value) }
+    infix fun <P : Comparable<P>> String.lt(value: P): LTFilter<E, K, P> = withProp(this, value) { LTFilter(it, meta, value) }
     infix fun <P : Comparable<P>> String.gte(value: P): GTEFilter<E, K, P> = withProp(this, value) { GTEFilter(it, meta, value) }
+    infix fun <P : Comparable<P>> String.lte(value: P): LTEFilter<E, K, P> = withProp(this, value) { LTEFilter(it, meta, value) }
+    infix fun <P : Comparable<P>> String.`in`(values: Set<P>): PropertyInFilter<E, K, P> = withProp(this, values.first()) { PropertyInFilter(values, it, meta) }
+    infix fun <P : Comparable<P>> String.notin(values: Set<P>): PropertyNotInFilter<E, K, P> = withProp(this, values.first()) { PropertyNotInFilter(values, it, meta) }
 
     fun or(f: Iterable<EntityFilter<E, K>>): OrFilter<E, K> {
         val first = f.first()
@@ -175,9 +179,10 @@ sealed class EntityFilter<E : KIEntity<K>, K : Any>(override val meta: KIEntityM
         }
     }
 
-    override fun and(f: Filter<E, K>): Filter<E, K> = if (f is EntityFilter) this.and(listOf(f)) else DONTDOTHIS()
+    override infix fun and(f: Filter<E, K>): Filter<E, K> = if (f is EntityFilter) this.and(listOf(f)) else DONTDOTHIS()
 
-    fun and(f: Iterable<EntityFilter<E, K>>): EntityFilter<E, K> {
+    fun and(vararg fs: EntityFilter<E, K>): AndFilter<E, K> = and(fs.toList())
+    fun and(f: Iterable<EntityFilter<E, K>>): AndFilter<E, K> {
         val first = f.first()
         return when (this) {
             is CombinationFilter -> when (this) {
@@ -219,7 +224,7 @@ sealed class EntityFilter<E : KIEntity<K>, K : Any>(override val meta: KIEntityM
     }
 }
 
-abstract class IdFilter<E : KIEntity<K>, K : Any>(meta: KIEntityMeta) : EntityFilter<E, K>(meta) {
+sealed class IdFilter<E : KIEntity<K>, K : Any>(meta: KIEntityMeta) : EntityFilter<E, K>(meta) {
     override val affectedBy: Set<KIProperty<*>>
         get() = setOf()
     override val affectedByAll: Set<KIProperty<*>>
@@ -229,11 +234,12 @@ abstract class IdFilter<E : KIEntity<K>, K : Any>(meta: KIEntityMeta) : EntityFi
     override fun wants(rel: EntityRelationEvent<E, K, *, *>): FilterWant = FilterWant.NONE
 }
 
+abstract class AnIdFilter<E : KIEntity<K>, K : Any>(meta: KIEntityMeta) : IdFilter<E, K>(meta)
 @Suppress("EqualsOrHashCode")
 class StaticEntityFilter<E : KIEntity<K>, K : Any>(val ids: Set<K>, meta: KIEntityMeta) : IdFilter<E, K>(meta), Filter<E, K> {
     override fun matches(e: E): Boolean = ids.any { e.id == it }
 
-    inner class Inverse : IdFilter<E, K>(meta) {
+    inner class Inverse : AnIdFilter<E, K>(meta) {
         private val origin = this@StaticEntityFilter
         override fun matches(e: E): Boolean = !origin.matches(e)
 
@@ -268,6 +274,15 @@ sealed class PropertyFilter<E : KIEntity<K>, K : Any, P>(val prop: KIProperty<P>
         get() = affectedBy
 
     override fun wants(rel: EntityRelationEvent<E, K, *, *>): FilterWant = FilterWant.NONE
+
+    companion object {
+        fun valueToString(value: Any?): String = when (value) {
+            is LocalDate -> """date("${value.format(DateTimeFormatter.ofPattern("yyyyMMdd"))}", "yyyyMMdd")"""
+            is LocalDateTime -> """datetime("${value.format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS"))}", "yyyyMMddHHmmssSSS")"""
+            is OffsetDateTime -> """offsetDatetime("${value.format(DateTimeFormatter.ofPattern("yyyyMMdwdHHmmssSSSX"))}", "yyyyMMdwdHHmmssSSSX")"""
+            else -> "$value"
+        }
+    }
 }
 
 class PropertyNullFilter<E : KIEntity<K>, K : Any, P>(prop: KIProperty<P>, meta: KIEntityMeta) : PropertyFilter<E, K, P>(prop, meta) {
@@ -286,6 +301,8 @@ class PropertyNullFilter<E : KIEntity<K>, K : Any, P>(prop: KIProperty<P>, meta:
             else -> FilterWant.NONE
         }
     }
+
+    override fun toString(): String = "${prop.name} is null"
 }
 
 class PropertyNotNullFilter<E : KIEntity<K>, K : Any, P>(prop: KIProperty<P>, meta: KIEntityMeta) : PropertyFilter<E, K, P>(prop, meta) {
@@ -303,6 +320,48 @@ class PropertyNotNullFilter<E : KIEntity<K>, K : Any, P>(prop: KIProperty<P>, me
             else -> FilterWant.NONE
         }
     }
+
+    override fun toString(): String = "${prop.name} !is null"
+}
+
+class PropertyInFilter<E : KIEntity<K>, K : Any, P : Any>(val values: Set<P>, prop: KIProperty<P>, meta: KIEntityMeta) : PropertyFilter<E, K, P>(prop, meta) {
+    override fun matches(e: E): Boolean = relate(e.getValue(prop))
+    fun relate(p: P?): Boolean = p in values
+
+    override fun wants(upd: EntityUpdatedEvent<E, K>): FilterWant = upd.history(prop).run {
+        when {
+            relate(firstOrNull()) && !relate(lastOrNull()) -> FilterWant.INOUT
+            !relate(firstOrNull()) && relate(lastOrNull()) -> FilterWant.OUTIN
+            !relate(firstOrNull()) && !relate(lastOrNull()) -> FilterWant.OUTOUT
+            relate(firstOrNull()) && relate(lastOrNull()) -> FilterWant.ININ
+            else -> throw IllegalStateException("should never happen")
+        }
+    }
+
+    override fun contentEquals(f: EntityFilter<*, *>): Boolean = f is PropertyInFilter<*, *, *> && f.prop == prop && f.values == values
+    override fun inverse(): EntityFilter<E, K> = PropertyNotInFilter(values, prop, meta)
+
+    override fun toString(): String = "${prop.name} in (${values.map { PropertyFilter.valueToString(it) }.joinToString(",")})"
+}
+
+class PropertyNotInFilter<E : KIEntity<K>, K : Any, P : Any>(val values: Set<P>, prop: KIProperty<P>, meta: KIEntityMeta) : PropertyFilter<E, K, P>(prop, meta) {
+    override fun matches(e: E): Boolean = relate(e.getValue(prop))
+    fun relate(p: P?): Boolean = p in values
+
+    override fun wants(upd: EntityUpdatedEvent<E, K>): FilterWant = upd.history(prop).run {
+        when {
+            relate(firstOrNull()) && !relate(lastOrNull()) -> FilterWant.INOUT
+            !relate(firstOrNull()) && relate(lastOrNull()) -> FilterWant.OUTIN
+            !relate(firstOrNull()) && !relate(lastOrNull()) -> FilterWant.OUTOUT
+            relate(firstOrNull()) && relate(lastOrNull()) -> FilterWant.ININ
+            else -> throw IllegalStateException("should never happen")
+        }
+    }
+
+    override fun contentEquals(f: EntityFilter<*, *>): Boolean = f is PropertyInFilter<*, *, *> && f.prop == prop && f.values == values
+    override fun inverse(): EntityFilter<E, K> = PropertyInFilter(values, prop, meta)
+
+    override fun toString(): String = "${prop.name} !in (${values.map { PropertyFilter.valueToString(it) }.joinToString(",")})"
 }
 
 sealed class PropertyValueFilter<E : KIEntity<K>, K : Any, P : Any>(prop: KIProperty<P>, meta: KIEntityMeta, val value: P) : PropertyFilter<E, K, P>(prop, meta) {
@@ -329,14 +388,8 @@ sealed class PropertyValueFilter<E : KIEntity<K>, K : Any, P : Any>(prop: KIProp
         prop == f.prop && value == f.value
     } else false
 
-    fun valueToString(): String = when (value) {
-        is LocalDate -> """date("${value.format(DateTimeFormatter.ofPattern("yyyyMMdd"))}", "yyyyMMdd")"""
-        is LocalDateTime -> """datetime("${value.format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS"))}", "yyyyMMddHHmmssSSS")"""
-        is OffsetDateTime -> """offsetDatetime("${value.format(DateTimeFormatter.ofPattern("yyyyMMdwdHHmmssSSSX"))}", "yyyyMMdwdHHmmssSSSX")"""
-        else -> "$value"
-    }
 
-    override fun toString(): String = "${prop.name} $op ${valueToString()}"
+    override fun toString(): String = "${prop.name} $op ${valueToString(value)}"
 
     abstract val op: String
 }

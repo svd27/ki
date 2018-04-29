@@ -6,7 +6,11 @@ import info.kinterest.EntityEvent
 import info.kinterest.MetaProvider
 import info.kinterest.datastores.DataStoreFacade
 import info.kinterest.datastores.IRelationTrace
+import info.kinterest.functional.Try
+import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.events.Dispatcher
+import info.kinterest.jvm.tx.TransactionManager
+import info.kinterest.jvm.tx.TransactionManagerJvm
 import info.kinterest.query.QueryManager
 import kotlinx.coroutines.experimental.channels.Channel
 import mu.KLogging
@@ -15,7 +19,6 @@ import java.util.*
 
 
 interface DataStoreFactory : KodeinInjected {
-    var kodein : Kodein
     val events: Channel<DataStoreEvent>
 
     fun create(cfg: DataStoreConfig): DataStoreJvm
@@ -40,7 +43,10 @@ class DataStoreFactoryProvider : KodeinInjected {
                 }
             }
         }
+    }
 
+    fun create(cfg: DataStoreConfig): Try<DataStoreFacade> = Try {
+        factories[cfg.type]!!.create(cfg)
     }
 
     companion object : KLogging()
@@ -61,4 +67,13 @@ data class RelationTrace(override val type: String, override val id: Any, overri
 
 val datasourceKodein = Kodein.Module {
     bind<DataStoreFactoryProvider>() with singleton { DataStoreFactoryProvider() }
+    bind<DataStoreFacade>("tx-store") with singleton {
+        val cfg: DataStoreConfig = instance("tx-store")
+        val fp: DataStoreFactoryProvider = instance()
+        fp.create(cfg).getOrElse { throw it }
+    }
+    bind<TransactionManager>() with singleton {
+        TransactionManagerJvm().apply { inject(kodein) }
+    }
+
 }

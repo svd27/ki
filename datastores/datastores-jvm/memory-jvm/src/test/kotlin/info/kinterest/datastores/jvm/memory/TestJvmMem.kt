@@ -8,6 +8,7 @@ import info.kinterest.datastores.jvm.DataStoreFactoryProvider
 import info.kinterest.datastores.jvm.datasourceKodein
 import info.kinterest.datastores.jvm.memory.jvm.TestRootJvm
 import info.kinterest.datastores.jvm.memory.jvm.TestVersionedJvm
+import info.kinterest.functional.Try
 import info.kinterest.functional.flatten
 import info.kinterest.functional.getOrDefault
 import info.kinterest.functional.getOrElse
@@ -16,8 +17,12 @@ import info.kinterest.jvm.annotations.Entity
 import info.kinterest.jvm.annotations.StorageTypes
 import info.kinterest.jvm.annotations.Versioned
 import info.kinterest.jvm.coreKodein
+import info.kinterest.jvm.events.Dispatcher
+import info.kinterest.jvm.util.EventWaiter
+import kotlinx.coroutines.experimental.channels.Channel
 import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.runBlocking
+import mu.KLogging
 import org.amshove.kluent.*
 import org.jetbrains.spek.api.Spek
 import org.jetbrains.spek.api.dsl.given
@@ -148,7 +153,7 @@ object TestJvmMem : Spek({
 
 
 class TestVersion : Spek({
-
+    Try.errorHandler = { logger.debug(it) {} }
     given("an entity") {
         val kodein = Kodein {
             import(coreKodein)
@@ -156,6 +161,11 @@ class TestVersion : Spek({
         }
         kodein.instance<DataStoreFactoryProvider>().inject(kodein)
         val fac = kodein.instance<DataStoreFactoryProvider>()
+        val dispatcher = kodein.instance<Dispatcher<EntityEvent<*, *>>>("entities")
+        val ch = Channel<EntityEvent<*, *>>()
+        runBlocking { dispatcher.subscribing.send(ch) }
+        val metaProvider: MetaProvider = kodein.instance()
+        metaProvider.register(TestVersionedJvm.meta)
 
         val cfg = object : DataStoreConfig {
             override val name: String
@@ -209,11 +219,14 @@ class TestVersion : Spek({
             }
         }
 
+        val waiter = EventWaiter<EntityEvent<TestVersioned, Long>>(ch.cast())
         entity.someone = "not me, but someone else"
         runBlocking { delay(100, TimeUnit.MILLISECONDS) }
 
+
         on("setting a property") {
             it("should reflect the value") {
+                waiter.waitFor { it is EntityUpdatedEvent && it.updates.any { it.prop.name == "someone" } }
                 entity.someone.`should not be null or blank`()
                 entity.someone `should be equal to` "not me, but someone else"
             }
@@ -248,7 +261,9 @@ class TestVersion : Spek({
 
 
     }
-})
+}) {
+    companion object : KLogging()
+}
 
 object TestDelete : Spek({
     given("") {

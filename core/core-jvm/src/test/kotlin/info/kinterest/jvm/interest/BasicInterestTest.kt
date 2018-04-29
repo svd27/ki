@@ -54,7 +54,7 @@ open class InterestEntityImpl(override val _store: DataStore, override val id: L
         }
     @Suppress("PropertyName")
     override val _meta: KIEntityMeta
-        get() = Companion.Meta
+        get() = Meta
 
     override fun asTransient(): KITransientEntity<Long> = Transient(this)
 
@@ -78,49 +78,50 @@ open class InterestEntityImpl(override val _store: DataStore, override val id: L
 
     override fun hashCode(): Int = InterestEntity::class.hashCode() + id.hashCode()
 
+    object Meta : KIJvmEntityMeta(InterestEntityImpl::class, InterestEntity::class) {
+        override val root: KClass<*>
+            get() = InterestEntity::class
+        override val parent: KClass<*>?
+            get() = null
+        override val versioned: Boolean
+            get() = false
+
+        override val hierarchy: List<KIEntityMeta> = listOf()
+    }
+
+    class Transient(override val _store: DataStore, override val id: Long, override var name: String) : KITransientEntity<Long>, InterestEntity {
+        constructor(e: InterestEntity) : this(e._store, e.id, e.name)
+
+        @Suppress("PropertyName")
+        override val _meta: KIEntityMeta
+            get() = Meta
+
+        override fun asTransient(): KITransientEntity<Long> = Transient(this)
+        @Suppress("UNCHECKED_CAST")
+        override fun <V, P : KIProperty<V>> getValue(prop: P): V? = when (prop.name) {
+            "name" -> name as V
+            "id" -> id as V
+            else -> throw IllegalArgumentException("unknown property $prop")
+        }
+
+
+        override fun <V, P : KIProperty<V>> setValue(prop: P, v: V?) {
+            throw IllegalArgumentException()
+        }
+
+        override fun <V, P : KIProperty<V>> setValue(prop: P, version: Any, v: V?) {
+            throw IllegalArgumentException()
+        }
+    }
+
     companion object {
-        object Meta : KIJvmEntityMeta(InterestEntityImpl::class, InterestEntity::class) {
-            override val root: KClass<*>
-                get() = InterestEntity::class
-            override val parent: KClass<*>?
-                get() = null
-            override val versioned: Boolean
-                get() = false
-
-            override val hierarchy: List<KIEntityMeta> = listOf()
-        }
-
-        class Transient(override val _store: DataStore, override val id: Long, override var name: String) : KITransientEntity<Long>, InterestEntity {
-            constructor(e: InterestEntity) : this(e._store, e.id, e.name)
-
-            @Suppress("PropertyName")
-            override val _meta: KIEntityMeta
-                get() = Meta
-
-            override fun asTransient(): KITransientEntity<Long> = Transient(this)
-            @Suppress("UNCHECKED_CAST")
-            override fun <V, P : KIProperty<V>> getValue(prop: P): V? = when (prop.name) {
-                "name" -> name as V
-                "id" -> id as V
-                else -> throw IllegalArgumentException("unknown property $prop")
-            }
-
-
-            override fun <V, P : KIProperty<V>> setValue(prop: P, v: V?) {
-                throw IllegalArgumentException()
-            }
-
-            override fun <V, P : KIProperty<V>> setValue(prop: P, version: Any, v: V?) {
-                throw IllegalArgumentException()
-            }
-        }
     }
 }
 
 class BasicInterestTest : Spek({
     given("a datastore") {
         val ds: DataStoreFacade = mock()
-        val meta = InterestEntityImpl.Companion.Meta
+        val meta = InterestEntityImpl.Meta
         val entities = listOf(
                 InterestEntityImpl(ds, 0, "a"),
                 InterestEntityImpl(ds, 1, "w"),
@@ -143,7 +144,7 @@ class BasicInterestTest : Spek({
                 })
             }
         }
-        val f = filter<InterestEntity, Long>(InterestEntityImpl.Companion.Meta) {
+        val f = filter<InterestEntity, Long>(InterestEntityImpl.Meta) {
             parse("name > \"c\"", meta)
         }
 
@@ -212,7 +213,7 @@ class BasicInterestTest : Spek({
             val im = InterestManager(qm)
             @Suppress("UNCHECKED_CAST")
             val waiter = EventWaiter(im.events as Channel<InterestEvent<Interest<InterestEntity, Long>, InterestEntity, Long>>)
-            val projection = EntityProjection<InterestEntity, Long>(Ordering(listOf(InterestEntityImpl.Companion.Meta.props["name"]!!.asc())), Paging(0, 100))
+            val projection = EntityProjection<InterestEntity, Long>(Ordering(listOf(InterestEntityImpl.Meta.props["name"]!!.asc())), Paging(0, 100))
             val interest = im + Query(f.cast(), listOf(projection))
 
             it("should return according to orderin") {
@@ -233,7 +234,7 @@ class BasicInterestTest : Spek({
             val im = InterestManager(qm)
             @Suppress("UNCHECKED_CAST")
             val waiter = EventWaiter(im.events as Channel<InterestEvent<Interest<InterestEntity, Long>, InterestEntity, Long>>)
-            val projection = EntityProjection(Ordering<InterestEntity, Long>(listOf(InterestEntityImpl.Companion.Meta.props["name"]!!.asc())), Paging(0, 100))
+            val projection = EntityProjection(Ordering<InterestEntity, Long>(listOf(InterestEntityImpl.Meta.props["name"]!!.asc())), Paging(0, 100))
             val interest = im + Query(f.cast(), listOf(projection))
             entities.firstOrNull { it.name == "a" }?.let { it.name = "e" }
 

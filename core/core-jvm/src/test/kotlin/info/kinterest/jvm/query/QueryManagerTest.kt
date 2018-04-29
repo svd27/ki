@@ -32,7 +32,7 @@ import org.jetbrains.spek.api.dsl.it
 import org.jetbrains.spek.api.dsl.on
 import kotlin.math.min
 
-val meta1 = InterestEntityImpl.Companion.Meta
+val meta1 = InterestEntityImpl.Meta
 
 class QueryManagerTest : Spek({
     given("a query manager and three DataStores") {
@@ -133,7 +133,7 @@ class QueryManagerTest : Spek({
             }
         }
 
-        val meta = InterestEntityImpl.Companion.Meta
+        val meta = InterestEntityImpl.Meta
 
 
         val qm = QueryManagerJvm(FilterTree(Dispatcher(), 2), MetaProvider())
@@ -188,6 +188,7 @@ class QueryManagerTest : Spek({
             }
             val es = res.getOrElse { throw it }
             it("should return the expected result") {
+                logger.debug { es }
                 es.toSet() `should equal` (el1 + el3).toSet()
             }
         }
@@ -196,7 +197,7 @@ class QueryManagerTest : Spek({
         on("querying one DataStore") {
             logger.debug { "querying from one DataStores" }
             val res = qm.query(Query<InterestEntity, Long>(EntityFilter.LiveFilterWrapper(StaticEntityFilter<InterestEntity, Long>(setOf(1, 2, 3, 4, 5, 6),
-                    InterestEntityImpl.Companion.Meta)).cast(),
+                    InterestEntityImpl.Meta)).cast(),
                     listOf(projection1), setOf(ds1)))
             val td = runBlocking { res.getOrElse { throw it }.await() }
             it("should be successfull") {
@@ -219,7 +220,7 @@ class QueryManagerTest : Spek({
             logger.debug { "querying from two DataStores" }
             val res = qm.query(Query<InterestEntity, Long>(
                     EntityFilter.LiveFilterWrapper(StaticEntityFilter<InterestEntity, Long>(setOf(1, 2, 3, 4, 5, 6),
-                            InterestEntityImpl.Companion.Meta)).cast(),
+                            InterestEntityImpl.Meta)).cast(),
                     listOf(projection1), setOf(ds1, ds3)))
             val td = runBlocking { res.getOrElse { throw it }.await() }
             it("should be successful") {

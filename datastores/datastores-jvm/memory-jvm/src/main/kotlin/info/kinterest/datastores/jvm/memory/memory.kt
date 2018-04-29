@@ -44,7 +44,7 @@ import kotlin.reflect.full.companionObjectInstance
 
 
 class JvmMemoryDataStoreFactory : DataStoreFactory {
-    override lateinit var kodein: Kodein
+    lateinit var kodein: Kodein
     override val injector: KodeinInjector = KodeinInjector()
     override val events: Channel<DataStoreEvent> by instance()
 
@@ -141,6 +141,7 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
     override fun <E : KIEntity<K>, K : Any> retrieveLenient(type: KIEntityMeta, ids: Iterable<K>): Try<Deferred<Try<Iterable<E>>>> = Try {
         buckets[type]?.let { bucket ->
             val idf = ids.filter { bucket[it] != null }
+            logger.debug { "$ids filtered to $idf" }
             if (idf.isEmpty()) CompletableDeferred(Try { listOf<E>() })
             else retrieve<E, K>(type, idf).getOrElse { throw it }
         } ?: throw DataStoreError.MetaDataNotFound(type.me, this)
@@ -337,11 +338,13 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
         fun <E : KIEntity<K>, K : Any> loadProjection(proj: Projection<E, K>, fs: Sequence<Pair<E, Map<String, Any?>>>): ProjectionResult<E, K> {
             fun count(prop: KIProperty<*>, values: Map<String, Any?>): Long = when (prop) {
                 is KIRelationProperty -> {
+                    @Suppress("UNCHECKED_CAST")
                     val rels = values[RELATIONS] as Map<String, List<RelationTrace>>
                     rels.getOrElse(prop.name) { listOf() }.size.toLong()
                 }
                 else -> if (values[prop.name] != null) 1 else 0
             }
+            @Suppress("UNCHECKED_CAST")
             return when (proj) {
                 is ValueProjection<E, K> ->
                     when (proj) {
@@ -486,11 +489,14 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
 
         @Suppress("UNCHECKED_CAST")
         internal fun write(k: Any, values: Map<String, Any?>): Map<String, Any?> = run {
-            val e = bucket[k]!!
+            val e = bucket[k]
+            if (e == null) throw DataStoreError.EntityError.EntityNotFound(meta, k, this@JvmMemoryDataStore)
             val changed = values.filter { entry -> e[entry.key] != entry.value }
             val olds = changed.map { it.key to e[it.key] }.toMap()
             log.trace { "changed $changed" }
             e.putAll(changed)
+            logger.debug { "metaName: ${e[TYPE]} meta: ${metaProvider.meta(e[TYPE]?.toString() ?: "")}" }
+            val meta = metaProvider.meta(e[TYPE]!!.toString())!!
             bucket[k] = e
             index(k, changed)
             changed.apply {
@@ -550,6 +556,7 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
 
         override fun <E : KIEntity<K>, K : Any> delete(entities: Iterable<E>): Try<Iterable<K>> = Try {
             db.tx {
+                @Suppress("UNCHECKED_CAST")
                 val trans = entities.map { it.asTransient() as E }
                 val res = entities.map { db.delete(it.id).second }
                 launch {

@@ -1,7 +1,6 @@
 package info.kinterest.datastores.jvm.memory
 
 import info.kinterest.KIEntity
-import info.kinterest.MetaProvider
 import info.kinterest.cast
 import info.kinterest.core.jvm.filters.parse
 import info.kinterest.datastores.jvm.DataStoreConfig
@@ -45,9 +44,9 @@ class TestQuery : Spek( {
             override val config: Map<String, Any?>
                 get() = mapOf()
         })
-        val provider = MetaProvider()
+        val provider = base.metaProvider
         @Suppress("UNCHECKED_CAST")
-        val meta = base.ds[QueryEntity::class]
+        val meta = QueryEntityJvm.meta
         provider.register(meta)
 
         val keys = ('A'..'Z').map { id ->

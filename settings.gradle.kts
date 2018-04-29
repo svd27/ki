@@ -14,6 +14,7 @@ include("core:common",
         "core:core-jvm",
         "core:core-jvm:filters-parser-jvm",
         "core:core-jvm:filters-utils-jvm",
+        "core:core-jvm:tx-jvm",
         "datastores:datastores-jvm:memory-jvm",
         "datastores:datastores-jvm:mongo-jvm")
 
