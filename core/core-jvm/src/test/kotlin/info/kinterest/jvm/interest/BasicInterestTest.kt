@@ -113,9 +113,6 @@ open class InterestEntityImpl(override val _store: DataStore, override val id: L
             throw IllegalArgumentException()
         }
     }
-
-    companion object {
-    }
 }
 
 class BasicInterestTest : Spek({

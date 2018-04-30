@@ -242,7 +242,7 @@ class QueryManagerTest : Spek({
             logger.debug { "querying from two DataStores with page" }
             val projection = EntityProjection<InterestEntity, Long>(Ordering.NATURAL.cast(), Paging(0, 2))
             val res = qm.query(Query<InterestEntity, Long>(EntityFilter.LiveFilterWrapper(
-                    StaticEntityFilter<InterestEntity, Long>(setOf(1, 2, 3, 4, 5, 6), InterestEntityImpl.Companion.Meta)),
+                    StaticEntityFilter<InterestEntity, Long>(setOf(1, 2, 3, 4, 5, 6), InterestEntityImpl.Meta)),
                     listOf(projection), setOf(ds1, ds3)))
             val td = runBlocking(pool) { res.getOrElse { throw it }.await() }
             it("should be successful") {
@@ -264,7 +264,7 @@ class QueryManagerTest : Spek({
             logger.debug { "querying from two DataStores with next page" }
             val projection = EntityProjection<InterestEntity, Long>(Ordering.NATURAL.cast(), Paging(0, 2).next)
             val res = qm.query(Query<InterestEntity, Long>(
-                    EntityFilter.LiveFilterWrapper(StaticEntityFilter<InterestEntity, Long>(setOf(1, 2, 3, 4, 5, 6), InterestEntityImpl.Companion.Meta)),
+                    EntityFilter.LiveFilterWrapper(StaticEntityFilter<InterestEntity, Long>(setOf(1, 2, 3, 4, 5, 6), InterestEntityImpl.Meta)),
                     listOf(projection), setOf(ds1, ds3)))
             val td = runBlocking { res.getOrElse { throw it }.await() }
             it("should be successfull") {
@@ -286,7 +286,7 @@ class QueryManagerTest : Spek({
             logger.debug { "querying from two DataStores with page and ordering" }
             val projection = EntityProjection<InterestEntity, Long>(Ordering(listOf(meta1.props["name"]!!.asc())), Paging(0, 2))
             val query = Query(
-                    EntityFilter.LiveFilterWrapper(StaticEntityFilter<InterestEntity, Long>(setOf(1, 2, 3, 4, 5, 6), InterestEntityImpl.Companion.Meta)),
+                    EntityFilter.LiveFilterWrapper(StaticEntityFilter<InterestEntity, Long>(setOf(1, 2, 3, 4, 5, 6), InterestEntityImpl.Meta)),
                     listOf(projection), setOf(ds1, ds3, ds2))
             val res = qm.query(query)
             val td = runBlocking(pool) { res.getOrElse { throw it }.await() }
