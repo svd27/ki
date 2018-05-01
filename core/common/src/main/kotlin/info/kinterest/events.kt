@@ -13,7 +13,7 @@ sealed class EntityEvent<out E : KIEntity<K>, out K : Any> : KIEvent()
 data class EntityCreateEvent<out E : KIEntity<K>, out K : Any>(val entities: Iterable<E>) : EntityEvent<E, K>()
 data class EntityDeleteEvent<out E : KIEntity<K>, out K : Any>(val entities: Iterable<E>) : EntityEvent<E, K>()
 data class EntityUpdatedEvent<out E : KIEntity<K>, out K : Any>(val entity: E, val updates: Iterable<EntityUpdated<*>>) : EntityEvent<E, K>() {
-    fun <V> history(prop: KIProperty<V>): Iterable<V?> = updates.filter { it.prop == prop }.let {
+    fun <V : Any> history(prop: KIProperty<V>): Iterable<V?> = updates.filter { it.prop == prop }.let {
         if (it.isEmpty()) listOf()
         else {
             val first = it.elementAt(0)

@@ -178,7 +178,8 @@ class EntityInfo(val type: TypeElement, val env: ProcessingEnvironment) {
         val koType = when (type) {
             is Typing.Declared -> parseType(type.type.qualifiedName.normalize() +
                     if(type.type.typeParameters.size>0) {
-                        val typeArgs = getter.annotationMirrors.find { mir -> val annType = mir.annotationType;
+                        val typeArgs = getter.annotationMirrors.find { mir ->
+                            val annType = mir.annotationType
                             annType.toString() == TypeArgs::class.qualifiedName
                         }
                         if(typeArgs==null) throw IllegalStateException("need to annotate generic types with TypeArgs")
@@ -276,7 +277,7 @@ object JvmGenerator : Generator {
                     //import(Try::class.qualifiedName!!.replaceAfterLast('.', "*"))
 
                     val typeSuffix = if(entity.type.typeParameters.size==0) "" else "<${entity.type.typeParameters.map { it.simpleName }.joinToString(",")}>"
-                    classDeclaration("${entity.name}", if(entity.abstract) ABSTRACT else KoModifierList.Empty) {
+                    classDeclaration(entity.name, if (entity.abstract) ABSTRACT else KoModifierList.Empty) {
                         if(entity.type.typeParameters.size>0) {
                             entity.type.typeParameters.forEach {
                                 typeParam(it.simpleName.toString())
@@ -497,7 +498,7 @@ object JvmGenerator : Generator {
                             entity.fields.forEach {
                                 env.note("${it.name} ${it.propMetaType} ${it.typeName} ${it.type}")
                                 if (it.propMetaType == KISimpleTypeProperty::class) {
-                                    val koType = parseType("${it.propMetaType.qualifiedName}<${renderType(it.koType)}>")
+                                    val koType = parseType("${it.propMetaType.qualifiedName}<${renderType(it.koType).removeSuffix("?")}>")
                                     property(it.metaName, koType, VAL) {
                                         initializer("props[\"${it.name}\"] as ${renderType(koType)}")
                                     }

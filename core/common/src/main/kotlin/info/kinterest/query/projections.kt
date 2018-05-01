@@ -140,12 +140,12 @@ class SumProjection<E : KIEntity<K>, K : Any, V : Number>(override val property:
                     results.filterIsInstance<ScalarProjectionResult<E, K, V>>().map { it.sum }.reduce { n1, n2 -> add(n1, n2) })
 }
 
-interface Discriminators<E : KIEntity<K>, K : Any, V> {
+interface Discriminators<E : KIEntity<K>, K : Any, V : Any> {
     val name: String
     fun discriminatorFor(v: V?): Discriminator<E, K, V>
 }
 
-interface Discriminator<E : KIEntity<K>, K : Any, V> {
+interface Discriminator<E : KIEntity<K>, K : Any, V : Any> {
     val name: String
     fun inside(v: V?): Boolean
     fun asFilter(): Filter<E, K>

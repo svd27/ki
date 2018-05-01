@@ -12,14 +12,17 @@ import info.kinterest.jvm.annotations.Entity
 import info.kinterest.jvm.annotations.TypeArgs
 import info.kinterest.jvm.filter.filter
 import info.kinterest.jvm.tx.jvm.TransactionJvm
-import info.kinterest.meta.KIProperty
 import info.kinterest.paging.Paging
 import info.kinterest.query.*
 import info.kinterest.sorting.Ordering
 import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.channels.Channel
+import kotlinx.coroutines.experimental.sync.Mutex
+import kotlinx.coroutines.experimental.sync.withLock
 import mu.KLogger
 import mu.KLogging
+
+typealias TxCallback<R> = suspend (Try<R>) -> Unit
 
 interface TransactionManager {
     val log: KLogger
@@ -28,7 +31,20 @@ interface TransactionManager {
     val metas: MetaProvider
     val txDispatcher: CoroutineDispatcher
     val txProcessors: CoroutineDispatcher
-    var deferreds: Map<Long, CompletableDeferred<*>>
+    var deferreds: Map<Long, CompletableDeferred<Try<*>>>
+    var callbacks: Map<Long, TxCallback<*>>
+    val lock: Mutex
+
+    suspend fun addDeferred(id: Long, d: CompletableDeferred<Try<*>>, cb: TxCallback<*>?) = lock.withLock {
+        deferreds += id to d
+        if (cb != null)
+            callbacks += id to cb
+    }
+
+    suspend fun removeDeferreds(ids: Iterable<Long>) = lock.withLock {
+        deferreds -= ids
+        callbacks -= ids
+    }
 
     suspend fun setState(tx: Transaction<*>, state: TxState) {
         txStore.setValues(tx._meta, tx.id, tx._version, mapOf(tx._meta.props["state"]!! to state)).await().getOrElse { throw it }
@@ -40,43 +56,74 @@ interface TransactionManager {
         txc
     }
 
-    operator fun <R> plus(tx: Transaction<R>): Try<Deferred<Try<R>>> = Try {
+    fun <R> add(tx: Transaction<R>, cb: TxCallback<R>? = null): Try<Pair<Long, Deferred<Try<R>>>> = Try {
         runBlocking(txDispatcher) {
             val txc = create(tx)
             val deferred = CompletableDeferred<Try<R>>()
-            deferreds += txc.id to deferred
+            addDeferred(txc.id, deferred.cast(), cb?.cast())
+
             added(txc)
-            deferred
+            txc.id to deferred
         }
     }
 
     suspend fun added(tx: Transaction<*>)
 
-    suspend fun <R> addAndExecute(tx: Transaction<R>, cb: Try<R>.() -> Unit) = runBlocking(txDispatcher) {
-        val txc = create(tx)
-        launch(txProcessors) { execute(txc).await().apply(cb) }
-    }
-
-    suspend fun <R> fail(tx: Transaction<R>, ex: Exception) {
+    suspend fun <R> fail(tx: Transaction<R>, f: Try.Failure<R>) {
+        if (tx.state in setOf(TxState.FAILING, TxState.FAILED)) return
         setState(tx, TxState.FAILING)
         tx.rollback(this@TransactionManager)
-        children(tx, TxState.values().toSet()).map { fail(it, ex) }
+        children(tx, TxState.values().toSet()).map { fail<Any>(it.cast(), f.cast()) }
+        callback(tx, f)
         setState(tx, TxState.FAILED)
+        complete(tx, f)
+    }
+
+    suspend fun <R> complete(tx: Transaction<R>, r: Try<R>) {
         if (tx.parent == null) {
             @Suppress("UNCHECKED_CAST")
-            (deferreds[tx.id] as? CompletableDeferred<Try<R>>)?.complete(Try.raise(ex.cast()))
-            launch(txProcessors) { cleanup(tx) }
+            (deferreds[tx.id] as? CompletableDeferred<Try<R>>)?.complete(r)
         }
     }
 
-    suspend fun <R> commit(tx: Transaction<R>, r: R): R = run {
-        setState(tx, TxState.DONE)
+    suspend fun <R> callback(tx: Transaction<R>, r: Try<R>) {
         if (tx.parent == null) {
-            @Suppress("UNCHECKED_CAST")
-            (deferreds[tx.id] as? CompletableDeferred<Try<R>>)?.complete(Try { r })
-            launch(txProcessors) { cleanup(tx) }
+            callbacks[tx.id]?.let { cbx ->
+                val cb = cbx as TxCallback<R>
+                try {
+                    cb(r)
+                } catch (ex: Exception) {
+                    //TODO: check how bad this actually is
+                    log.warn(ex) { "exception in callback ignored" }
+                }
+            }
         }
-        r
+    }
+
+    suspend fun <R> commit(tx: Transaction<R>, r: Try.Success<R>): R = run {
+        callback(tx, r)
+        setState(tx, TxState.DONE)
+        complete(tx, r)
+        r.res
+    }
+
+    suspend fun cleaner() {
+        val f = filter<Transaction<*>, Long>(TransactionJvm.meta) {
+            "parent".isNull<Long>() and (("state" `in` TxState.INACTIVE) and ("validTill" lt OffsetDateTime.now()))
+        }
+        val ep = EntityProjection<Transaction<*>, Long>(Ordering.natural(), Paging(0, 1000))
+        val q = Query(f, listOf(ep))
+        val epr = qm.query(q).getOrElse { throw it }.await().getOrElse { throw it }.retrieve(ep.path, qm).getOrElse { throw it }.await().getOrElse { throw it }
+        if (epr is EntityProjectionResult) {
+            if (epr.page.size > 0) {
+                val meta = epr.page.entities.first()._meta
+                epr.page.entities.map { it.id }.apply {
+                    removeDeferreds(this)
+
+                }
+                txStore.delete(meta, epr.page.entities)
+            }
+        }
     }
 
     suspend fun cleanup(tx: Transaction<*>) {
@@ -84,7 +131,7 @@ interface TransactionManager {
         txStore.delete(tx._meta, listOf(tx)).getOrElse { throw it }.await().getOrElse { throw it }
     }
 
-    suspend fun <R> execute(tx: Transaction<R>): Deferred<Try<R>> = async(txProcessors) {
+    suspend fun <R> execute(tx: Transaction<R>, cb: TxCallback<R>? = null): Deferred<Try<R>> = async(txProcessors) {
         log.debug { "execute $tx" }
         Try {
             runBlocking(coroutineContext) {
@@ -103,13 +150,13 @@ interface TransactionManager {
                         when (either) {
                             is Either.Left -> {
                                 ctd.forEach { cleanup(it) }
-                                either.left.forEach { this@TransactionManager + it }
+                                either.left.forEach { this@TransactionManager.add(it) }
                             }
-                            is Either.Right -> res = commit(tx, either.right)
+                            is Either.Right -> res = commit(tx, Try.succeed(either.right))
                         }
                         if (res != null) break
                     } catch (e: Exception) {
-                        fail(tx, e)
+                        fail(tx.cast(), Try.raise<Any>(e.cast()))
                         throw e
                     }
                 }
@@ -138,7 +185,10 @@ class TransactionManagerJvm : TransactionManager, KodeinInjected {
     override val metas: MetaProvider by injector.instance()
     override val txDispatcher: CoroutineDispatcher = newSingleThreadContext("tx.add")
     override val txProcessors: CoroutineDispatcher = newFixedThreadPoolContext(Runtime.getRuntime().availableProcessors(), "tx")
-    override var deferreds: Map<Long, CompletableDeferred<*>> = emptyMap()
+    override var deferreds: Map<Long, CompletableDeferred<Try<*>>> = emptyMap()
+    override var callbacks: Map<Long, TxCallback<*>> = emptyMap()
+    override val lock: Mutex = Mutex()
+    private val created: OffsetDateTime = OffsetDateTime.now()
 
     private val ch: Channel<Transaction<*>> = Channel()
 
@@ -176,6 +226,7 @@ interface Transaction<R> : KIVersionedEntity<Long> {
     override val id: Long
     val parent: Long?
     val createdAt: OffsetDateTime
+    val validTill: OffsetDateTime
 
     val state: TxState
 
@@ -195,20 +246,29 @@ interface CreateTransaction : Transaction<Any> {
     override suspend fun process(childrenDone: Iterable<Transaction<*>>, tm: TransactionManager): Either<Iterable<Transaction<*>>, Any> = run {
         val f = filter<CreateTransaction, Long>(tm.metas.meta(_meta.me)!!) {
             @Suppress("UNCHECKED_CAST")
-
-            ("state" notin TxState.INACTIVE).and(
+            ("state" `in` TxState.ACTIVE).and(
                     "metaName" eq metaName,
                     "create" eq create as Comparable<Any>,
                     "createdAt" lte createdAt,
                     ids(id).inverse())
 
         }
-        @Suppress("UNCHECKED_CAST")
-        val cp = CountProjection<CreateTransaction, Long>(_meta.idProperty as KIProperty<Any>)
-        val q = Query(f, listOf(cp))
+        val cp = CountProjection<CreateTransaction, Long>(_meta.idProperty)
+        val elements = EntityProjection<CreateTransaction, Long>(Ordering.natural(), Paging(0, 10))
+        logger.debug { "query $f" }
+        val q = Query(f, listOf(cp, elements))
         val qr = tm.txStore.query(q).getOrElse { throw it }.await().getOrElse { throw it }
         val retrieve = qr.retrieve(cp.path, tm.qm).getOrElse { throw it }.await().getOrElse { throw it } as CountProjectionResult<CreateTransaction, Long>
-        if (retrieve.count > 0) throw QueryError(q, tm.qm, "tx already exists")
+        if (retrieve.count > 0) {
+            val entities = qr.retrieve(elements.path, tm.qm)
+            val er = entities.getOrElse { throw it }.await().getOrElse { throw it } as EntityProjectionResult
+            er.page.entities.forEach {
+                logger.debug {
+                    "$it: ${it.state} ${it.metaName} ${it.create}"
+                }
+            }
+            throw QueryError(q, tm.qm, "tx already exists")
+        }
         val meta = tm.metas.meta(metaName)!!
         val res = tm.qm.retrieve(meta, listOf(create)).getOrElse { throw it }.await().getOrElse { throw it }
         if (res.count() > 0) throw DataStoreError.EntityError.EntityExists(meta, create, DataStore(ds))
@@ -218,4 +278,6 @@ interface CreateTransaction : Transaction<Any> {
     override fun rollback(tm: TransactionManager) {
 
     }
+
+    companion object : KLogging()
 }

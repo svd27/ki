@@ -27,13 +27,15 @@ sealed class Try<out R> {
             }
 
     companion object {
-        fun <R> raise(e: Exception): Try<R> = Failure(e)
+        fun <R> raise(e: Exception): Failure<R> = Failure(e)
         operator fun <R> invoke(inv: () -> R): Try<R> = try {
             Success(inv())
         } catch (e: Exception) {
             errorHandler(e)
             Failure(e)
         }
+
+        fun <R> succeed(r: R): Success<R> = Success(r)
 
         var errorHandler: (e: Exception) -> Unit = {}
     }

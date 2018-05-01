@@ -149,6 +149,7 @@ sealed class EntityFilter<E : KIEntity<K>, K : Any>(override val meta: KIEntityM
         EQFilter<E, K, P>(it as KIProperty<P>, meta, p)
     } ?: throw FilterError("property $this not found in ${meta.me}")
 
+    fun <P : Any> String.isNull(): PropertyNullFilter<E, K, P> = PropertyNullFilter(meta.props[this]!!.cast(), meta)
     infix fun <P : Comparable<P>> String.neq(value: P): NEQFilter<E, K, P> = (this eq value).inverse()
     infix fun <P : Comparable<P>> String.gt(value: P): GTFilter<E, K, P> = withProp(this, value) { GTFilter(it, meta, value) }
     infix fun <P : Comparable<P>> String.lt(value: P): LTFilter<E, K, P> = withProp(this, value) { LTFilter(it, meta, value) }
@@ -205,7 +206,7 @@ sealed class EntityFilter<E : KIEntity<K>, K : Any>(override val meta: KIEntityM
     }
 
     @Suppress("UNUSED_PARAMETER")
-    private fun <R, P> withProp(name: String, value: P, cb: (KIProperty<P>) -> R): R = meta.props[name]?.let { cb(it.cast()) }
+    private fun <R, P : Any> withProp(name: String, value: P, cb: (KIProperty<P>) -> R): R = meta.props[name]?.let { cb(it.cast()) }
             ?: throw FilterError("property $this not found in ${meta.me}")
 
     abstract override fun inverse(): EntityFilter<E, K>
@@ -237,15 +238,15 @@ sealed class IdFilter<E : KIEntity<K>, K : Any>(meta: KIEntityMeta) : EntityFilt
 abstract class AnIdFilter<E : KIEntity<K>, K : Any>(meta: KIEntityMeta) : IdFilter<E, K>(meta)
 @Suppress("EqualsOrHashCode")
 class StaticEntityFilter<E : KIEntity<K>, K : Any>(val ids: Set<K>, meta: KIEntityMeta) : IdFilter<E, K>(meta), Filter<E, K> {
-    override fun matches(e: E): Boolean = ids.any { e.id == it }
+    override fun matches(e: E): Boolean = e.id in ids
 
     inner class Inverse : AnIdFilter<E, K>(meta) {
-        private val origin = this@StaticEntityFilter
-        override fun matches(e: E): Boolean = !origin.matches(e)
+        val ids get() = this@StaticEntityFilter.ids
+        override fun matches(e: E): Boolean = !this@StaticEntityFilter.matches(e)
 
-        override fun inverse(): IdFilter<E, K> = origin
-        override fun contentEquals(f: EntityFilter<*, *>): Boolean = if (f is Inverse) ids == f.origin.ids else false
-        override fun toString(): String = "not($origin)"
+        override fun inverse(): IdFilter<E, K> = this@StaticEntityFilter
+        override fun contentEquals(f: EntityFilter<*, *>): Boolean = if (f is Inverse) ids == f.ids else false
+        override fun toString(): String = "not(${this@StaticEntityFilter})"
     }
 
     override fun inverse(): IdFilter<E, K> = Inverse()
@@ -268,7 +269,7 @@ class IdComparisonFilter<E : KIEntity<K>, K : Any>(meta: KIEntityMeta, val value
     override fun toString(): String = valueFilter.toString()
 }
 
-sealed class PropertyFilter<E : KIEntity<K>, K : Any, P>(val prop: KIProperty<P>, meta: KIEntityMeta) : EntityFilter<E, K>(meta) {
+sealed class PropertyFilter<E : KIEntity<K>, K : Any, P : Any>(val prop: KIProperty<P>, meta: KIEntityMeta) : EntityFilter<E, K>(meta) {
     override val affectedBy: Set<KIProperty<*>> = setOf(prop)
     override val affectedByAll: Set<KIProperty<*>>
         get() = affectedBy
@@ -285,7 +286,7 @@ sealed class PropertyFilter<E : KIEntity<K>, K : Any, P>(val prop: KIProperty<P>
     }
 }
 
-class PropertyNullFilter<E : KIEntity<K>, K : Any, P>(prop: KIProperty<P>, meta: KIEntityMeta) : PropertyFilter<E, K, P>(prop, meta) {
+class PropertyNullFilter<E : KIEntity<K>, K : Any, P : Any>(prop: KIProperty<P>, meta: KIEntityMeta) : PropertyFilter<E, K, P>(prop, meta) {
     override fun matches(e: E): Boolean = (e.getValue(prop)) == null
 
     override fun inverse(): EntityFilter<E, K> = PropertyNotNullFilter(prop, meta)
@@ -305,7 +306,7 @@ class PropertyNullFilter<E : KIEntity<K>, K : Any, P>(prop: KIProperty<P>, meta:
     override fun toString(): String = "${prop.name} is null"
 }
 
-class PropertyNotNullFilter<E : KIEntity<K>, K : Any, P>(prop: KIProperty<P>, meta: KIEntityMeta) : PropertyFilter<E, K, P>(prop, meta) {
+class PropertyNotNullFilter<E : KIEntity<K>, K : Any, P : Any>(prop: KIProperty<P>, meta: KIEntityMeta) : PropertyFilter<E, K, P>(prop, meta) {
     override fun matches(e: E): Boolean = e.getValue(prop) != null
 
     override fun inverse(): EntityFilter<E, K> = PropertyNullFilter(prop, meta)
@@ -346,7 +347,7 @@ class PropertyInFilter<E : KIEntity<K>, K : Any, P : Any>(val values: Set<P>, pr
 
 class PropertyNotInFilter<E : KIEntity<K>, K : Any, P : Any>(val values: Set<P>, prop: KIProperty<P>, meta: KIEntityMeta) : PropertyFilter<E, K, P>(prop, meta) {
     override fun matches(e: E): Boolean = relate(e.getValue(prop))
-    fun relate(p: P?): Boolean = p in values
+    fun relate(p: P?): Boolean = p !in values
 
     override fun wants(upd: EntityUpdatedEvent<E, K>): FilterWant = upd.history(prop).run {
         when {

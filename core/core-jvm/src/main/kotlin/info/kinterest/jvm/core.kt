@@ -66,9 +66,9 @@ abstract class KIJvmEntityMeta(override val impl: KClass<*>, final override val 
     override val name = me.simpleName!!
     private val propertySupport: MutableMap<String, PropertySupport<*>> = mutableMapOf()
 
-    override val idProperty: KIProperty<*> = me.memberProperties.filter { it.name == "id" }.map { create(it) }.first()
+    override val idProperty: KIProperty<Any> = me.memberProperties.filter { it.name == "id" }.map { create(it) }.first()
 
-    override val props: Map<String, KIProperty<*>> = me.memberProperties.filter { !it.name.startsWith("_") }.associate { it.name to create(it.cast()) }
+    override val props: Map<String, KIProperty<Any>> = me.memberProperties.filter { !it.name.startsWith("_") }.associate { it.name to create(it.cast()) }
     override val types: List<KIEntityMeta> by lazy { listOf(this) + hierarchy }
 
     operator fun get(n: String): KIProperty<*>? = props[n]

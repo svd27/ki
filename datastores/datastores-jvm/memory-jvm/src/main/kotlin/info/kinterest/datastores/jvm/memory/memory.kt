@@ -326,11 +326,11 @@ class JvmMemoryDataStore(cfg: JvmMemCfg) : DataStoreJvm(cfg.name) {
 
         @Suppress("UNCHECKED_CAST")
         fun <E : KIEntity<K>, K : Any> query(query: Query<E, K>): QueryResult<E, K> = run {
-            val fs = baseQuery(query)
+            val fs = baseQuery(query).toList()
 
 
             val pres = query.projections.map { proj ->
-                loadProjection(proj, fs.toList().asSequence())
+                loadProjection(proj, fs.asSequence())
             }.associateBy { it.projection }
             QueryResult(query, pres)
         }
