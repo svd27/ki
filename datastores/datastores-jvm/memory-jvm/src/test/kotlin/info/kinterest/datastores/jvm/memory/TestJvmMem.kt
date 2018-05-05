@@ -1,10 +1,6 @@
 package info.kinterest.datastores.jvm.memory
 
-import com.github.salomonbrys.kodein.Kodein
-import com.github.salomonbrys.kodein.instance
 import info.kinterest.*
-import info.kinterest.datastores.jvm.DataStoreConfig
-import info.kinterest.datastores.jvm.DataStoreFactoryProvider
 import info.kinterest.datastores.jvm.datasourceKodein
 import info.kinterest.datastores.jvm.memory.jvm.TestRootJvm
 import info.kinterest.datastores.jvm.memory.jvm.TestVersionedJvm
@@ -17,6 +13,8 @@ import info.kinterest.jvm.annotations.Entity
 import info.kinterest.jvm.annotations.StorageTypes
 import info.kinterest.jvm.annotations.Versioned
 import info.kinterest.jvm.coreKodein
+import info.kinterest.jvm.datastores.DataStoreConfig
+import info.kinterest.jvm.datastores.IDataStoreFactoryProvider
 import info.kinterest.jvm.events.Dispatcher
 import info.kinterest.jvm.util.EventWaiter
 import kotlinx.coroutines.experimental.channels.Channel
@@ -28,6 +26,8 @@ import org.jetbrains.spek.api.Spek
 import org.jetbrains.spek.api.dsl.given
 import org.jetbrains.spek.api.dsl.it
 import org.jetbrains.spek.api.dsl.on
+import org.kodein.di.Kodein
+import org.kodein.di.erased.instance
 import java.util.concurrent.TimeUnit
 
 @Entity
@@ -57,9 +57,9 @@ object TestJvmMem : Spek({
             import(coreKodein)
             import(datasourceKodein)
         }
-        kodein.instance<DataStoreFactoryProvider>().inject(kodein)
-        val fac = kodein.instance<DataStoreFactoryProvider>()
-        val metaProvider = kodein.instance<MetaProvider>()
+
+        val fac by kodein.instance<IDataStoreFactoryProvider>()
+        val metaProvider by kodein.instance<MetaProvider>()
 
         val cfg = object : DataStoreConfig {
             override val name: String
@@ -69,7 +69,7 @@ object TestJvmMem : Spek({
             override val config: Map<String, Any?>
                 get() = emptyMap()
         }
-        val ds = fac.factories[cfg.type]!!.create(cfg)
+        val ds = fac.create(cfg).getOrElse { throw it }
 
         on("its type") {
             it("should have the proper type and name") {
@@ -159,12 +159,11 @@ class TestVersion : Spek({
             import(coreKodein)
             import(datasourceKodein)
         }
-        kodein.instance<DataStoreFactoryProvider>().inject(kodein)
-        val fac = kodein.instance<DataStoreFactoryProvider>()
-        val dispatcher = kodein.instance<Dispatcher<EntityEvent<*, *>>>("entities")
+        val fac by kodein.instance<IDataStoreFactoryProvider>()
+        val dispatcher by kodein.instance<Dispatcher<EntityEvent<*, *>>>("entities")
         val ch = Channel<EntityEvent<*, *>>()
         runBlocking { dispatcher.subscribing.send(ch) }
-        val metaProvider: MetaProvider = kodein.instance()
+        val metaProvider: MetaProvider by kodein.instance()
         metaProvider.register(TestVersionedJvm.meta)
 
         val cfg = object : DataStoreConfig {
@@ -176,7 +175,7 @@ class TestVersion : Spek({
                 get() = emptyMap()
         }
 
-        val ds = fac.factories[cfg.type]!!.create(cfg)
+        val ds = fac.create(cfg).getOrElse { throw it }
 
         val mem = ds.cast<JvmMemoryDataStore>()
         val tryDefer = mem.create<TestVersioned, Long>(TestVersionedJvm.meta, listOf(TestVersionedJvm.Transient(mem, 0.toLong(), "aname", null, "not me")))
@@ -240,7 +239,7 @@ class TestVersion : Spek({
 
 
         on("attempting to set a values with the wrong version") {
-            val deferSet = mem.setValues(TestVersionedJvm.meta, entity.id, 0.toLong(), mapOf(TestVersionedJvm.meta.PROP_SOMEONE to "oh no"))
+            val deferSet = mem.setValues(TestVersionedJvm.meta, entity.id, 0.toLong(), mapOf(TestVersionedJvm.meta.PROP_SOMEONE to "oh no"), 0)
             val trySet = runBlocking { deferSet.await() }
             val ex = trySet.toEither().swap().getOrElse { null }!!
             trySet.getOrElse { log.trace(it) { } }
@@ -271,8 +270,7 @@ object TestDelete : Spek({
             import(coreKodein)
             import(datasourceKodein)
         }
-        kodein.instance<DataStoreFactoryProvider>().inject(kodein)
-        val fac = kodein.instance<DataStoreFactoryProvider>()
+        val fac by kodein.instance<IDataStoreFactoryProvider>()
 
         val cfg = object : DataStoreConfig {
             override val name: String
@@ -283,7 +281,7 @@ object TestDelete : Spek({
                 get() = emptyMap()
         }
 
-        val ds = fac.factories[cfg.type]!!.create(cfg)
+        val ds = fac.create(cfg).getOrElse { throw it }
 
         val mem = ds.cast<JvmMemoryDataStore>()
         fun create(k: String): TestRoot = run {

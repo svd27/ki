@@ -1,10 +1,9 @@
 package info.kinterest.jvm.datastores
 
-import com.github.salomonbrys.kodein.Kodein
 import com.nhaarman.mockito_kotlin.whenever
 import info.kinterest.*
 import info.kinterest.datastores.DataStoreFacade
-import info.kinterest.datastores.IRelationTrace
+import info.kinterest.datastores.IEntityTrace
 import info.kinterest.datastores.QueryMsg
 import info.kinterest.datastores.QueryResultMsg
 import info.kinterest.filter.FilterWrapper
@@ -31,6 +30,7 @@ import org.jetbrains.spek.api.Spek
 import org.jetbrains.spek.api.dsl.given
 import org.jetbrains.spek.api.dsl.it
 import org.jetbrains.spek.api.dsl.on
+import org.kodein.di.Kodein
 import kotlin.reflect.KClass
 
 val remmeta: KIEntityMeta = object : KIEntityMeta() {
@@ -92,7 +92,7 @@ open class RemIn(name: String, override val pool: CoroutineDispatcher, override 
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
-    override fun getBookedRelationsSync(rel: KIRelationProperty, entity: KIEntity<Any>, sourceMeta: KIEntityMeta): Try<Iterable<IRelationTrace>> {
+    override fun getBookedRelationsSync(rel: KIRelationProperty, entity: KIEntity<Any>, sourceMeta: KIEntityMeta): Try<Iterable<IEntityTrace>> {
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
@@ -128,7 +128,7 @@ open class RemIn(name: String, override val pool: CoroutineDispatcher, override 
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
-    override fun setValues(type: KIEntityMeta, id: Any, version: Any, values: Map<KIProperty<*>, Any?>): Deferred<Try<Unit>> {
+    override fun setValues(type: KIEntityMeta, id: Any, version: Any, values: Map<KIProperty<*>, Any?>, retries: Int): Deferred<Try<Unit>> {
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
@@ -153,6 +153,22 @@ open class RemIn(name: String, override val pool: CoroutineDispatcher, override 
     }
 
     override fun <T : KIEntity<L>, L : Any, S : KIEntity<K>, K : Any> unbookRelationSync(rel: Relation<S, T, K, L>): Try<Boolean> {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun <S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any> setRelation(rel: Relation<S, T, K, L>): Try<Deferred<Try<Boolean>>> {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun <S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any> setRelationSync(rel: Relation<S, T, K, L>): Try<Boolean> {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun <S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any> unsetRelation(rel: Relation<S, T, K, L>): Try<Deferred<Try<Boolean>>> {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun <S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any> unsetRelationSync(rel: Relation<S, T, K, L>): Try<Boolean> {
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
@@ -175,7 +191,7 @@ open class RemOut(kodein: Kodein, name: String, override val ds: DataStoreFacade
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
-    override fun getBookedRelationsSync(rel: KIRelationProperty, entity: KIEntity<Any>, sourceMeta: KIEntityMeta): Try<Iterable<IRelationTrace>> {
+    override fun getBookedRelationsSync(rel: KIRelationProperty, entity: KIEntity<Any>, sourceMeta: KIEntityMeta): Try<Iterable<IEntityTrace>> {
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
@@ -207,7 +223,7 @@ open class RemOut(kodein: Kodein, name: String, override val ds: DataStoreFacade
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
-    override fun setValues(type: KIEntityMeta, id: Any, version: Any, values: Map<KIProperty<*>, Any?>): Deferred<Try<Unit>> {
+    override fun setValues(type: KIEntityMeta, id: Any, version: Any, values: Map<KIProperty<*>, Any?>, retries: Int): Deferred<Try<Unit>> {
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
@@ -235,6 +251,21 @@ open class RemOut(kodein: Kodein, name: String, override val ds: DataStoreFacade
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
+    override fun <S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any> setRelation(rel: Relation<S, T, K, L>): Try<Deferred<Try<Boolean>>> {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun <S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any> setRelationSync(rel: Relation<S, T, K, L>): Try<Boolean> {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun <S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any> unsetRelation(rel: Relation<S, T, K, L>): Try<Deferred<Try<Boolean>>> {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun <S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any> unsetRelationSync(rel: Relation<S, T, K, L>): Try<Boolean> {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
 }
 
 class RemoteTest : Spek({

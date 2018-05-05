@@ -1,14 +1,13 @@
 package info.kinterest.datastores.jvm.memory.tx
 
-import com.github.salomonbrys.kodein.instance
 import info.kinterest.QueryError
-import info.kinterest.datastores.jvm.DataStoreConfig
 import info.kinterest.datastores.jvm.memory.BaseMemTest
 import info.kinterest.datastores.jvm.memory.RelPerson
 import info.kinterest.datastores.jvm.memory.jvm.RelPersonJvm
 import info.kinterest.functional.Try
 import info.kinterest.functional.flatten
 import info.kinterest.functional.getOrElse
+import info.kinterest.jvm.datastores.DataStoreConfig
 import info.kinterest.jvm.tx.TransactionManager
 import info.kinterest.jvm.tx.TxState
 import info.kinterest.jvm.tx.jvm.CreateTransactionJvm
@@ -21,6 +20,7 @@ import org.jetbrains.spek.api.Spek
 import org.jetbrains.spek.api.dsl.given
 import org.jetbrains.spek.api.dsl.it
 import org.jetbrains.spek.api.dsl.on
+import org.kodein.di.erased.instance
 import java.time.OffsetDateTime
 
 class TxTest : Spek({
@@ -35,13 +35,11 @@ class TxTest : Spek({
     })
     val ds1 = base.dss.first()
     val ds2 = base.dss.last()
-    val tm: TransactionManager = base.kodein.instance()
+    val tm: TransactionManager by base.kodein.instance()
     base.metaProvider.register(CreateTransactionJvm.meta)
     base.metaProvider.register(RelPersonJvm.meta)
     Try.errorHandler = { ex ->
         logger.debug(ex) {}
-        val here = Exception()
-        logger.debug(here) { "Caught in" }
     }
     given("two datastores") {
         logger.debug { tm.qm.stores }

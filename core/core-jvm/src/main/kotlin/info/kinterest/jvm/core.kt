@@ -1,12 +1,8 @@
 package info.kinterest.jvm
 
-import com.github.salomonbrys.kodein.Kodein
-import com.github.salomonbrys.kodein.bind
-import com.github.salomonbrys.kodein.instance
-import com.github.salomonbrys.kodein.singleton
 import info.kinterest.*
 import info.kinterest.datastores.DataStoreFacade
-import info.kinterest.datastores.IRelationTrace
+import info.kinterest.datastores.IEntityTrace
 import info.kinterest.functional.Try
 import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.annotations.Relation
@@ -21,6 +17,10 @@ import kotlinx.coroutines.experimental.newFixedThreadPoolContext
 import kotlinx.coroutines.experimental.runBlocking
 import mu.KLogging
 import org.jetbrains.annotations.Nullable
+import org.kodein.di.Kodein.Module
+import org.kodein.di.erased.bind
+import org.kodein.di.erased.instance
+import org.kodein.di.erased.singleton
 import kotlin.reflect.KClass
 import kotlin.reflect.KMutableProperty1
 import kotlin.reflect.KProperty1
@@ -60,7 +60,7 @@ abstract class KIJvmEntity<out E : KIEntity<K>, out K : Any>(override val _store
 
 fun <E : KIEntity<K>, K : Any, S : KIEntity<L>, L : Any> KIJvmEntity<E, K>.addIncomingRelation(rel: info.kinterest.meta.Relation<S, E, L, K>): Try<Boolean> = _store.bookRelationSync(rel)
 fun <E : KIEntity<K>, K : Any, S : KIEntity<L>, L : Any> KIJvmEntity<E, K>.removeIncomingRelation(rel: info.kinterest.meta.Relation<S, E, L, K>): Try<Boolean> = _store.unbookRelationSync(rel)
-fun KIJvmEntity<KIEntity<Any>, Any>.getIncomingRelations(rel: KIRelationProperty, sourceMeta: KIEntityMeta): Try<Iterable<IRelationTrace>> = _store.getBookedRelationsSync(rel, this, sourceMeta)
+fun KIJvmEntity<KIEntity<Any>, Any>.getIncomingRelations(rel: KIRelationProperty, sourceMeta: KIEntityMeta): Try<Iterable<IEntityTrace>> = _store.getBookedRelationsSync(rel, this, sourceMeta)
 
 abstract class KIJvmEntityMeta(override val impl: KClass<*>, final override val me: KClass<*>) : KIEntityMeta() {
     override val name = me.simpleName!!
@@ -139,7 +139,7 @@ abstract class KIJvmEntityMeta(override val impl: KClass<*>, final override val 
 }
 
 
-val coreKodein = Kodein.Module {
+val coreKodein = Module {
     bind<MetaProvider>() with instance(MetaProvider())
     bind<Dispatcher<EntityEvent<*, *>>>("entities") with instance(Dispatcher())
     bind<FilterTree>() with singleton { FilterTree(instance("entities"), 100) }

@@ -4,9 +4,9 @@ import info.kinterest.InterestCreated
 import info.kinterest.InterestProjectionEvent
 import info.kinterest.ProjectionChanged
 import info.kinterest.ProjectionLoaded
-import info.kinterest.datastores.jvm.DataStoreConfig
 import info.kinterest.datastores.jvm.memory.jvm.RelPersonJvm
 import info.kinterest.functional.getOrElse
+import info.kinterest.jvm.datastores.DataStoreConfig
 import info.kinterest.jvm.filter.EntityFilter
 import info.kinterest.jvm.filter.LiveFilterWrapper
 import info.kinterest.jvm.interest.InterestManager

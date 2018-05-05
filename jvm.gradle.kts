@@ -43,7 +43,7 @@ configure(jvm) {
         "compile"(kotlin("reflect"))
         "compile"(kotlin("stdlib-jdk8"))
         "compile"("ch.qos.logback:logback-classic:1.0.13")
-        "compile"( "com.github.salomonbrys.kodein:kodein:4.1.0")
+        "compile"("org.kodein.di:kodein-di-erased-jvm:5.0.0")
         "compile"("io.vertx:vertx-web:3.5.1")
         "compile"("io.vertx:vertx-lang-kotlin-coroutines:3.5.1")
         "compile"("io.vertx:vertx-lang-kotlin:3.5.1")

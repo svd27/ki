@@ -4,16 +4,20 @@ import info.kinterest.EntityEvent
 import info.kinterest.EntityRelationsAdded
 import info.kinterest.EntityRelationsRemoved
 import info.kinterest.KIEntity
-import info.kinterest.datastores.jvm.DataStoreConfig
 import info.kinterest.datastores.jvm.memory.jvm.RelPersonJvm
+import info.kinterest.functional.Try
 import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.KIJvmEntity
 import info.kinterest.jvm.annotations.Entity
 import info.kinterest.jvm.annotations.Relation
+import info.kinterest.jvm.datastores.DataStoreConfig
 import info.kinterest.jvm.getIncomingRelations
+import info.kinterest.jvm.tx.TransactionManager
+import info.kinterest.jvm.tx.jvm.*
 import info.kinterest.jvm.util.EventWaiter
 import kotlinx.coroutines.experimental.channels.Channel
 import kotlinx.coroutines.experimental.runBlocking
+import mu.KLogging
 import org.amshove.kluent.`should be instance of`
 import org.amshove.kluent.`should be true`
 import org.amshove.kluent.`should equal`
@@ -21,6 +25,7 @@ import org.jetbrains.spek.api.Spek
 import org.jetbrains.spek.api.dsl.given
 import org.jetbrains.spek.api.dsl.it
 import org.jetbrains.spek.api.dsl.on
+import org.kodein.di.erased.instance
 
 @Entity
 interface RelPerson : KIEntity<Long> {
@@ -42,10 +47,21 @@ class RelationTest : Spek({
             override val config: Map<String, Any?>
                 get() = mapOf()
         })
+        val tm by base.kodein.instance<TransactionManager>()
+        tm.txStore.name
+        Try.errorHandler = {
+            logger.debug(it) { }
+        }
 
         base.metaProvider.register(RelPersonJvm.meta)
+        base.metaProvider.register(AddRelationTransactionJvm.meta)
+        base.metaProvider.register(AddOutgoingRelationTransactionJvm.meta)
+        base.metaProvider.register(BookRelationTransactionJvm.meta)
+        base.metaProvider.register(RemoveRelationTransactionJvm.meta)
+        base.metaProvider.register(RemoveOutgoingRelationTransactionJvm.meta)
+        base.metaProvider.register(UnBookRelationTransactionJvm.meta)
         val subscription: Channel<EntityEvent<*, *>> = Channel()
-        val waiter = EventWaiter<EntityEvent<*, *>>(subscription)
+        val waiter = EventWaiter(subscription)
         runBlocking { base.dispatcher.subscribing.send(subscription) }
 
 
@@ -59,6 +75,7 @@ class RelationTest : Spek({
             val addres = base.ds.addRelation(info.kinterest.meta.Relation(RelPersonJvm.Meta.PROP_FRIENDS, p1, p2))
 
             it("should be reflected in the property") {
+                addres.getOrElse { throw it }
                 addres.isSuccess.`should be true`()
                 val res = runBlocking { addres.getOrElse { throw it }.await().getOrElse { throw it } }
                 res.`should be true`()
@@ -122,6 +139,7 @@ class RelationTest : Spek({
             }
             val incoming2 = (p2 as KIJvmEntity<*, *>).getIncomingRelations(RelPersonJvm.meta.PROP_FRIENDS, RelPersonJvm.meta).getOrElse { throw it }.toList()
             it("should be reflected in incomings") {
+                logger.debug { "incomings $incoming2" }
                 incoming2.size `should equal` 1
                 incoming2.map { it.id }.toSet() `should equal` setOf(p1.id)
             }
@@ -137,13 +155,17 @@ class RelationTest : Spek({
             val p2 = base.retrieve<RelPerson, Long>(listOf(1)).getOrElse { throw it }.first()
             val p3 = base.retrieve<RelPerson, Long>(listOf(2)).getOrElse { throw it }.first()
             p3.friends.add(p1)
-            p3.friends.add(p1)
             waiter.waitFor { it is EntityRelationsAdded<*, *, *, *> && it.relations.any { it.source == p3 && it.target == p1 } }
+            p3.friends.add(p1)
+
             it("should only have one relation") {
                 p3.friends.size `should equal` 1
                 val incomingRelations = (p1 as KIJvmEntity<*, *>).getIncomingRelations(RelPersonJvm.meta.PROP_FRIENDS, RelPersonJvm.meta).getOrElse { throw it }
+                logger.debug { "incoming $incomingRelations" }
                 incomingRelations.count() `should equal` 1
             }
         }
     }
-})
+}) {
+    companion object : KLogging()
+}

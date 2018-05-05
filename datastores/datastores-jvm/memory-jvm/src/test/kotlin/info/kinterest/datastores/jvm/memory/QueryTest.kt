@@ -2,9 +2,9 @@ package info.kinterest.datastores.jvm.memory
 
 import info.kinterest.cast
 import info.kinterest.core.jvm.filters.parser.parse
-import info.kinterest.datastores.jvm.DataStoreConfig
 import info.kinterest.datastores.jvm.memory.jvm.QueryEntityJvm
 import info.kinterest.functional.getOrElse
+import info.kinterest.jvm.datastores.DataStoreConfig
 import info.kinterest.jvm.filter.filter
 import info.kinterest.paging.Paging
 import info.kinterest.query.EntityProjection

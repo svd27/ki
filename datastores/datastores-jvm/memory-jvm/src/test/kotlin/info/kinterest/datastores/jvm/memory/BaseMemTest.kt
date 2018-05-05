@@ -1,24 +1,24 @@
 package info.kinterest.datastores.jvm.memory
 
-import com.github.salomonbrys.kodein.Kodein
-import com.github.salomonbrys.kodein.bind
-import com.github.salomonbrys.kodein.instance
-import com.github.salomonbrys.kodein.singleton
 import info.kinterest.EntityEvent
 import info.kinterest.KIEntity
 import info.kinterest.MetaProvider
 import info.kinterest.datastores.DataStoreFacade
-import info.kinterest.datastores.jvm.DataStoreConfig
-import info.kinterest.datastores.jvm.DataStoreFactoryProvider
 import info.kinterest.datastores.jvm.datasourceKodein
 import info.kinterest.functional.Try
 import info.kinterest.functional.flatten
 import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.coreKodein
+import info.kinterest.jvm.datastores.DataStoreConfig
+import info.kinterest.jvm.datastores.IDataStoreFactoryProvider
 import info.kinterest.jvm.events.Dispatcher
 import info.kinterest.query.QueryManager
 import kotlinx.coroutines.experimental.channels.Channel
 import kotlinx.coroutines.experimental.runBlocking
+import org.kodein.di.Kodein
+import org.kodein.di.erased.bind
+import org.kodein.di.erased.instance
+import org.kodein.di.erased.singleton
 
 class BaseMemTest(vararg cfg: DataStoreConfig) {
     val kodein = Kodein {
@@ -34,18 +34,16 @@ class BaseMemTest(vararg cfg: DataStoreConfig) {
     }
     val dss: Iterable<DataStoreFacade>
     val ds: DataStoreFacade
-    val qm: QueryManager
+    val qm: QueryManager by kodein.instance()
     init {
-        kodein.instance<DataStoreFactoryProvider>().inject(kodein)
-        val provider = kodein.instance<DataStoreFactoryProvider>()
+        val provider by kodein.instance<IDataStoreFactoryProvider>()
         dss = cfg.map { provider.create(it).getOrElse { throw it } }
         ds = dss.first()
-        qm = kodein.instance()
     }
 
 
-    val metaProvider = kodein.instance<MetaProvider>()
-    val dispatcher: Dispatcher<EntityEvent<*, *>> = kodein.instance("entities")
+    val metaProvider by kodein.instance<MetaProvider>()
+    val dispatcher: Dispatcher<EntityEvent<*, *>> by kodein.instance("entities")
     val events: Channel<EntityEvent<*, *>> = Channel()
 
     fun <E : KIEntity<K>, K : Comparable<K>> create(e: E): Try<E> = run {

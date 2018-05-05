@@ -45,6 +45,8 @@ sealed class KIProperty<out V : Any>(private val support: KIPropertySupport<V>, 
     }
 
     override fun hashCode(): Int = name.hashCode()
+
+    override fun toString(): String = "$name($type)"
 }
 
 

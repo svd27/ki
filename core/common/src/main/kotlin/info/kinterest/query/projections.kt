@@ -23,7 +23,7 @@ data class Path(val name: String, val parent: Path?) {
     fun isSubPath(p: Path) = toString().commonPrefixWith(p.toString()).length == p.toString().length
 }
 
-fun <T, R> Deferred<T>.map(map: (T) -> R): Deferred<R> = async {
+fun <T, R> Deferred<T>.map(map: suspend (T) -> R): Deferred<R> = async {
     map(await())
 }
 
