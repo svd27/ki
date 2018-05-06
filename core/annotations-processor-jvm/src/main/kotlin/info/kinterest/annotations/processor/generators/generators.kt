@@ -103,8 +103,6 @@ class EntityInfo(val type: TypeElement, val env: ProcessingEnvironment) {
 
     val versioned = (hierarchy+type).flatMap { it.interfaces }.any { it -> it is DeclaredType && it.asElement().simpleName.toString() == KIVersionedEntity::class.simpleName }
 
-    class IdInfo(val type: TypeElement, val generateKey: Boolean)
-
     inner class RelationInfo(val element: ExecutableElement, type1: TypeElement) {
         val multi: Boolean
         val typeName: String

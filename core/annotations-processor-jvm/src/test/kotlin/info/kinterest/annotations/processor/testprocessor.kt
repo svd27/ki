@@ -4,7 +4,6 @@ import info.kinterest.KIEntity
 import info.kinterest.KIVersionedEntity
 import info.kinterest.annotations.processor.jvm.TotalTestJvm
 import info.kinterest.jvm.annotations.Entity
-import info.kinterest.jvm.annotations.GeneratedId
 import info.kinterest.jvm.annotations.StorageTypes
 import info.kinterest.jvm.annotations.Versioned
 import org.amshove.kluent.`should be`
@@ -21,7 +20,6 @@ import kotlin.reflect.full.memberProperties
 @Entity()
 @StorageTypes(["jvm.mem"])
 interface TotalTest : KIEntity<UUID> {
-    @get:GeneratedId()
     override val id: UUID
     val total : Int?
     var adapt : Boolean?
@@ -32,7 +30,6 @@ interface TotalTest : KIEntity<UUID> {
 @StorageTypes(arrayOf("jvm.mem"))
 @Versioned
 interface VersionedTest : KIVersionedEntity<Long> {
-    @get:GeneratedId()
     override val id: Long
     val total : Int?
     var adapt : Boolean?
