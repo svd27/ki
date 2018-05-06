@@ -222,7 +222,6 @@ class TestVersion : Spek({
         entity.someone = "not me, but someone else"
         runBlocking { delay(100, TimeUnit.MILLISECONDS) }
 
-
         on("setting a property") {
             it("should reflect the value") {
                 waiter.waitFor { it is EntityUpdatedEvent && it.updates.any { it.prop.name == "someone" } }
@@ -235,8 +234,6 @@ class TestVersion : Spek({
             }
 
         }
-
-
 
         on("attempting to set a values with the wrong version") {
             val deferSet = mem.setValues(TestVersionedJvm.meta, entity.id, 0.toLong(), mapOf(TestVersionedJvm.meta.PROP_SOMEONE to "oh no"), 0)
@@ -256,9 +253,6 @@ class TestVersion : Spek({
                 optimisticLockException.key shouldBe k
             }
         }
-
-
-
     }
 }) {
     companion object : KLogging()
@@ -324,5 +318,4 @@ object TestDelete : Spek({
             }
         }
     }
-
 })

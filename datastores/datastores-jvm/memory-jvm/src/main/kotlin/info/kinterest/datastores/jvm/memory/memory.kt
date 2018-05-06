@@ -327,7 +327,6 @@ class JvmMemoryDataStore(cfg: JvmMemCfg, kodein: Kodein) : DataStoreJvm(cfg.name
         } ?: emptyList()
 
 
-
         operator fun set(k: Any, version: Long, values: Map<String, Any?>): Map<String, Any?>
 
         fun <E : KIEntity<K>, K : Any> baseQuery(query: Query<E, K>): Sequence<Pair<E, Map<String, Any?>>>
@@ -455,7 +454,6 @@ class JvmMemoryDataStore(cfg: JvmMemCfg, kodein: Kodein) : DataStoreJvm(cfg.name
         }
 
 
-
     }
 
     inner internal open class RootBucket(final override val meta: KIEntityMeta) : Bucket {
@@ -520,45 +518,43 @@ class JvmMemoryDataStore(cfg: JvmMemCfg, kodein: Kodein) : DataStoreJvm(cfg.name
 
         private fun versionName(k: Any) = "${meta.me.simpleName}.$k._version"
 
-        override fun <E : KIEntity<K>, K : Any> create(entities: Iterable<E>): Iterable<E> = run {
-            db.tx {
-                fun relations(e: E): Map<String, List<EntityTrace>>? = e._meta.props.values.filterIsInstance<KIRelationProperty>().map { rel ->
-                    rel.name to if (e.getValue(rel) is Collection<*>) {
-                        @Suppress("UNCHECKED_CAST")
-                        (e.getValue(rel) as Collection<KIJvmEntity<*, *>>).map { target -> Relation(rel, e, target) to EntityTrace(target._meta.name, target.id, target._store.name) }
-                    } else {
-                        val target = e.getValue(rel) as KIJvmEntity<*, *>
-                        listOf(Relation(rel, e, target) to EntityTrace(target._meta.name, target.id, target._store.name))
-                    }
-                }.map {
-                    it.first to it.second.map {
-                        it.first.target.addIncomingRelation(it.first); it.second
-                    }
-                }.toMap()
-                entities.map { e ->
-                    e to
-                            e._meta.props.filter { it.value !is KIRelationProperty }.map {
-                                it.value.name to e.getValue(it.value)
-                            }.toMap() +
-                            (TYPES to e._meta.types.map { it.name }.toTypedArray()) +
-                            (TYPE to e._meta.name) +
-                            (RELATIONS to relations(e))
-                }.map { (e, values) ->
-                    val id = e.id
+        override fun <E : KIEntity<K>, K : Any> create(entities: Iterable<E>): Iterable<E> = db.tx {
+            fun relations(e: E): Map<String, List<EntityTrace>>? = e._meta.props.values.filterIsInstance<KIRelationProperty>().map { rel ->
+                rel.name to if (e.getValue(rel) is Collection<*>) {
                     @Suppress("UNCHECKED_CAST")
-                    if (id in bucket) throw DataStoreError.EntityError.EntityExists(meta, id, this@JvmMemoryDataStore)
-
-                    if (versioned) Try { db.atomicLong(versionName(id), 0).create() }.getOrElse {
-                        throw DataStoreError.EntityError.VersionAlreadyExists(meta, id, this@JvmMemoryDataStore, it)
-                    }
-                    val map = values.toMutableMap()
-                    bucket[id] = map
-                    @Suppress("UNCHECKED_CAST")
-                    e._meta.new(this@JvmMemoryDataStore, id) as E
-                }.apply {
-                    if (isNotEmpty())
-                        runBlocking { events.incoming.send(EntityCreateEvent(this@apply)) }
+                    (e.getValue(rel) as Collection<KIJvmEntity<*, *>>).map { target -> Relation(rel, e, target) to EntityTrace(target._meta.name, target.id, target._store.name) }
+                } else {
+                    val target = e.getValue(rel) as KIJvmEntity<*, *>
+                    listOf(Relation(rel, e, target) to EntityTrace(target._meta.name, target.id, target._store.name))
                 }
+            }.map {
+                it.first to it.second.map {
+                    it.first.target.addIncomingRelation(it.first); it.second
+                }
+            }.toMap()
+            entities.map { e ->
+                e to
+                        e._meta.props.filter { it.value !is KIRelationProperty }.map {
+                            it.value.name to e.getValue(it.value)
+                        }.toMap() +
+                        (TYPES to e._meta.types.map { it.name }.toTypedArray()) +
+                        (TYPE to e._meta.name) +
+                        (RELATIONS to relations(e))
+            }.map { (e, values) ->
+                val id = e.id
+                @Suppress("UNCHECKED_CAST")
+                if (id in bucket) throw DataStoreError.EntityError.EntityExists(meta, id, this@JvmMemoryDataStore)
+
+                if (versioned) Try { db.atomicLong(versionName(id), 0).create() }.getOrElse {
+                    throw DataStoreError.EntityError.VersionAlreadyExists(meta, id, this@JvmMemoryDataStore, it)
+                }
+                val map = values.toMutableMap()
+                bucket[id] = map
+                @Suppress("UNCHECKED_CAST")
+                e._meta.new(this@JvmMemoryDataStore, id) as E
+            }.apply {
+                if (isNotEmpty())
+                    runBlocking { events.incoming.send(EntityCreateEvent(this@apply)) }
             }
         }
 
