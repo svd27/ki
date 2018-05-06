@@ -149,11 +149,11 @@ interface TransactionManager {
                 while (isActive) {
                     setState(tx, TxState.PROCESSING)
                     val ct = children(tx, TxState.ACTIVE)
-                    logger.debug { "children $ct" }
+                    logger.debug { "children ${ct.map { "$it ${it.state}" }.joinToString(", ")}" }
                     setState(tx, TxState.WAITING)
                     ct.map { execute(it) }.map { it.await() }
                     val ctd = children(tx, TxState.INACTIVE)
-                    logger.debug { "children done $ctd" }
+                    logger.debug { "children done ${ctd.map { "$it ${it.state}" }.joinToString(", ")}" }
                     require(ct.count() == ctd.count()) {
                         "expected ${ct.count()} but was ${ctd.count()}"
                     }
@@ -321,7 +321,7 @@ interface AddRelationTransaction : Transaction<Boolean> {
             else
                 throw IllegalStateException("neither all booked or unbooked ${childrenDone.map {
                     "$it ${it.state} ${
-                    if (it is BookRelationTransaction) it.booked else if (it is AddOutgoingRelationTransaction) it.booked else ""
+                    if (it is BookRelationTransaction) "${it.booked}" else if (it is AddOutgoingRelationTransaction) "${it.booked}" else ""
                     }"
                 }.joinToString(",", "[", "]")}")
         } else throw IllegalStateException("not all done ${childrenDone.map { "$it ${it.state}" }}")
@@ -354,7 +354,7 @@ interface RemoveRelationTransaction : Transaction<Boolean> {
             else
                 throw IllegalStateException("neither all booked or unbooked ${childrenDone.map {
                     "$it ${it.state} ${
-                    if (it is UnBookRelationTransaction) it.unbooked else if (it is RemoveOutgoingRelationTransaction) it.unbooked else ""
+                    if (it is UnBookRelationTransaction) "${it.unbooked}" else if (it is RemoveOutgoingRelationTransaction) "${it.unbooked}" else ""
                     }"
                 }.joinToString(",", "[", "]")}")
         } else throw IllegalStateException("not all done ${childrenDone.map { "$it ${it.state}" }}")
