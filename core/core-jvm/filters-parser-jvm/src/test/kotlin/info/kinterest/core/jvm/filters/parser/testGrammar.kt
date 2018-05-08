@@ -6,6 +6,7 @@ import info.kinterest.jvm.KIJvmEntityMeta
 import info.kinterest.jvm.filter.EntityFilter
 import info.kinterest.jvm.filter.GTFilter
 import info.kinterest.jvm.filter.filter
+import info.kinterest.meta.IdInfo
 import info.kinterest.meta.KIEntityMeta
 import info.kinterest.meta.KIProperty
 import org.amshove.kluent.`should be instance of`
@@ -60,20 +61,22 @@ class TestFilter(override val id: String, val top: Int?, val date: LocalDate) : 
 
                 override val hierarchy: List<KIEntityMeta>
                     get() = listOf()
+
+                override val idInfo: IdInfo = IdInfo(String::class, false, null, null, true)
             }
         }
     }
 }
 
 val Metas = MetaProvider().apply {
-    register(TestFilter.Companion.Meta)
+    register(TestFilter.Meta)
 }
 
 
 object SimpleTest : Spek({
     given("a string") {
-        val f = filter<TestFilter, String>(TestFilter.Companion.Meta) {
-            parse("TestFilter{top > 5}", TestFilter.Companion.Meta)
+        val f = filter<TestFilter, String>(TestFilter.Meta) {
+            parse("TestFilter{top > 5}", TestFilter.Meta)
         }
         on("parsing it") {
             it("should be parsed as a Filter") {
@@ -86,8 +89,8 @@ object SimpleTest : Spek({
 
     given("a string with a date") {
         on("parsing") {
-            val f = filter<TestFilter, String>(TestFilter.Companion.Meta) {
-                parse("TestFilter{date < date(\"12.3.2014\",\"d.M.yyyy\")}", TestFilter.Companion.Meta)
+            val f = filter<TestFilter, String>(TestFilter.Meta) {
+                parse("TestFilter{date < date(\"12.3.2014\",\"d.M.yyyy\")}", TestFilter.Meta)
             }
             it("should not fail") {}
             it("should be a proper filter") {

@@ -4,7 +4,6 @@ import info.kinterest.KIEntity
 import info.kinterest.KIVersionedEntity
 import info.kinterest.annotations.processor.jvm.TotalTestJvm
 import info.kinterest.jvm.annotations.Entity
-import info.kinterest.jvm.annotations.StorageTypes
 import info.kinterest.jvm.annotations.Versioned
 import org.amshove.kluent.`should be`
 import org.amshove.kluent.`should equal`
@@ -18,7 +17,6 @@ import java.util.*
 import kotlin.reflect.full.memberProperties
 
 @Entity()
-@StorageTypes(["jvm.mem"])
 interface TotalTest : KIEntity<UUID> {
     override val id: UUID
     val total : Int?
@@ -27,7 +25,6 @@ interface TotalTest : KIEntity<UUID> {
 }
 
 @Entity()
-@StorageTypes(arrayOf("jvm.mem"))
 @Versioned
 interface VersionedTest : KIVersionedEntity<Long> {
     override val id: Long

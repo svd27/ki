@@ -13,6 +13,7 @@ import info.kinterest.jvm.filter.filter
 import info.kinterest.jvm.filter.tree.FilterTree
 import info.kinterest.jvm.query.QueryManagerJvm
 import info.kinterest.jvm.util.EventWaiter
+import info.kinterest.meta.IdInfo
 import info.kinterest.meta.KIEntityMeta
 import info.kinterest.meta.KIProperty
 import info.kinterest.paging.Page
@@ -87,6 +88,7 @@ open class InterestEntityImpl(override val _store: DataStore, override val id: L
             get() = false
 
         override val hierarchy: List<KIEntityMeta> = listOf()
+        override val idInfo: IdInfo = IdInfo(Long::class, false, null, null, true)
     }
 
     class Transient(override val _store: DataStore, override val id: Long, override var name: String) : KITransientEntity<Long>, InterestEntity {

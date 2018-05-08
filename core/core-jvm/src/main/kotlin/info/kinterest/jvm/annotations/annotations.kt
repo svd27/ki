@@ -16,10 +16,6 @@ annotation class Versioned
 annotation class Transient
 
 @Retention(AnnotationRetention.SOURCE)
-@Target(AnnotationTarget.CLASS)
-annotation class StorageTypes(val stores: Array<String>)
-
-@Retention(AnnotationRetention.SOURCE)
 @Target(AnnotationTarget.PROPERTY_GETTER)
 annotation class GeneratedBy(val generator: String, val sequence: String)
 

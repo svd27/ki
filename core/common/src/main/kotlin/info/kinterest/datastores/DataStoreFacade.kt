@@ -23,7 +23,7 @@ abstract class DataStoreFacade(name: String) : DataStore(name) {
     abstract fun <E : KIEntity<K>, K : Any> query(query: Query<E, K>): Try<Deferred<Try<QueryResult<E, K>>>>
     abstract fun <E : KIEntity<K>, K : Any> retrieve(type: KIEntityMeta, ids: Iterable<K>): Try<Deferred<Try<Iterable<E>>>>
     abstract fun <E : KIEntity<K>, K : Any> retrieveLenient(type: KIEntityMeta, ids: Iterable<K>): Try<Deferred<Try<Iterable<E>>>>
-    abstract fun <E : KIEntity<K>, K : Any> create(type: KIEntityMeta, entities: Iterable<E>): Try<Deferred<Try<Iterable<E>>>>
+    abstract fun <E : KIEntity<K>, K : Any> create(type: KIEntityMeta, entity: E): Try<Deferred<Try<E>>>
     abstract fun <E : KIEntity<K>, K : Any> delete(type: KIEntityMeta, entities: Iterable<E>): Try<Deferred<Try<Iterable<K>>>>
     abstract fun getValues(type: KIEntityMeta, id: Any): Deferred<Try<Map<String, Any?>?>>
     abstract fun getValues(type: KIEntityMeta, id: Any, vararg props: KIProperty<*>): Deferred<Try<Map<String, Any?>?>>
@@ -42,6 +42,8 @@ abstract class DataStoreFacade(name: String) : DataStore(name) {
     abstract fun <S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any> setRelationSync(rel: Relation<S, T, K, L>): Try<Boolean>
     abstract fun <S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any> unsetRelation(rel: Relation<S, T, K, L>): Try<Deferred<Try<Boolean>>>
     abstract fun <S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any> unsetRelationSync(rel: Relation<S, T, K, L>): Try<Boolean>
+
+    abstract fun <K : Any> generateKey(type: KIEntityMeta): K
 }
 
 interface IEntityTrace {

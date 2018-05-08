@@ -15,6 +15,8 @@ abstract class KIEntityMeta {
     abstract val versioned: Boolean
 
     abstract val idProperty: KIProperty<Any>
+    abstract val idInfo: IdInfo
+
     abstract val props: Map<String, KIProperty<Any>>
     abstract val hierarchy: List<KIEntityMeta>
     abstract val types: List<KIEntityMeta>
@@ -26,6 +28,10 @@ abstract class KIEntityMeta {
     }
 
     override fun hashCode(): Int = name.hashCode()
+}
+
+class IdInfo(val idType: KClass<*>, val generatedByDataStore: Boolean, val generatedBy: String?, val sequence: String?, unique: Boolean?) {
+    val guaranteedUnique: Boolean = if (unique != null) unique else generatedBy != null
 }
 
 sealed class KIProperty<out V : Any>(private val support: KIPropertySupport<V>, val order: Int) {

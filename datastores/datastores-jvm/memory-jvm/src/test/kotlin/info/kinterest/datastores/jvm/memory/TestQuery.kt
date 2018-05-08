@@ -7,7 +7,6 @@ import info.kinterest.datastores.jvm.memory.jvm.QueryEntityJvm
 import info.kinterest.functional.flatten
 import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.annotations.Entity
-import info.kinterest.jvm.annotations.StorageTypes
 import info.kinterest.jvm.datastores.DataStoreConfig
 import info.kinterest.paging.Paging
 import info.kinterest.query.EntityProjection
@@ -26,7 +25,6 @@ import java.time.LocalDate
 import java.time.Month
 
 @Entity
-@StorageTypes(["jvm.mem"])
 interface QueryEntity : KIEntity<String> {
     override val id : String
     val name : String

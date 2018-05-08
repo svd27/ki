@@ -12,6 +12,9 @@ import info.kinterest.jvm.coreKodein
 import info.kinterest.jvm.datastores.DataStoreConfig
 import info.kinterest.jvm.datastores.IDataStoreFactoryProvider
 import info.kinterest.jvm.events.Dispatcher
+import info.kinterest.jvm.tx.TransactionManager
+import info.kinterest.jvm.tx.jvm.CreateTransactionJvm
+import info.kinterest.meta.KIEntityMeta
 import info.kinterest.query.QueryManager
 import kotlinx.coroutines.experimental.channels.Channel
 import kotlinx.coroutines.experimental.runBlocking
@@ -35,6 +38,8 @@ class BaseMemTest(vararg cfg: DataStoreConfig) {
     val dss: Iterable<DataStoreFacade>
     val ds: DataStoreFacade
     val qm: QueryManager by kodein.instance()
+
+    fun register(vararg metas: KIEntityMeta) = metas.forEach { metaProvider.register(it) }
     init {
         val provider by kodein.instance<IDataStoreFactoryProvider>()
         dss = cfg.map { provider.create(it).getOrElse { throw it } }
@@ -43,13 +48,19 @@ class BaseMemTest(vararg cfg: DataStoreConfig) {
 
 
     val metaProvider by kodein.instance<MetaProvider>()
+
+    init {
+        metaProvider.register(CreateTransactionJvm.meta)
+        val tm: TransactionManager by kodein.instance()
+        tm.txStore.name
+    }
     val dispatcher: Dispatcher<EntityEvent<*, *>> by kodein.instance("entities")
     val events: Channel<EntityEvent<*, *>> = Channel()
 
     fun <E : KIEntity<K>, K : Comparable<K>> create(e: E): Try<E> = run {
-        val tryC = ds.create(e._meta, listOf(e))
+        val tryC = ds.create(e._meta, e)
         val await = tryC.map { runBlocking { it.await() } }
-        await.flatten().map { it.first() }
+        await.flatten()
     }
 
     inline fun<reified E:KIEntity<K>, K:Any> retrieve(ids:Iterable<K>) : Try<Iterable<E>> = run {

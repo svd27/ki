@@ -9,6 +9,8 @@ import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.KIJvmEntity
 import info.kinterest.jvm.addIncomingRelation
 import info.kinterest.jvm.annotations.Entity
+import info.kinterest.jvm.annotations.GeneratedByStore
+import info.kinterest.jvm.annotations.GuarantueedUnique
 import info.kinterest.jvm.datastores.DataStoreConfig
 import info.kinterest.jvm.datastores.IDataStoreFactoryProvider
 import info.kinterest.jvm.filter.filter
@@ -60,7 +62,7 @@ interface TransactionManager {
     }
 
     suspend fun <R> create(tx: Transaction<R>): Transaction<R> = run {
-        val txc = txStore.create(tx._meta, listOf(tx)).getOrElse { throw it }.await().getOrElse { throw it }.first()
+        val txc = txStore.create(tx._meta, tx).getOrElse { throw it }.await().getOrElse { throw it }
         setState(txc, TxState.NEW)
         txc
     }
@@ -147,17 +149,18 @@ interface TransactionManager {
                 log.debug { "entering while" }
                 var res: R? = null
                 while (isActive) {
-                    setState(tx, TxState.PROCESSING)
-                    val ct = children(tx, TxState.ACTIVE)
-                    logger.debug { "children ${ct.map { "$it ${it.state}" }.joinToString(", ")}" }
-                    setState(tx, TxState.WAITING)
-                    ct.map { execute(it) }.map { it.await() }
-                    val ctd = children(tx, TxState.INACTIVE)
-                    logger.debug { "children done ${ctd.map { "$it ${it.state}" }.joinToString(", ")}" }
-                    require(ct.count() == ctd.count()) {
-                        "expected ${ct.count()} but was ${ctd.count()}"
-                    }
                     try {
+                        setState(tx, TxState.PROCESSING)
+                        val ct = children(tx, TxState.ACTIVE)
+                        logger.debug { "children ${ct.map { "$it ${it.state}" }.joinToString(", ")}" }
+                        setState(tx, TxState.WAITING)
+                        ct.map { execute(it) }.map { it.await() }
+                        val ctd = children(tx, TxState.INACTIVE)
+                        logger.debug { "children done ${ctd.map { "$it ${it.state}" }.joinToString(", ")}" }
+                        require(ct.count() == ctd.count()) {
+                            "expected ${ct.count()} but was ${ctd.count()}"
+                        }
+
                         setState(tx, TxState.PROCESSING)
                         val either: Either<Iterable<Transaction<*>>, R> = tx.process(ctd, this@TransactionManager)
                         when (either) {
@@ -169,6 +172,7 @@ interface TransactionManager {
                         }
                         if (res != null) break
                     } catch (e: Exception) {
+                        logger.debug(e) {}
                         fail(tx.cast(), Try.raise<Any>(e.cast()))
                         throw e
                     }
@@ -184,7 +188,9 @@ interface TransactionManager {
         }
         logger.debug { f }
         val projection = EntityProjection<Transaction<*>, Long>(Ordering.natural(), Paging.ALL)
-        val qr = txStore.query(Query(f, listOf(projection), setOf(txStore))).getOrElse { throw it }.await().getOrElse { throw it }
+        val query = txStore.query(Query(f, listOf(projection), setOf(txStore)))
+        val await = query.getOrElse { throw it }.await()
+        val qr = await.getOrElse { throw it }
         val txs = qr.retrieve(projection.path, qm).getOrElse { throw it }.await().getOrElse { throw it } as EntityProjectionResult<Transaction<*>, Long>
         txs.page.entities
     }
@@ -242,6 +248,9 @@ enum class TxState {
 @Entity
 interface Transaction<R> : KIVersionedEntity<Long> {
     override val id: Long
+        @GuarantueedUnique(true)
+        @GeneratedByStore
+        get() = TODO()
     val parent: Long?
     val createdAt: OffsetDateTime
     val validTill: OffsetDateTime
