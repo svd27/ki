@@ -6,8 +6,8 @@ dependencies {
     "expectedBy"(project(":core:common"))
     compile("org.yanex.takenoko:takenoko:0.1.1")
     "kaptTest"(project(":"))
+    "kapt"(project(":"))
     compile(project(":core:core-jvm"))
-    compile(project(":datastores:datastores-jvm:memory-jvm"))
 }
 
 

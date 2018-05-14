@@ -60,5 +60,6 @@ data class Ordering<E : KIEntity<K>, out K : Any>(private val order: Iterable<Or
 
     companion object {
         val NATURAL = Ordering<Nothing, Nothing>(listOf())
+        fun <E : KIEntity<K>, K : Any> natural(): Ordering<E, K> = Ordering(listOf())
     }
 }

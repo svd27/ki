@@ -235,6 +235,7 @@ object FitComparator : Comparator<Fit> {
                         else -> -1
                     }
                 }
+                is PropertyInFilter<*, *, *>, is PropertyNotInFilter<*, *, *> -> 1
             }
         }
         is Fit.AndFit, is Fit.OrFit -> if (f2 is Fit.OrFit) -1 else 1

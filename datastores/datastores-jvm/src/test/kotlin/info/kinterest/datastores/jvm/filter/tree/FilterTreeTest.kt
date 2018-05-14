@@ -1,11 +1,12 @@
 package info.kinterest.datastores.jvm.filter.tree
 
-import com.github.salomonbrys.kodein.instance
+import info.kinterest.EntityEvent
 import info.kinterest.core.jvm.filters.parse
-import info.kinterest.datastores.jvm.DataStoreConfig
 import info.kinterest.datastores.jvm.filter.tree.jvm.SomeEntityJvm
 import info.kinterest.filter.FilterEvent
 import info.kinterest.functional.getOrElse
+import info.kinterest.jvm.datastores.DataStoreConfig
+import info.kinterest.jvm.events.Dispatcher
 import info.kinterest.jvm.filter.filter
 import info.kinterest.jvm.filter.tree.FilterTree
 import kotlinx.coroutines.experimental.*
@@ -17,10 +18,12 @@ import org.jetbrains.spek.api.Spek
 import org.jetbrains.spek.api.dsl.given
 import org.jetbrains.spek.api.dsl.it
 import org.jetbrains.spek.api.dsl.on
+import org.kodein.di.erased.instance
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 class FilterTreeTest : Spek({
+    //Try.errorHandler = {ex -> logger.debug(ex) { "errorhandler" }}
     given("") {
         val base = BaseDataStoreTest(object : DataStoreConfig {
             override val name: String
@@ -30,8 +33,9 @@ class FilterTreeTest : Spek({
             override val config: Map<String, Any?>
                 get() = mapOf()
         })
+        val events: Dispatcher<EntityEvent<*, *>> by base.kodein.instance("entities")
         base.metaProvider.register(SomeEntityJvm.meta)
-        val filterTree = FilterTree(base.kodein.instance("entities"), 3)
+        val filterTree = FilterTree(events, 3)
         val f = filter<SomeEntity, Long>(SomeEntityJvm.meta) {
             parse("name >= \"W\"", SomeEntityJvm.meta)
         }
@@ -81,7 +85,9 @@ class FilterTreeTest : Spek({
                 get() = mapOf()
         })
         base.metaProvider.register(SomeEntityJvm.meta)
-        val filterTree = FilterTree(base.kodein.instance("entities"), 3)
+        val events: Dispatcher<EntityEvent<*, *>> by base.kodein.instance("entities")
+
+        val filterTree = FilterTree(events, 3)
         val f = filter<SomeEntity, Long>(SomeEntityJvm.meta) {
             parse("name >= \"W\"", SomeEntityJvm.meta)
         }
@@ -105,6 +111,7 @@ class FilterTreeTest : Spek({
                 f.listener = null
                 ch.close()
             }
+
             fun wait(): Int = runBlocking(base.context) { withTimeout(1000) { ping.receive() } }
         }
         f.listener = listener.ch
@@ -112,7 +119,7 @@ class FilterTreeTest : Spek({
 
         on("creating a non-matching entity") {
             logger.debug { "first" }
-            val idA = base.create<SomeEntity, Long>(listOf(SomeEntityJvm.Companion.Transient(base.ds, 1, "AA", true, null))).getOrElse { throw it }
+            val idA = base.create<SomeEntity, Long>(SomeEntityJvm.Transient(base.ds, 1, "AA", true, null)).getOrElse { throw it }
             base.retrieve<SomeEntity, Long>(listOf(idA.id)).getOrElse { throw it }.first()
             it("should not hit our filter") {
                 runBlocking(base.context) { delay(200) }
@@ -125,7 +132,7 @@ class FilterTreeTest : Spek({
             logger.debug { "second" }
             val idX = runBlocking {
                 withTimeout(300) {
-                    base.create<SomeEntity, Long>(listOf(SomeEntityJvm.Companion.Transient(base.ds, 2, "X", true, null))).getOrElse { throw it }
+                    base.create<SomeEntity, Long>(SomeEntityJvm.Transient(base.ds, 2, "X", true, null)).getOrElse { throw it }
                 }
             }
             logger.debug { "created" }

@@ -1,47 +1,70 @@
 package info.kinterest.datastores.jvm.memory
 
-import com.github.salomonbrys.kodein.Kodein
-import com.github.salomonbrys.kodein.instance
 import info.kinterest.EntityEvent
 import info.kinterest.KIEntity
 import info.kinterest.MetaProvider
-import info.kinterest.datastores.jvm.DataStoreConfig
-import info.kinterest.datastores.jvm.DataStoreFactoryProvider
+import info.kinterest.datastores.DataStoreFacade
 import info.kinterest.datastores.jvm.datasourceKodein
 import info.kinterest.functional.Try
 import info.kinterest.functional.flatten
 import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.coreKodein
+import info.kinterest.jvm.datastores.DataStoreConfig
+import info.kinterest.jvm.datastores.IDataStoreFactoryProvider
 import info.kinterest.jvm.events.Dispatcher
+import info.kinterest.jvm.tx.TransactionManager
+import info.kinterest.jvm.tx.jvm.CreateTransactionJvm
+import info.kinterest.meta.KIEntityMeta
+import info.kinterest.query.QueryManager
 import kotlinx.coroutines.experimental.channels.Channel
 import kotlinx.coroutines.experimental.runBlocking
+import org.kodein.di.Kodein
+import org.kodein.di.erased.bind
+import org.kodein.di.erased.instance
+import org.kodein.di.erased.singleton
 
-class BaseMemTest(cfg:DataStoreConfig)  {
+class BaseMemTest(vararg cfg: DataStoreConfig) {
     val kodein = Kodein {
         import(coreKodein)
         import(datasourceKodein)
+        bind<DataStoreConfig>("tx-store") with singleton {
+            object : DataStoreConfig {
+                override val name: String = "tx-store"
+                override val type: String = "jvm.mem"
+                override val config: Map<String, Any?> = emptyMap()
+            }
+        }
     }
+    val dss: Iterable<DataStoreFacade>
+    val ds: DataStoreFacade
+    val qm: QueryManager by kodein.instance()
+
+    fun register(vararg metas: KIEntityMeta) = metas.forEach { metaProvider.register(it) }
     init {
-        kodein.instance<DataStoreFactoryProvider>().inject(kodein)
+        val provider by kodein.instance<IDataStoreFactoryProvider>()
+        dss = cfg.map { provider.create(it).getOrElse { throw it } }
+        ds = dss.first()
     }
 
 
-    val provider = kodein.instance<DataStoreFactoryProvider>()
-    val fac = provider.factories[cfg.type]
-    val ds = fac!!.create(cfg) as JvmMemoryDataStore
-    val metaProvider = kodein.instance<MetaProvider>()
-    val dispatcher: Dispatcher<EntityEvent<*, *>> = kodein.instance("entities")
+    val metaProvider by kodein.instance<MetaProvider>()
+
+    init {
+        metaProvider.register(CreateTransactionJvm.meta)
+        val tm: TransactionManager by kodein.instance()
+        tm.txStore.name
+    }
+    val dispatcher: Dispatcher<EntityEvent<*, *>> by kodein.instance("entities")
     val events: Channel<EntityEvent<*, *>> = Channel()
 
-    inline fun <reified E : KIEntity<K>, K : Comparable<K>> create(e: E): Try<E> = run {
-        val meta = metaProvider.meta(E::class)
-        val tryC = ds.create(meta!!, listOf(e))
+    fun <E : KIEntity<K>, K : Comparable<K>> create(e: E): Try<E> = run {
+        val tryC = ds.create(e._meta, e)
         val await = tryC.map { runBlocking { it.await() } }
-        await.flatten().map { it.first() }
+        await.flatten()
     }
 
     inline fun<reified E:KIEntity<K>, K:Any> retrieve(ids:Iterable<K>) : Try<Iterable<E>> = run {
-        val meta = ds[E::class]
+        val meta = metaProvider.meta(E::class)!!
         ds.retrieve<E,K>(meta, ids).map { runBlocking { it.await() } }.getOrElse { throw it }
     }
 }

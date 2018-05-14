@@ -23,11 +23,9 @@ data class Path(val name: String, val parent: Path?) {
     fun isSubPath(p: Path) = toString().commonPrefixWith(p.toString()).length == p.toString().length
 }
 
-fun <T, R> Deferred<T>.map(map: (T) -> R): Deferred<R> = async {
+fun <T, R> Deferred<T>.map(map: suspend (T) -> R): Deferred<R> = async {
     map(await())
 }
-
-fun <T> Deferred<Deferred<T>>.flatten(): Deferred<T> = async { await().await() }
 
 sealed class Projection<E : KIEntity<K>, K : Any>(val name: String, var parent: Projection<E, K>? = null) {
     open fun adapt(ds: Iterable<DataStoreFacade>): Projection<E, K> = this
@@ -96,19 +94,19 @@ class EntityProjection<E : KIEntity<K>, K : Any>(var ordering: Ordering<E, K>, v
 }
 
 @Suppress("EqualsOrHashCode")
-sealed class ValueProjection<E : KIEntity<K>, K : Any, V : Any>(open val property: KIProperty<Any>, name: String, parent: Projection<E, K>?) : Projection<E, K>(name, parent) {
-    override fun equals(other: Any?): Boolean = super.equals(other) && other is ValueProjection<*, *, *>
+sealed class ValueProjection<E : KIEntity<K>, K : Any>(open val property: KIProperty<Any>, name: String, parent: Projection<E, K>?) : Projection<E, K>(name, parent) {
+    override fun equals(other: Any?): Boolean = super.equals(other) && other is ValueProjection<*, *>
 }
 
-class CountProjection<E : KIEntity<K>, K : Any>(property: KIProperty<Any>, parent: Projection<E, K>? = null) : ValueProjection<E, K, Long>(property, "count(${property.name})", parent) {
+class CountProjection<E : KIEntity<K>, K : Any>(property: KIProperty<Any>, parent: Projection<E, K>? = null) : ValueProjection<E, K>(property, "count(${property.name})", parent) {
     override fun combine(results: Iterable<ProjectionResult<E, K>>): ProjectionResult<E, K> =
             CountProjectionResult(this,
-                    results.filterIsInstance<CountProjectionResult<E, K>>().map { it.count }.reduce { n1, n2 -> n1 + n2 })
+                    results.filterIsInstance<CountProjectionResult<E, K>>().map { it.count }.reduce { n1, n2 -> println("combine $n1 $n2 -> ${n1 + n2}"); n1 + n2 }).apply { println("combined $results") }
 
     override fun clone(): Projection<E, K> = CountProjection(property, parent)
 }
 
-sealed class ScalarProjection<E : KIEntity<K>, K : Any, S : Number>(property: KIProperty<S>, name: String, parent: Projection<E, K>?) : ValueProjection<E, K, S>(property, name, parent) {
+sealed class ScalarProjection<E : KIEntity<K>, K : Any, S : Number>(property: KIProperty<S>, name: String, parent: Projection<E, K>?) : ValueProjection<E, K>(property, name, parent) {
     companion object {
         @Suppress("IMPLICIT_CAST_TO_ANY", "UNCHECKED_CAST")
         fun <V : Number> add(v1: V, v2: V): V = when (v1) {
@@ -121,7 +119,7 @@ sealed class ScalarProjection<E : KIEntity<K>, K : Any, S : Number>(property: KI
             else -> throw Exception("Bad type ${v1::class}")
         } as V
 
-        @Suppress("IMPLICIT_CAST_TO_ANY", "UNCHECKED_CAST")
+        @Suppress("IMPLICIT_CAST_TO_ANY", "UNCHECKED_CAST", "unused")
         fun <V : Number> max(v1: V, v2: V): V = when (v1) {
             is Byte -> maxOf(v1, v2.toByte())
             is Short -> maxOf(v1, v2.toShort())
@@ -142,12 +140,12 @@ class SumProjection<E : KIEntity<K>, K : Any, V : Number>(override val property:
                     results.filterIsInstance<ScalarProjectionResult<E, K, V>>().map { it.sum }.reduce { n1, n2 -> add(n1, n2) })
 }
 
-interface Discriminators<E : KIEntity<K>, K : Any, V> {
+interface Discriminators<E : KIEntity<K>, K : Any, V : Any> {
     val name: String
     fun discriminatorFor(v: V?): Discriminator<E, K, V>
 }
 
-interface Discriminator<E : KIEntity<K>, K : Any, V> {
+interface Discriminator<E : KIEntity<K>, K : Any, V : Any> {
     val name: String
     fun inside(v: V?): Boolean
     fun asFilter(): Filter<E, K>
@@ -157,8 +155,13 @@ class ProjectionBucket<E : KIEntity<K>, K : Any, B : Any>(
         val property: KIProperty<B>, val discriminator: Discriminator<E, K, B>, val bucket: BucketProjection<E, K, B>) :
         Projection<E, K>(discriminator.name, bucket) {
     override fun combine(results: Iterable<ProjectionResult<E, K>>): ProjectionBucketResult<E, K, B> = ProjectionBucketResult(results.filterIsInstance<ProjectionBucketResult<E, K, B>>().map { it.result }.reduce { macc, map ->
-        macc.map { it.key to it.value.projection.combine(listOf(map[it.key]).filterNotNull()) }.toMap()
-    }, this)
+        macc.map { it.key to it.value.projection.combine(listOfNotNull(macc[it.key], map[it.key])) }.toMap()
+    }, this).apply {
+        println("$this@ProjectionBucket combined $results\n" +
+                "${results.filterIsInstance<ProjectionBucketResult<E, K, B>>().map {
+                    it.result.map { "$it\n" }
+                }}")
+    }
 
     override val amendFilter: Filter<E, K>?
         get() = discriminator.asFilter()
@@ -169,11 +172,12 @@ class ProjectionBucket<E : KIEntity<K>, K : Any, B : Any>(
 
 class BucketProjection<E : KIEntity<K>, K : Any, B : Any>(parent: Projection<E, K>?, val projections: List<Projection<E, K>>, val discriminators: Discriminators<E, K, B>, val property: KIProperty<B>) : Projection<E, K>(discriminators.name, parent) {
     override fun combine(results: Iterable<ProjectionResult<E, K>>): ProjectionResult<E, K> = results.filterIsInstance<BucketProjectionResult<E, K, B>>().reduce { b1, b2 ->
+        println("combine $this results $b1 $b2")
         BucketProjectionResult(b1.bucketProjection, b1.buckets.map {
             it.key to
                     it.value.projection.combine(listOf(it.value, b2.buckets[it.key]).filterNotNull())
         }.filterIsInstance<Pair<ProjectionBucket<E, K, B>, ProjectionBucketResult<E, K, B>>>().toMap())
-    }
+    }.apply { println("$this combined $results") }
 
     override fun clone(): Projection<E, K> = BucketProjection(parent, projections, discriminators, property)
 }
@@ -186,19 +190,23 @@ class ProjectionBucketResult<E : KIEntity<K>, K : Any, B : Any>(result: Map<Proj
 
     private fun relevant(ev: FilterEvent<E, K>): FilterEvent<E, K>? = when (ev) {
         is FilterCreateEvent<*, *> -> {
-            val filtered = ev.entities.filter { bucket.discriminator.inside(it.getValue(bucket.property) as B?) }
+            val filtered = ev.entities.filter { bucket.discriminator.inside(it.getValue(bucket.property)) }
+            @Suppress("UNCHECKED_CAST")
             if (filtered.isEmpty()) null else FilterCreateEvent<E, K>(filtered as Iterable<E>, ev.want, ev.filter)
         }
         is FilterDeleteEvent<*, *> -> {
-            val filtered = ev.entities.filter { bucket.discriminator.inside(it.getValue(bucket.property) as B?) }
+            val filtered = ev.entities.filter { bucket.discriminator.inside(it.getValue(bucket.property)) }
+            @Suppress("UNCHECKED_CAST")
             if (filtered.isEmpty()) null else FilterDeleteEvent<E, K>(filtered as Iterable<E>, ev.want, ev.filter)
         }
         is FilterUpdateEvent<*, *> -> {
+            @Suppress("UNCHECKED_CAST")
             val want = bucket.discriminator.asFilter().wants(ev.upds as EntityUpdatedEvent<E, K>)
             if (want in setOf(FilterWant.OUTOUT, FilterWant.NONE)) null
             else ev
         }
         is FilterRelationEvent<*, *> -> {
+            @Suppress("UNCHECKED_CAST")
             val want = bucket.discriminator.asFilter().wants(ev.upds as EntityRelationEvent<E, K, *, *>)
             if (want in setOf(FilterWant.OUTOUT, FilterWant.NONE)) null
             else ev
@@ -277,7 +285,7 @@ class BucketProjectionResult<E : KIEntity<K>, K : Any, B : Any>(val bucketProjec
             }
             if (cp != null)
                 buckets[cp]?.let {
-                    it.retrieve(path, cp.amendQuery(q), qm).getOrElse { throw it }
+                    it.retrieve(path, projection.amendQuery(q), qm).getOrElse { throw it }
                 } ?: throw QueryError(q, qm, "no projection $path found")
             else throw QueryError(q, qm, "no projection $path found")
         }
@@ -311,9 +319,9 @@ class ReloadProjectionResult<E : KIEntity<K>, K : Any>(projection: Projection<E,
             val orElse = qm.query(query).getOrElse { throw it }
             val deferred = orElse.map { it.map { it.projections[projection]!!.retrieve(path, query, qm).getOrElse { throw it }.map { it.getOrElse { throw it } } } }
 
-
-            val awit = deferred.await().getOrElse { throw it }.await()
-            Try { awit }
+            val await = deferred.await().getOrElse { throw it }.await()
+            println("retrieve with filter ${query.f} $await")
+            Try.succeed(await)
         }
     }
 
@@ -416,7 +424,7 @@ class EntityProjectionResult<E : KIEntity<K>, K : Any>(override val projection: 
     override fun clone(projection: Projection<E, K>): ProjectionResult<E, K> = EntityProjectionResult(projection as EntityProjection<E, K>, page)
 }
 
-sealed class ValueProjectionResult<E : KIEntity<K>, K : Any, V : Any>(override val projection: ValueProjection<E, K, V>, val result: V) : ProjectionResult<E, K>(projection) {
+sealed class ValueProjectionResult<E : KIEntity<K>, K : Any, V : Any>(override val projection: ValueProjection<E, K>, val result: V) : ProjectionResult<E, K>(projection) {
     override fun <I : Interest<E, K>> digest(i: I, evts: Iterable<FilterEvent<E, K>>, events: (Iterable<ProjectionEvent<E, K>>) -> Unit): ProjectionResult<E, K> = run {
         val el = evts.any { e ->
             when (e) {
@@ -437,6 +445,8 @@ sealed class ValueProjectionResult<E : KIEntity<K>, K : Any, V : Any>(override v
             ReloadProjectionResult(projection)
         }
     }
+
+    override fun toString(): String = "${super.toString()} = $result"
 }
 
 class CountProjectionResult<E : KIEntity<K>, K : Any>(projection: CountProjection<E, K>, val count: Long) : ValueProjectionResult<E, K, Long>(projection, count) {

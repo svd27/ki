@@ -1,6 +1,7 @@
 
 val jvm by extra {
     subprojects.filter {
+        println(it)
         it.name.endsWith("-jvm")
     }
 }
@@ -11,18 +12,22 @@ configure(jvm) {
             mavenCentral()
         }
         dependencies {
-            "compile"("org.jetbrains.kotlinx:kotlinx-coroutines-core:0.22.5")
+            classpath("org.jetbrains.kotlinx:kotlinx-coroutines-core:0.22.5")
             classpath ("org.jetbrains.kotlin:kotlin-gradle-plugin:1.2.30")
             classpath("org.junit.platform:junit-platform-gradle-plugin:1.1.0")
             classpath("com.kncept.junit5.reporter:junit-reporter:1.1.0")
         }
     }
+
+    /*
     plugins {
         java
         kotlin("jvm")
         kotlin("kapt")
     }
+    */
 
+    apply(plugin = "kotlin-platform-jvm")
     apply {
         plugin("kotlin-platform-jvm")
         plugin("kotlin-kapt")
@@ -31,12 +36,14 @@ configure(jvm) {
     }
 
 
+
+
     dependencies {
         "expectedBy"(project(":core:common"))
         "compile"(kotlin("reflect"))
         "compile"(kotlin("stdlib-jdk8"))
         "compile"("ch.qos.logback:logback-classic:1.0.13")
-        "compile"( "com.github.salomonbrys.kodein:kodein:4.1.0")
+        "compile"("org.kodein.di:kodein-di-erased-jvm:5.0.0")
         "compile"("io.vertx:vertx-web:3.5.1")
         "compile"("io.vertx:vertx-lang-kotlin-coroutines:3.5.1")
         "compile"("io.vertx:vertx-lang-kotlin:3.5.1")

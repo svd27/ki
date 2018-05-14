@@ -24,8 +24,9 @@ data class Query<E : KIEntity<K>, K : Any>(
         val dss = if (ds == Query.ALL) storesFor else storesFor.filter { it.name in ds.map { it.name }.toSet() }
         when {
             dss.isEmpty() -> throw QueryManagerRetrieveError(qm, "no DataStores found to query")
-            dss.size == 1 -> dss.first().query(this).getOrElse { throw it }
+            dss.size == 1 -> dss.first().query(this).getOrElse { throw it }.apply { println("querying on ds for $f") }
             else -> {
+                println("querying ${dss.size} stores for $f")
                 val proj = projections.map { it.adapt(dss) }
                 val q = copy(projections = proj)
                 val deferreds: List<Deferred<Try<QueryResult<E, K>>>> = dss.map { it.query(q) }.map { it.getOrElse { throw it } }

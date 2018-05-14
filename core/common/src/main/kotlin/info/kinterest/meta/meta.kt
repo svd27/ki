@@ -14,8 +14,10 @@ abstract class KIEntityMeta {
     abstract val name: String
     abstract val versioned: Boolean
 
-    abstract val idProperty: KIProperty<*>
-    abstract val props : Map<String, KIProperty<*>>
+    abstract val idProperty: KIProperty<Any>
+    abstract val idInfo: IdInfo
+
+    abstract val props: Map<String, KIProperty<Any>>
     abstract val hierarchy: List<KIEntityMeta>
     abstract val types: List<KIEntityMeta>
 
@@ -28,7 +30,11 @@ abstract class KIEntityMeta {
     override fun hashCode(): Int = name.hashCode()
 }
 
-sealed class KIProperty<out V>(private val support: KIPropertySupport<V>, val order: Int) {
+class IdInfo(val idType: KClass<*>, val generatedByDataStore: Boolean, val generatedBy: String?, val sequence: String?, unique: Boolean?) {
+    val guaranteedUnique: Boolean = if (unique != null) unique else generatedBy != null
+}
+
+sealed class KIProperty<out V : Any>(private val support: KIPropertySupport<V>, val order: Int) {
     val name: String get() = support.name
     val type: KClass<*> get() = support.type
     val readOnly: Boolean get() = support.readOnly
@@ -45,10 +51,12 @@ sealed class KIProperty<out V>(private val support: KIPropertySupport<V>, val or
     }
 
     override fun hashCode(): Int = name.hashCode()
+
+    override fun toString(): String = "$name($type)"
 }
 
 
-interface KIPropertySupport<V> {
+interface KIPropertySupport<V : Any> {
     val name: String
     val type: KClass<*>
     val readOnly: Boolean
@@ -59,7 +67,7 @@ interface KIPropertySupport<V> {
     fun minMax(v1: V, v2: V): Pair<V, V>
 }
 
-interface KIPropertyRelationSupport<V> : KIPropertySupport<V> {
+interface KIPropertyRelationSupport<V : Any> : KIPropertySupport<V> {
     val target: KClass<*>
     val targetId: KClass<*>
     val container: KClass<*>?
@@ -81,8 +89,8 @@ class KILongProperty(support: KIPropertySupport<Long>) : KINumberProperty<Long>(
 class KIDoubleProperty(support: KIPropertySupport<Double>) : KINumberProperty<Double>(support, 8)
 
 class KIStringProperty(support: KIPropertySupport<String>) : KIProperty<String>(support, 9)
-sealed class KITypeProperty<T>(support: KIPropertySupport<T>, order: Int) : KIProperty<T>(support, order)
-class KIEmbedProperty<T>(support: KIPropertySupport<T>) : KITypeProperty<T>(support, Int.MAX_VALUE)
+sealed class KITypeProperty<T : Any>(support: KIPropertySupport<T>, order: Int) : KIProperty<T>(support, order)
+class KIEmbedProperty<T : Any>(support: KIPropertySupport<T>) : KITypeProperty<T>(support, Int.MAX_VALUE)
 class KIRelationProperty(support: KIPropertyRelationSupport<Any>) : KITypeProperty<Any>(support, 20) {
     val target: KClass<*> = support.target
     val targetId: KClass<*> = support.targetId
@@ -90,9 +98,9 @@ class KIRelationProperty(support: KIPropertyRelationSupport<Any>) : KITypeProper
 
     override fun toString(): String = "${this::class.simpleName}($name, $type, $target, $container)"
 }
-class KIReferenceProperty<T>(support: KIPropertySupport<T>) : KITypeProperty<T>(support, Int.MAX_VALUE - 1)
-sealed class KISimpleTypeProperty<T>(support: KIPropertySupport<T>, order: Int) : KITypeProperty<T>(support, order)
+
+sealed class KISimpleTypeProperty<T : Any>(support: KIPropertySupport<T>, order: Int) : KITypeProperty<T>(support, order)
 class KIUUIDProperty(support: KIPropertySupport<UUID>) : KISimpleTypeProperty<UUID>(support, 12)
-sealed class KIDateOrTimePropertyclass<T>(support: KIPropertySupport<T>, order: Int) : KISimpleTypeProperty<T>(support, order)
-class KILocalDateProperty(support: KIPropertySupport<LocalDate>) : KISimpleTypeProperty<LocalDate>(support, 10)
-class KIUnknownTypeProperty<T>(support: KIPropertySupport<T>) : KISimpleTypeProperty<T>(support, Int.MAX_VALUE)
+sealed class KIDateOrTimePropertyclass<T : Any>(support: KIPropertySupport<T>, order: Int) : KISimpleTypeProperty<T>(support, order)
+class KILocalDateProperty(support: KIPropertySupport<LocalDate>) : KIDateOrTimePropertyclass<LocalDate>(support, 10)
+class KIUnknownTypeProperty<T : Any>(support: KIPropertySupport<T>) : KISimpleTypeProperty<T>(support, Int.MAX_VALUE)

@@ -4,13 +4,14 @@ import info.kinterest.FilterError
 import info.kinterest.KIEntity
 import info.kinterest.cast
 import info.kinterest.core.jvm.filters.parser.parse
-import info.kinterest.datastores.jvm.DataStoreConfig
 import info.kinterest.datastores.jvm.memory.jvm.MemCustomerJvm
 import info.kinterest.datastores.jvm.memory.jvm.MemEmployeeJvm
 import info.kinterest.datastores.jvm.memory.jvm.MemPersonJvm
 import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.annotations.Entity
+import info.kinterest.jvm.datastores.DataStoreConfig
 import info.kinterest.jvm.filter.filter
+import info.kinterest.jvm.tx.jvm.CreateTransactionJvm
 import info.kinterest.paging.Paging
 import info.kinterest.query.EntityProjection
 import info.kinterest.query.EntityProjectionResult
@@ -55,11 +56,12 @@ class InheritanceTest : Spek({
         base.metaProvider.register(MemPersonJvm.meta)
         base.metaProvider.register(MemEmployeeJvm.meta)
         base.metaProvider.register(MemCustomerJvm.meta)
+        base.metaProvider.register(CreateTransactionJvm.Meta)
         repeat(10) {
-            base.create<MemPerson, String>(MemPersonJvm.Companion.Transient(base.ds, "$it", "${'A' + it}", "${'z' - it}"))
+            base.create<MemPerson, String>(MemPersonJvm.Transient(base.ds, "$it", "${'A' + it}", "${'z' - it}"))
         }
         repeat(10) {
-            base.create<MemEmployee, String>(MemEmployeeJvm.Companion.Transient(base.ds, "${100 + it}", "E${'a' + it}", "${'Z' - it}", "${'A' + it}"))
+            base.create<MemEmployee, String>(MemEmployeeJvm.Transient(base.ds, "${100 + it}", "E${'a' + it}", "${'Z' - it}", "${'A' + it}"))
         }
         on("querying for one type of entity") {
             val f = filter<MemEmployee, String>(MemEmployeeJvm.meta) {

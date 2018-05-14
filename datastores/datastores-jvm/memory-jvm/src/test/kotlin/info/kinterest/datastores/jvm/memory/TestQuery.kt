@@ -1,15 +1,13 @@
 package info.kinterest.datastores.jvm.memory
 
 import info.kinterest.KIEntity
-import info.kinterest.MetaProvider
 import info.kinterest.cast
 import info.kinterest.core.jvm.filters.parse
-import info.kinterest.datastores.jvm.DataStoreConfig
 import info.kinterest.datastores.jvm.memory.jvm.QueryEntityJvm
 import info.kinterest.functional.flatten
 import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.annotations.Entity
-import info.kinterest.jvm.annotations.StorageTypes
+import info.kinterest.jvm.datastores.DataStoreConfig
 import info.kinterest.paging.Paging
 import info.kinterest.query.EntityProjection
 import info.kinterest.query.EntityProjectionResult
@@ -27,7 +25,6 @@ import java.time.LocalDate
 import java.time.Month
 
 @Entity
-@StorageTypes(["jvm.mem"])
 interface QueryEntity : KIEntity<String> {
     override val id : String
     val name : String
@@ -45,14 +42,14 @@ class TestQuery : Spek( {
             override val config: Map<String, Any?>
                 get() = mapOf()
         })
-        val provider = MetaProvider()
+        val provider = base.metaProvider
         @Suppress("UNCHECKED_CAST")
-        val meta = base.ds[QueryEntity::class]
+        val meta = QueryEntityJvm.meta
         provider.register(meta)
 
         val keys = ('A'..'Z').map { id ->
 
-            base.create<QueryEntity, String>(QueryEntityJvm.Companion.Transient(base.ds, "$id", "sasa", null, LocalDate.now()))
+            base.create<QueryEntity, String>(QueryEntityJvm.Transient(base.ds, "$id", "sasa", null, LocalDate.now()))
         }.map { it.getOrElse { throw it } }
 
         val f = parse<QueryEntity, String>("QueryEntity{job < \"a\"}", meta)

@@ -2,12 +2,14 @@ package info.kinterest.query
 
 import info.kinterest.DataStore
 import info.kinterest.KIEntity
+import info.kinterest.MetaProvider
 import info.kinterest.datastores.DataStoreFacade
 import info.kinterest.functional.Try
 import info.kinterest.meta.KIEntityMeta
 import kotlinx.coroutines.experimental.Deferred
 
 interface QueryManager {
+    val metas : MetaProvider
     val stores: Set<DataStoreFacade>
 
     fun storesFor(meta: KIEntityMeta): Set<DataStoreFacade>

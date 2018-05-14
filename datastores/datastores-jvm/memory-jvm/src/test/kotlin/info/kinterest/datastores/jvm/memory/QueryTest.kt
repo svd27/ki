@@ -2,9 +2,9 @@ package info.kinterest.datastores.jvm.memory
 
 import info.kinterest.cast
 import info.kinterest.core.jvm.filters.parser.parse
-import info.kinterest.datastores.jvm.DataStoreConfig
 import info.kinterest.datastores.jvm.memory.jvm.QueryEntityJvm
 import info.kinterest.functional.getOrElse
+import info.kinterest.jvm.datastores.DataStoreConfig
 import info.kinterest.jvm.filter.filter
 import info.kinterest.paging.Paging
 import info.kinterest.query.EntityProjection
@@ -23,7 +23,7 @@ import org.jetbrains.spek.api.dsl.on
 import java.time.LocalDate
 
 class QueryTest : Spek({
-    val meta = QueryEntityJvm.Companion.Meta
+    val meta = QueryEntityJvm.Meta
     given("a query") {
         val base = BaseMemTest(object : DataStoreConfig {
             override val name: String
@@ -35,7 +35,7 @@ class QueryTest : Spek({
         })
         base.metaProvider.register(meta)
         repeat(26) {
-            base.create<QueryEntity, String>(QueryEntityJvm.Companion.Transient(base.ds, "${'A' + it}", "${'Z' - it}anne", null, LocalDate.now()))
+            base.create<QueryEntity, String>(QueryEntityJvm.Transient(base.ds, "${'A' + it}", "${'Z' - it}anne", null, LocalDate.now()))
         }
         val f = filter<QueryEntity, String>(meta) {
             parse("""id > "H" """, meta)

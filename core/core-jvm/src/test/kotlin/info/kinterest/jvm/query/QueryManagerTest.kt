@@ -3,6 +3,7 @@ package info.kinterest.jvm.query
 import com.nhaarman.mockito_kotlin.doReturn
 import com.nhaarman.mockito_kotlin.mock
 import com.nhaarman.mockito_kotlin.whenever
+import info.kinterest.MetaProvider
 import info.kinterest.StoreReady
 import info.kinterest.cast
 import info.kinterest.datastores.DataStoreFacade
@@ -31,7 +32,7 @@ import org.jetbrains.spek.api.dsl.it
 import org.jetbrains.spek.api.dsl.on
 import kotlin.math.min
 
-val meta1 = InterestEntityImpl.Companion.Meta
+val meta1 = InterestEntityImpl.Meta
 
 class QueryManagerTest : Spek({
     given("a query manager and three DataStores") {
@@ -132,10 +133,10 @@ class QueryManagerTest : Spek({
             }
         }
 
-        val meta = InterestEntityImpl.Companion.Meta
+        val meta = InterestEntityImpl.Meta
 
 
-        val qm = QueryManagerJvm(FilterTree(Dispatcher(), 2))
+        val qm = QueryManagerJvm(FilterTree(Dispatcher(), 2), MetaProvider())
         runBlocking {
             qm.dataStores.send(StoreReady(ds1))
             qm.dataStores.send(StoreReady(ds2))
@@ -187,6 +188,7 @@ class QueryManagerTest : Spek({
             }
             val es = res.getOrElse { throw it }
             it("should return the expected result") {
+                logger.debug { es }
                 es.toSet() `should equal` (el1 + el3).toSet()
             }
         }
@@ -195,7 +197,7 @@ class QueryManagerTest : Spek({
         on("querying one DataStore") {
             logger.debug { "querying from one DataStores" }
             val res = qm.query(Query<InterestEntity, Long>(EntityFilter.LiveFilterWrapper(StaticEntityFilter<InterestEntity, Long>(setOf(1, 2, 3, 4, 5, 6),
-                    InterestEntityImpl.Companion.Meta)).cast(),
+                    InterestEntityImpl.Meta)).cast(),
                     listOf(projection1), setOf(ds1)))
             val td = runBlocking { res.getOrElse { throw it }.await() }
             it("should be successfull") {
@@ -218,7 +220,7 @@ class QueryManagerTest : Spek({
             logger.debug { "querying from two DataStores" }
             val res = qm.query(Query<InterestEntity, Long>(
                     EntityFilter.LiveFilterWrapper(StaticEntityFilter<InterestEntity, Long>(setOf(1, 2, 3, 4, 5, 6),
-                            InterestEntityImpl.Companion.Meta)).cast(),
+                            InterestEntityImpl.Meta)).cast(),
                     listOf(projection1), setOf(ds1, ds3)))
             val td = runBlocking { res.getOrElse { throw it }.await() }
             it("should be successful") {
@@ -240,7 +242,7 @@ class QueryManagerTest : Spek({
             logger.debug { "querying from two DataStores with page" }
             val projection = EntityProjection<InterestEntity, Long>(Ordering.NATURAL.cast(), Paging(0, 2))
             val res = qm.query(Query<InterestEntity, Long>(EntityFilter.LiveFilterWrapper(
-                    StaticEntityFilter<InterestEntity, Long>(setOf(1, 2, 3, 4, 5, 6), InterestEntityImpl.Companion.Meta)),
+                    StaticEntityFilter<InterestEntity, Long>(setOf(1, 2, 3, 4, 5, 6), InterestEntityImpl.Meta)),
                     listOf(projection), setOf(ds1, ds3)))
             val td = runBlocking(pool) { res.getOrElse { throw it }.await() }
             it("should be successful") {
@@ -262,7 +264,7 @@ class QueryManagerTest : Spek({
             logger.debug { "querying from two DataStores with next page" }
             val projection = EntityProjection<InterestEntity, Long>(Ordering.NATURAL.cast(), Paging(0, 2).next)
             val res = qm.query(Query<InterestEntity, Long>(
-                    EntityFilter.LiveFilterWrapper(StaticEntityFilter<InterestEntity, Long>(setOf(1, 2, 3, 4, 5, 6), InterestEntityImpl.Companion.Meta)),
+                    EntityFilter.LiveFilterWrapper(StaticEntityFilter<InterestEntity, Long>(setOf(1, 2, 3, 4, 5, 6), InterestEntityImpl.Meta)),
                     listOf(projection), setOf(ds1, ds3)))
             val td = runBlocking { res.getOrElse { throw it }.await() }
             it("should be successfull") {
@@ -284,7 +286,7 @@ class QueryManagerTest : Spek({
             logger.debug { "querying from two DataStores with page and ordering" }
             val projection = EntityProjection<InterestEntity, Long>(Ordering(listOf(meta1.props["name"]!!.asc())), Paging(0, 2))
             val query = Query(
-                    EntityFilter.LiveFilterWrapper(StaticEntityFilter<InterestEntity, Long>(setOf(1, 2, 3, 4, 5, 6), InterestEntityImpl.Companion.Meta)),
+                    EntityFilter.LiveFilterWrapper(StaticEntityFilter<InterestEntity, Long>(setOf(1, 2, 3, 4, 5, 6), InterestEntityImpl.Meta)),
                     listOf(projection), setOf(ds1, ds3, ds2))
             val res = qm.query(query)
             val td = runBlocking(pool) { res.getOrElse { throw it }.await() }

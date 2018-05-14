@@ -1,8 +1,5 @@
 package info.kinterest.jvm.datastores
 
-import com.github.salomonbrys.kodein.Kodein
-import com.github.salomonbrys.kodein.KodeinAware
-import com.github.salomonbrys.kodein.instance
 import info.kinterest.KIEntity
 import info.kinterest.datastores.*
 import info.kinterest.functional.Try
@@ -14,12 +11,15 @@ import kotlinx.coroutines.experimental.Deferred
 import kotlinx.coroutines.experimental.channels.ReceiveChannel
 import kotlinx.coroutines.experimental.channels.SendChannel
 import kotlinx.coroutines.experimental.launch
+import org.kodein.di.Kodein
+import org.kodein.di.KodeinAware
+import org.kodein.di.erased.instance
 
 abstract class RemoteOutgoingDataStoreFacade(name: String, override final val kodein: Kodein) : DataStoreFacade(name), KodeinAware {
     abstract val ds: DataStoreFacade
     abstract val chIn: ReceiveChannel<QueryMsg>
     abstract val chOut: SendChannel<QueryResultMsg>
-    val pool: CoroutineDispatcher = kodein.instance("datastores")
+    val pool: CoroutineDispatcher by instance("datastores")
 
     private var _id: Long = 0
     val nextId: Long

@@ -3,6 +3,7 @@ import org.jetbrains.kotlin.gradle.dsl.Coroutines
 dependencies {
     "expectedBy"(project(":core:common"))
     compile(project(":core:core-jvm"))
+    compile(project(":core:core-jvm:tx-jvm"))
     "kaptTest"(project(":core:annotations-processor-jvm"))
     "testCompile"(project(":core:core-jvm:filters-utils-jvm"))
     "testCompile"(project(":datastores:datastores-jvm:memory-jvm"))

@@ -1,15 +1,13 @@
 package info.kinterest.datastores.jvm.memory
 
-import com.github.salomonbrys.kodein.instance
 import info.kinterest.EntityCreateEvent
 import info.kinterest.EntityEvent
 import info.kinterest.KIEntity
 import info.kinterest.UUID
-import info.kinterest.datastores.jvm.DataStoreConfig
 import info.kinterest.datastores.jvm.memory.jvm.TestEventsEntityJvm
 import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.annotations.Entity
-import info.kinterest.jvm.annotations.StorageTypes
+import info.kinterest.jvm.datastores.DataStoreConfig
 import info.kinterest.jvm.events.Dispatcher
 import kotlinx.coroutines.experimental.Job
 import kotlinx.coroutines.experimental.channels.Channel
@@ -21,10 +19,10 @@ import org.jetbrains.spek.api.Spek
 import org.jetbrains.spek.api.dsl.given
 import org.jetbrains.spek.api.dsl.it
 import org.jetbrains.spek.api.dsl.on
+import org.kodein.di.erased.instance
 import java.time.LocalDate
 
 @Entity
-@StorageTypes(["jvm.mem"])
 interface TestEventsEntity : KIEntity<UUID> {
     override val id: UUID
     val name : String
@@ -42,7 +40,7 @@ object TestEvents : Spek ({
                 get() = emptyMap()
         }
         val base = BaseMemTest(cfg)
-        val dispatcher: Dispatcher<EntityEvent<*, *>> = base.kodein.instance("entities")
+        val dispatcher: Dispatcher<EntityEvent<*, *>> by base.kodein.instance("entities")
 
         val listener = object {
             val ch : Channel<EntityEvent<*,*>> = Channel()
@@ -52,10 +50,10 @@ object TestEvents : Spek ({
             init {
                 job = launch {
                     for(e in ch) {
-                        log.debug { e }
-                        events++
-                        when (e) {
-                            is EntityCreateEvent -> created++
+                        log.debug { "listener received $e" }
+                        if (e is EntityCreateEvent && e.entities.first()._meta == TestEventsEntityJvm.meta) {
+                            events++
+                            created++
                         }
                     }
                 }
@@ -66,8 +64,8 @@ object TestEvents : Spek ({
             dispatcher.subscribing.send(listener.ch)
         }
         base.metaProvider.register(TestEventsEntityJvm.meta)
-        TestEventsEntityJvm.Companion.Transient(base.ds, UUID.randomUUID(), "svd", LocalDate.now())
-        val e = base.create<TestEventsEntity, UUID>(TestEventsEntityJvm.Companion.Transient(base.ds, UUID.randomUUID(), "svd", LocalDate.now()))
+        TestEventsEntityJvm.Transient(base.ds, UUID.randomUUID(), "svd", LocalDate.now())
+        val e = base.create<TestEventsEntity, UUID>(TestEventsEntityJvm.Transient(base.ds, UUID.randomUUID(), "svd", LocalDate.now()))
         on("subscribing and creating an entity") {
             val k = e.getOrElse { log.debug(it) {} }
             log.debug { k }
