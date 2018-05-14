@@ -23,6 +23,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 class FilterTreeTest : Spek({
+    //Try.errorHandler = {ex -> logger.debug(ex) { "errorhandler" }}
     given("") {
         val base = BaseDataStoreTest(object : DataStoreConfig {
             override val name: String
@@ -110,6 +111,7 @@ class FilterTreeTest : Spek({
                 f.listener = null
                 ch.close()
             }
+
             fun wait(): Int = runBlocking(base.context) { withTimeout(1000) { ping.receive() } }
         }
         f.listener = listener.ch
@@ -117,7 +119,7 @@ class FilterTreeTest : Spek({
 
         on("creating a non-matching entity") {
             logger.debug { "first" }
-            val idA = base.create<SomeEntity, Long>(listOf(SomeEntityJvm.Transient(base.ds, 1, "AA", true, null))).getOrElse { throw it }
+            val idA = base.create<SomeEntity, Long>(SomeEntityJvm.Transient(base.ds, 1, "AA", true, null)).getOrElse { throw it }
             base.retrieve<SomeEntity, Long>(listOf(idA.id)).getOrElse { throw it }.first()
             it("should not hit our filter") {
                 runBlocking(base.context) { delay(200) }
@@ -130,7 +132,7 @@ class FilterTreeTest : Spek({
             logger.debug { "second" }
             val idX = runBlocking {
                 withTimeout(300) {
-                    base.create<SomeEntity, Long>(listOf(SomeEntityJvm.Transient(base.ds, 2, "X", true, null))).getOrElse { throw it }
+                    base.create<SomeEntity, Long>(SomeEntityJvm.Transient(base.ds, 2, "X", true, null)).getOrElse { throw it }
                 }
             }
             logger.debug { "created" }

@@ -6,6 +6,7 @@ import info.kinterest.MetaProvider
 import info.kinterest.core.jvm.filters.parser.parse
 import info.kinterest.jvm.KIJvmEntity
 import info.kinterest.jvm.KIJvmEntityMeta
+import info.kinterest.meta.IdInfo
 import info.kinterest.meta.KIEntityMeta
 import info.kinterest.meta.KIProperty
 import mu.KotlinLogging
@@ -49,17 +50,19 @@ class TestFilter(id: String, val number: Long, val date: LocalDate) : KIJvmEntit
         DONTDOTHIS("not implemented")
     }
 
-    companion object {
-        object Meta : KIJvmEntityMeta(TestFilter::class, TestFilter::class) {
-            override val root: KClass<*>
-                get() = TestFilter::class
-            override val parent: KClass<*>?
-                get() = null
-            override val versioned: Boolean
-                get() = false
+    object Meta : KIJvmEntityMeta(TestFilter::class, TestFilter::class) {
+        override val root: KClass<*>
+            get() = TestFilter::class
+        override val parent: KClass<*>?
+            get() = null
+        override val versioned: Boolean
+            get() = false
 
-            override val hierarchy: List<KIEntityMeta> = listOf()
-        }
+        override val hierarchy: List<KIEntityMeta> = listOf()
+        override val idInfo: IdInfo = IdInfo(String::class, false, null, null, true)
+    }
+
+    companion object {
     }
 }
 
@@ -67,13 +70,13 @@ class TestFilter(id: String, val number: Long, val date: LocalDate) : KIJvmEntit
 
 object TestSimpleFilter : Spek({
     val metaProvider = MetaProvider()
-    metaProvider.register(TestFilter.Companion.Meta)
+    metaProvider.register(TestFilter.Meta)
     given("a simple set of entities") {
         val entities = mutableListOf<TestFilter>()
         for(c in 'A'..'Z') {
             entities += TestFilter("$c", c.toLong()-'A'.toLong(), LocalDate.now())
         }
-        val fids = filter<TestFilter, String>(TestFilter.Companion.Meta) {
+        val fids = filter<TestFilter, String>(TestFilter.Meta) {
             ids("A","B","C")
         }
         val res =entities.filter(fids::matches)
@@ -95,8 +98,8 @@ object TestSimpleFilter : Spek({
             }
         }
 
-        val lt = filter<TestFilter, String>(TestFilter.Companion.Meta) {
-            parse("TestFilter{number>24}", TestFilter.Companion.Meta)
+        val lt = filter<TestFilter, String>(TestFilter.Meta) {
+            parse("TestFilter{number>24}", TestFilter.Meta)
         }
         val ltr = entities.filter { lt.matches(it) }
         on("filtering on a field") {
@@ -106,8 +109,8 @@ object TestSimpleFilter : Spek({
                 ltr.map { it.id }.toSet() `should equal`  setOf("Z")
             }
         }
-        val ids = filter<TestFilter, String>(TestFilter.Companion.Meta) {
-            parse("TestFilter{id > \"W\"}", TestFilter.Companion.Meta)
+        val ids = filter<TestFilter, String>(TestFilter.Meta) {
+            parse("TestFilter{id > \"W\"}", TestFilter.Meta)
         }
         on("filtering on ids") {
             it("should be a property filter") {
@@ -128,8 +131,8 @@ object TestSimpleFilter : Spek({
             }
         }
         on("another id filter") {
-            val ids1 = filter<TestFilter, String>(TestFilter.Companion.Meta) {
-                parse("TestFilter{id >=\"W\"}", TestFilter.Companion.Meta)
+            val ids1 = filter<TestFilter, String>(TestFilter.Meta) {
+                parse("TestFilter{id >=\"W\"}", TestFilter.Meta)
             }
             it("should filter") {
                 val idF = entities.filter { ids1.matches(it) }
@@ -138,7 +141,7 @@ object TestSimpleFilter : Spek({
         }
 
         on("reversed id filter") {
-            val ids1 = filter<TestFilter, String>(TestFilter.Companion.Meta) { parse("TestFilter{\"W\"<=id}", TestFilter.Companion.Meta) }
+            val ids1 = filter<TestFilter, String>(TestFilter.Meta) { parse("TestFilter{\"W\"<=id}", TestFilter.Meta) }
             it("should filter") {
                 val idF = entities.filter { ids1.matches(it) }
                 idF.size `should equal` 3

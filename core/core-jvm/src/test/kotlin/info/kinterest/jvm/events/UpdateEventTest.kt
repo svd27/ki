@@ -3,6 +3,7 @@ package info.kinterest.jvm.events
 import info.kinterest.*
 import info.kinterest.jvm.KIJvmEntityMeta
 import info.kinterest.jvm.filter.TestFilter
+import info.kinterest.meta.IdInfo
 import info.kinterest.meta.KIEntityMeta
 import info.kinterest.meta.KIProperty
 import org.amshove.kluent.`should equal`
@@ -20,7 +21,7 @@ class AnEntity(override val id: Long, var name: String, var score: Int) : KIEnti
     override val _store: DataStore
         get() = DONTDOTHIS("not implemented") //To change initializer of created properties use File | Settings | File Templates.
     override val _meta: KIEntityMeta
-        get() = TestFilter.Companion.Meta
+        get() = TestFilter.Meta
 
     companion object {
         val Meta = object : KIJvmEntityMeta(AnEntity::class, AnEntity::class) {
@@ -31,6 +32,7 @@ class AnEntity(override val id: Long, var name: String, var score: Int) : KIEnti
             override val versioned: Boolean
                 get() = false
             override val hierarchy: List<KIEntityMeta> = listOf()
+            override val idInfo: IdInfo = IdInfo(Long::class, false, null, null, true)
         }
     }
 
@@ -53,8 +55,8 @@ class AnEntity(override val id: Long, var name: String, var score: Int) : KIEnti
 
 class UpdateEventTest : Spek({
     given("an entity") {
-        val propName = AnEntity.Companion.Meta["name"]!!
-        val propScore = AnEntity.Companion.Meta["score"]!!
+        val propName = AnEntity.Meta["name"]!!
+        val propScore = AnEntity.Meta["score"]!!
         on("a simple update event") {
             val updates = listOf(EntityUpdated(propName.cast(), "a", "b"))
             val upd = EntityUpdatedEvent(AnEntity(0, "", 1), updates)

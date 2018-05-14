@@ -158,9 +158,12 @@ sealed class EntityFilter<E : KIEntity<K>, K : Any>(override val meta: KIEntityM
     infix fun <P : Comparable<P>> String.`in`(values: Set<P>): PropertyInFilter<E, K, P> = withProp(this, values.first()) { PropertyInFilter(values, it, meta) }
     infix fun <P : Comparable<P>> String.notin(values: Set<P>): PropertyNotInFilter<E, K, P> = withProp(this, values.first()) { PropertyNotInFilter(values, it, meta) }
 
-    fun or(f: Iterable<EntityFilter<E, K>>): OrFilter<E, K> {
+    fun or(f: Iterable<EntityFilter<E, K>>): EntityFilter<E, K> {
+        if (f.count() == 0) return this
         val first = f.first()
         return when (this) {
+            is AllFilter -> if (f.count() == 1) first else first.or(f.drop(1))
+            is NoneFilter -> this
             is CombinationFilter -> when (this) {
                 is OrFilter -> {
                     @Suppress("UNCHECKED_CAST")
@@ -182,10 +185,13 @@ sealed class EntityFilter<E : KIEntity<K>, K : Any>(override val meta: KIEntityM
 
     override infix fun and(f: Filter<E, K>): Filter<E, K> = if (f is EntityFilter) this.and(listOf(f)) else DONTDOTHIS()
 
-    fun and(vararg fs: EntityFilter<E, K>): AndFilter<E, K> = and(fs.toList())
-    fun and(f: Iterable<EntityFilter<E, K>>): AndFilter<E, K> {
+    fun and(vararg fs: EntityFilter<E, K>): EntityFilter<E, K> = and(fs.toList())
+    fun and(f: Iterable<EntityFilter<E, K>>): EntityFilter<E, K> {
+        if (f.count() == 0) return this
         val first = f.first()
         return when (this) {
+            is AllFilter -> if (f.count() == 1) first else first.and(f.drop(1))
+            is NoneFilter -> this
             is CombinationFilter -> when (this) {
                 is AndFilter -> {
                     @Suppress("UNCHECKED_CAST")

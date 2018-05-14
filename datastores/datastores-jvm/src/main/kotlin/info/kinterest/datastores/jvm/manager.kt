@@ -16,7 +16,6 @@ import kotlinx.coroutines.experimental.channels.Channel
 import mu.KLogging
 import org.kodein.di.Kodein
 import org.kodein.di.KodeinAware
-import org.kodein.di.LateInitKodein
 import org.kodein.di.erased.bind
 import org.kodein.di.erased.instance
 import org.kodein.di.erased.singleton
@@ -64,12 +63,6 @@ class DataStoreFactoryProvider(override val kodein: Kodein) : KodeinAware, IData
 
 
 abstract class DataStoreJvm(name: String, override val kodein: Kodein) : KodeinAware, DataStoreFacade(name) {
-    val lateKodein = LateInitKodein()
-
-    init {
-        lateKodein.baseKodein = kodein
-    }
-
     protected val events: Dispatcher<EntityEvent<*, *>> by instance("entities")
     override val metaProvider by instance<MetaProvider>()
     override val qm by instance<QueryManager>()
@@ -80,7 +73,9 @@ abstract class DataStoreJvm(name: String, override val kodein: Kodein) : KodeinA
 }
 
 
-data class EntityTrace(override val type: String, override val id: Any, override val ds: String) : Serializable, IEntityTrace
+data class EntityTrace(override val type: String, override val id: Any, override val ds: String) : Serializable, IEntityTrace {
+    override fun equals(other: Any?): Boolean = _equals(other)
+}
 
 val datasourceKodein = Kodein.Module {
     bind<IDataStoreFactoryProvider>() with singleton { DataStoreFactoryProvider(kodein) }

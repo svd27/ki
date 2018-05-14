@@ -7,9 +7,8 @@ import info.kinterest.datastores.DataStoreFacade
 import info.kinterest.functional.Try
 import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.KIJvmEntity
-import info.kinterest.jvm.annotations.Entity
+import info.kinterest.jvm.annotations.*
 import info.kinterest.jvm.annotations.Relation
-import info.kinterest.jvm.annotations.TypeArgs
 import info.kinterest.meta.*
 import org.jetbrains.annotations.Nullable
 import org.yanex.takenoko.*
@@ -30,13 +29,15 @@ class EntityInfo(val type: TypeElement, val env: ProcessingEnvironment) {
     val root: TypeElement
     val parent: TypeElement?
     val hierarchy: List<TypeElement>
-    val abstract : Boolean
+    val abstract: Boolean
 
     val rels: List<Pair<TypeElement, ExecutableElement>>
+    val isRoot: Boolean
+    val idInfo: IdInfo?
 
     init {
         env.note("targetPkg: $targetPkg")
-        abstract = type.typeParameters.size>0
+        abstract = type.typeParameters.size > 0
         //type.getAnnotation(Relations::class.java)?.let{ env.note("rel: $it") }
         fun findSuperEntity(t: TypeElement): TypeElement? = t.interfaces.filterIsInstance<DeclaredType>().map { it.asElement() }.filter { it.getAnnotation(Entity::class.java) != null }.filterIsInstance<TypeElement>().firstOrNull()
         parent = findSuperEntity(type)
@@ -45,10 +46,15 @@ class EntityInfo(val type: TypeElement, val env: ProcessingEnvironment) {
             par += findSuperEntity(par.last()!!)
         }
         hierarchy = par.filterNotNull()
-        rels = type.enclosedElements.filterIsInstance<ExecutableElement>().filter { env.note("rel check: $it ${it.annotationMirrors}"); it.getAnnotation(Relation::class.java) != null }.map { type to it } + hierarchy.flatMap { type -> type.enclosedElements.filterIsInstance<ExecutableElement>().filter { it.getAnnotation(Relation::class.java) != null }.map { type to it } }
+        rels = type.enclosedElements.filterIsInstance<ExecutableElement>().filter { it.getAnnotation(Relation::class.java) != null }.map { type to it } + hierarchy.flatMap { type -> type.enclosedElements.filterIsInstance<ExecutableElement>().filter { it.getAnnotation(Relation::class.java) != null }.map { type to it } }
         env.note("RELS: $rels")
 
         root = hierarchy.lastOrNull() ?: type
+        isRoot = root == type
+    }
+
+    class IdInfo(val idType: String, val generatedByDataStore: Boolean, val generatedBy: String?, val sequence: String?, unique: Boolean?) {
+        val guaranteedUnique: Boolean? = if (unique != null) unique else if (generatedBy != null) true else null
     }
 
 
@@ -78,6 +84,20 @@ class EntityInfo(val type: TypeElement, val env: ProcessingEnvironment) {
     val idTypeStr = idType.qualifiedName.normalize()
     val idKoType: KoType = parseType(idType.qualifiedName.normalize())
 
+    init {
+        if (isRoot) {
+            val guarantueedUnique =
+                    if (idGetter.getAnnotation(GuarantueedUnique::class.java) != null)
+                        idGetter.getAnnotation(GuarantueedUnique::class.java).guarantueed
+                    else null
+            val dsGenerated: Boolean = idGetter.getAnnotation(GeneratedByStore::class.java) != null
+            val generatedBy = idGetter.getAnnotation(GeneratedBy::class.java)
+            val generator = generatedBy?.generator
+            val sequence = generatedBy?.sequence ?: root.simpleName.toString()
+            idInfo = IdInfo(idTypeStr, dsGenerated, generator, sequence, guarantueedUnique)
+        } else idInfo = null
+    }
+
     val fields: List<FieldInfo> = (hierarchy + type).flatMap { t ->
         t.enclosedElements.filterIsInstance<ExecutableElement>().filter {
             it.simpleName.toString() !in rels.map { it.second.simpleName.toString() }
@@ -89,11 +109,11 @@ class EntityInfo(val type: TypeElement, val env: ProcessingEnvironment) {
             val setterNm = "set${nm.capitalize()}"
             val setter = t.enclosedElements.filterIsInstance<ExecutableElement>().filter { it.simpleName.toString() == setterNm }
             FieldInfo(
-                    name= nm,
+                    name = nm,
                     _type = it.returnType,
                     readOnly = setter.isEmpty(),
                     nullable = it.getAnnotation(Nullable::class.java) != null,
-                    transient = it.getAnnotation(info.kinterest.jvm.annotations.Transient::class.java)!=null,
+                    transient = it.getAnnotation(info.kinterest.jvm.annotations.Transient::class.java) != null,
                     getter = it
             )
         }
@@ -101,9 +121,7 @@ class EntityInfo(val type: TypeElement, val env: ProcessingEnvironment) {
 
     val relations: List<RelationInfo> = rels.map { val rel = RelationInfo(it.second, it.first); env.note("rel: ${it.second} ${it.second.simpleName} prop: ${rel.property}"); rel }
 
-    val versioned = (hierarchy+type).flatMap { it.interfaces }.any { it -> it is DeclaredType && it.asElement().simpleName.toString() == KIVersionedEntity::class.simpleName }
-
-    class IdInfo(val type: TypeElement, val generateKey: Boolean)
+    val versioned = (hierarchy + type).flatMap { it.interfaces }.any { it -> it is DeclaredType && it.asElement().simpleName.toString() == KIVersionedEntity::class.simpleName }
 
     inner class RelationInfo(val element: ExecutableElement, type1: TypeElement) {
         val multi: Boolean
@@ -143,7 +161,7 @@ class EntityInfo(val type: TypeElement, val env: ProcessingEnvironment) {
         }
     }
 
-    inner class FieldInfo(val name: String, _type: TypeMirror, val readOnly: Boolean, val nullable: Boolean, val transient: Boolean = false, val getter:ExecutableElement) {
+    inner class FieldInfo(val name: String, _type: TypeMirror, val readOnly: Boolean, val nullable: Boolean, val transient: Boolean = false, val getter: ExecutableElement) {
         val type: Typing = when (_type) {
             is DeclaredType -> when (_type.asElement()) {
                 is TypeElement -> Typing.Declared(_type.asElement() as TypeElement)
@@ -177,20 +195,20 @@ class EntityInfo(val type: TypeElement, val env: ProcessingEnvironment) {
 
         val koType = when (type) {
             is Typing.Declared -> parseType(type.type.qualifiedName.normalize() +
-                    if(type.type.typeParameters.size>0) {
+                    if (type.type.typeParameters.size > 0) {
                         val typeArgs = getter.annotationMirrors.find { mir ->
                             val annType = mir.annotationType
                             annType.toString() == TypeArgs::class.qualifiedName
                         }
-                        if(typeArgs==null) throw IllegalStateException("need to annotate generic types with TypeArgs")
+                        if (typeArgs == null) throw IllegalStateException("need to annotate generic types with TypeArgs")
                         else {
                             env.note("mirror: $typeArgs, ${typeArgs.elementValues}")
-                            val annotationValue: AnnotationValue = typeArgs.elementValues.filter { it.key.simpleName.toString()==TypeArgs::args.name }.map { it.value }.first()
+                            val annotationValue: AnnotationValue = typeArgs.elementValues.filter { it.key.simpleName.toString() == TypeArgs::args.name }.map { it.value }.first()
                             val args = annotationValue.value as List<*>
 
                             env.note("args: $annotationValue ${annotationValue::class} ${annotationValue.value} ${annotationValue.value::class}")
-                            type.type.typeParameters.mapIndexed {
-                                idx, par -> args[idx].toString().removeSuffix(".class").normalize()
+                            type.type.typeParameters.mapIndexed { idx, par ->
+                                args[idx].toString().removeSuffix(".class").normalize()
                             }.joinToString(",", "<", ">")
                         }
                     } else "")
@@ -276,16 +294,16 @@ object JvmGenerator : Generator {
                     extraImport(Try::class.qualifiedName!!.replaceAfterLast('.', "getOrElse"))
                     //import(Try::class.qualifiedName!!.replaceAfterLast('.', "*"))
 
-                    val typeSuffix = if(entity.type.typeParameters.size==0) "" else "<${entity.type.typeParameters.map { it.simpleName }.joinToString(",")}>"
+                    val typeSuffix = if (entity.type.typeParameters.size == 0) "" else "<${entity.type.typeParameters.map { it.simpleName }.joinToString(",")}>"
                     classDeclaration(entity.name, if (entity.abstract) ABSTRACT else KoModifierList.Empty) {
-                        if(entity.type.typeParameters.size>0) {
+                        if (entity.type.typeParameters.size > 0) {
                             entity.type.typeParameters.forEach {
                                 typeParam(it.simpleName.toString())
                             }
                         }
                         primaryConstructor() {
                             param("_store", parseType(DataStoreFacade::class.qualifiedName!!))
-                            property("id", entity.idKoType, VAL+ OVERRIDE)
+                            property("id", entity.idKoType, VAL + OVERRIDE)
                         }
 
                         extends(
@@ -316,7 +334,7 @@ object JvmGenerator : Generator {
                         entity.fields.forEach {
                             val mod = if (it.readOnly) VAL else VAR
                             property(it.name, it.koType, OVERRIDE + mod) {
-                                if(!it.transient) {
+                                if (!it.transient) {
                                     getter(KoModifierList.Empty, true) {
                                         append("""getValue(Meta.${it.metaName})""")
                                         if (!it.nullable) append("!!")
@@ -363,13 +381,13 @@ object JvmGenerator : Generator {
                             }
                         }
 
-                        if(!entity.abstract) function("asTransient", OVERRIDE) {
+                        if (!entity.abstract) function("asTransient", OVERRIDE) {
                             body(true) {
                                 append("Transient(this)")
                             }
                         }
 
-                        if(!entity.abstract) classDeclaration("Transient") {
+                        if (!entity.abstract) classDeclaration("Transient") {
                             implements(parseType(entity.type.qualifiedName.toString()))
 
                             primaryConstructor {
@@ -516,6 +534,20 @@ object JvmGenerator : Generator {
                             property("hierarchy", parseType("List<KIEntityMeta>"), OVERRIDE + VAL) {
                                 val hier = entity.hierarchy.joinToString(",", "listOf(", ")") { "${it.simpleName}Jvm.meta" }
                                 initializer(hier)
+                            }
+
+                            property("idInfo", parseType(info.kinterest.meta.IdInfo::class.java), VAL + OVERRIDE) {
+                                if (entity.isRoot) {
+                                    val idInfo = entity.idInfo!!
+                                    val args = "${idInfo.idType}::class, " +
+                                            "${idInfo.generatedByDataStore}, " +
+                                            "${if (idInfo.generatedBy != null) '"' + idInfo.generatedBy + '"' else "null"}, " +
+                                            "${if (idInfo.sequence != null) '"' + idInfo.sequence + '"' else "null"}, " +
+                                            "${idInfo.guaranteedUnique}"
+                                    initializer("""IdInfo($args)""")
+                                } else {
+                                    initializer("hierarchy.first().idInfo")
+                                }
                             }
                         }
 

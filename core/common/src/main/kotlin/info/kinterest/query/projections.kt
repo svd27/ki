@@ -101,7 +101,7 @@ sealed class ValueProjection<E : KIEntity<K>, K : Any>(open val property: KIProp
 class CountProjection<E : KIEntity<K>, K : Any>(property: KIProperty<Any>, parent: Projection<E, K>? = null) : ValueProjection<E, K>(property, "count(${property.name})", parent) {
     override fun combine(results: Iterable<ProjectionResult<E, K>>): ProjectionResult<E, K> =
             CountProjectionResult(this,
-                    results.filterIsInstance<CountProjectionResult<E, K>>().map { it.count }.reduce { n1, n2 -> n1 + n2 })
+                    results.filterIsInstance<CountProjectionResult<E, K>>().map { it.count }.reduce { n1, n2 -> println("combine $n1 $n2 -> ${n1 + n2}"); n1 + n2 }).apply { println("combined $results") }
 
     override fun clone(): Projection<E, K> = CountProjection(property, parent)
 }
@@ -155,8 +155,13 @@ class ProjectionBucket<E : KIEntity<K>, K : Any, B : Any>(
         val property: KIProperty<B>, val discriminator: Discriminator<E, K, B>, val bucket: BucketProjection<E, K, B>) :
         Projection<E, K>(discriminator.name, bucket) {
     override fun combine(results: Iterable<ProjectionResult<E, K>>): ProjectionBucketResult<E, K, B> = ProjectionBucketResult(results.filterIsInstance<ProjectionBucketResult<E, K, B>>().map { it.result }.reduce { macc, map ->
-        macc.map { it.key to it.value.projection.combine(listOf(map[it.key]).filterNotNull()) }.toMap()
-    }, this)
+        macc.map { it.key to it.value.projection.combine(listOfNotNull(macc[it.key], map[it.key])) }.toMap()
+    }, this).apply {
+        println("$this@ProjectionBucket combined $results\n" +
+                "${results.filterIsInstance<ProjectionBucketResult<E, K, B>>().map {
+                    it.result.map { "$it\n" }
+                }}")
+    }
 
     override val amendFilter: Filter<E, K>?
         get() = discriminator.asFilter()
@@ -167,11 +172,12 @@ class ProjectionBucket<E : KIEntity<K>, K : Any, B : Any>(
 
 class BucketProjection<E : KIEntity<K>, K : Any, B : Any>(parent: Projection<E, K>?, val projections: List<Projection<E, K>>, val discriminators: Discriminators<E, K, B>, val property: KIProperty<B>) : Projection<E, K>(discriminators.name, parent) {
     override fun combine(results: Iterable<ProjectionResult<E, K>>): ProjectionResult<E, K> = results.filterIsInstance<BucketProjectionResult<E, K, B>>().reduce { b1, b2 ->
+        println("combine $this results $b1 $b2")
         BucketProjectionResult(b1.bucketProjection, b1.buckets.map {
             it.key to
                     it.value.projection.combine(listOf(it.value, b2.buckets[it.key]).filterNotNull())
         }.filterIsInstance<Pair<ProjectionBucket<E, K, B>, ProjectionBucketResult<E, K, B>>>().toMap())
-    }
+    }.apply { println("$this combined $results") }
 
     override fun clone(): Projection<E, K> = BucketProjection(parent, projections, discriminators, property)
 }
@@ -279,7 +285,7 @@ class BucketProjectionResult<E : KIEntity<K>, K : Any, B : Any>(val bucketProjec
             }
             if (cp != null)
                 buckets[cp]?.let {
-                    it.retrieve(path, cp.amendQuery(q), qm).getOrElse { throw it }
+                    it.retrieve(path, projection.amendQuery(q), qm).getOrElse { throw it }
                 } ?: throw QueryError(q, qm, "no projection $path found")
             else throw QueryError(q, qm, "no projection $path found")
         }
@@ -313,9 +319,9 @@ class ReloadProjectionResult<E : KIEntity<K>, K : Any>(projection: Projection<E,
             val orElse = qm.query(query).getOrElse { throw it }
             val deferred = orElse.map { it.map { it.projections[projection]!!.retrieve(path, query, qm).getOrElse { throw it }.map { it.getOrElse { throw it } } } }
 
-
-            val awit = deferred.await().getOrElse { throw it }.await()
-            Try { awit }
+            val await = deferred.await().getOrElse { throw it }.await()
+            println("retrieve with filter ${query.f} $await")
+            Try.succeed(await)
         }
     }
 
@@ -439,6 +445,8 @@ sealed class ValueProjectionResult<E : KIEntity<K>, K : Any, V : Any>(override v
             ReloadProjectionResult(projection)
         }
     }
+
+    override fun toString(): String = "${super.toString()} = $result"
 }
 
 class CountProjectionResult<E : KIEntity<K>, K : Any>(projection: CountProjection<E, K>, val count: Long) : ValueProjectionResult<E, K, Long>(projection, count) {

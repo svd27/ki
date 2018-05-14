@@ -10,10 +10,7 @@ import info.kinterest.filter.FilterWrapper
 import info.kinterest.functional.Try
 import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.coreKodein
-import info.kinterest.meta.KIEntityMeta
-import info.kinterest.meta.KIProperty
-import info.kinterest.meta.KIRelationProperty
-import info.kinterest.meta.Relation
+import info.kinterest.meta.*
 import info.kinterest.paging.Page
 import info.kinterest.paging.Paging
 import info.kinterest.query.*
@@ -53,6 +50,8 @@ val remmeta: KIEntityMeta = object : KIEntityMeta() {
     override val hierarchy: List<KIEntityMeta>
         get() = TODO("not implemented") //To change initializer of created properties use File | Settings | File Templates.
     override val types: List<KIEntityMeta>
+        get() = TODO("not implemented") //To change initializer of created properties use File | Settings | File Templates.
+    override val idInfo: IdInfo
         get() = TODO("not implemented") //To change initializer of created properties use File | Settings | File Templates.
 
     override fun <K : Any> new(ds: DataStore, id: K): KIEntity<K> {
@@ -104,7 +103,11 @@ open class RemIn(name: String, override val pool: CoroutineDispatcher, override 
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
-    override fun <E : KIEntity<K>, K : Any> create(type: KIEntityMeta, entities: Iterable<E>): Try<Deferred<Try<Iterable<E>>>> {
+    override fun <E : KIEntity<K>, K : Any> create(type: KIEntityMeta, entity: E): Try<Deferred<Try<E>>> {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override suspend fun <K : Any> generateKey(type: KIEntityMeta): K {
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
@@ -199,7 +202,11 @@ open class RemOut(kodein: Kodein, name: String, override val ds: DataStoreFacade
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
-    override fun <E : KIEntity<K>, K : Any> create(type: KIEntityMeta, entities: Iterable<E>): Try<Deferred<Try<Iterable<E>>>> {
+    override fun <E : KIEntity<K>, K : Any> create(type: KIEntityMeta, entity: E): Try<Deferred<Try<E>>> {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override suspend fun <K : Any> generateKey(type: KIEntityMeta): K {
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
