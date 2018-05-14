@@ -1,6 +1,7 @@
 package info.kinterest
 
 import info.kinterest.datastores.DataStoreFacade
+import info.kinterest.datastores.IEntityTrace
 import info.kinterest.filter.FilterWrapper
 import info.kinterest.filter.IdFilter
 import info.kinterest.functional.getOrDefault
@@ -47,6 +48,14 @@ interface KIEntity<out K : Any> : KITransientEntity<K> {
 
     fun <V : Any?, P : KIProperty<V>> setValue(prop: P, v: V?)
     fun <V : Any?, P : KIProperty<V>> setValue(prop: P, version: Any, v: V?)
+
+    fun asTrace(): IEntityTrace = object : IEntityTrace {
+        override val type: String get() = _meta.name
+        override val id: Any get() = this@KIEntity.id
+        override val ds: String get() = _store.name
+        override fun equals(other: Any?): Boolean = _equals(other)
+        override fun hashCode(): Int = type.hashCode() xor id.hashCode() xor ds.hashCode()
+    }
 }
 
 interface KIVersionedEntity<out K : Any> : KIEntity<K> {

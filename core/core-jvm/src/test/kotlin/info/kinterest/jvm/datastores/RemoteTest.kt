@@ -107,7 +107,7 @@ open class RemIn(name: String, override val pool: CoroutineDispatcher, override 
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
-    override fun <K : Any> generateKey(type: KIEntityMeta): K {
+    override suspend fun <K : Any> generateKey(type: KIEntityMeta): K {
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
@@ -206,7 +206,7 @@ open class RemOut(kodein: Kodein, name: String, override val ds: DataStoreFacade
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 
-    override fun <K : Any> generateKey(type: KIEntityMeta): K {
+    override suspend fun <K : Any> generateKey(type: KIEntityMeta): K {
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 

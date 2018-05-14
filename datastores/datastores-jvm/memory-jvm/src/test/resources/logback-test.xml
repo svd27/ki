@@ -8,11 +8,11 @@
     </appender>
 
     <!-- control the level of output here -->
-    <root level="info">
+    <root level="DEBUG">
         <appender-ref ref="STDOUT" />
     </root>
 
-    <logger name="info.kinterest" level="INFO" additivity="false">
+    <logger name="info.kinterest" level="DEBUG" additivity="false">
         <appender-ref ref="STDOUT"/>
     </logger>
     <logger name="info.kinterest.datastores.jvm.memory" level="DEBUG" additivity="false">

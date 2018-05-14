@@ -43,13 +43,19 @@ abstract class DataStoreFacade(name: String) : DataStore(name) {
     abstract fun <S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any> unsetRelation(rel: Relation<S, T, K, L>): Try<Deferred<Try<Boolean>>>
     abstract fun <S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any> unsetRelationSync(rel: Relation<S, T, K, L>): Try<Boolean>
 
-    abstract fun <K : Any> generateKey(type: KIEntityMeta): K
+    abstract suspend fun <K : Any> generateKey(type: KIEntityMeta): K
 }
 
 interface IEntityTrace {
     val type: String
     val id: Any
     val ds: String
+
+    fun _equals(other: Any?): Boolean = if (other === this) true else {
+        if (other == null) false
+        else if (other is IEntityTrace) type == other.type && other.id == id && other.ds == ds
+        else false
+    }
 }
 
 sealed class QueryMessage

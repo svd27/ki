@@ -5,22 +5,26 @@ import info.kinterest.EntityRelationsAdded
 import info.kinterest.EntityRelationsRemoved
 import info.kinterest.KIEntity
 import info.kinterest.datastores.jvm.memory.jvm.RelPersonJvm
-import info.kinterest.functional.Try
 import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.KIJvmEntity
 import info.kinterest.jvm.annotations.Entity
 import info.kinterest.jvm.annotations.Relation
 import info.kinterest.jvm.datastores.DataStoreConfig
+import info.kinterest.jvm.filter.EntityFilter
+import info.kinterest.jvm.filter.filter
 import info.kinterest.jvm.getIncomingRelations
+import info.kinterest.jvm.tx.Transaction
 import info.kinterest.jvm.tx.TransactionManager
 import info.kinterest.jvm.tx.jvm.*
 import info.kinterest.jvm.util.EventWaiter
+import info.kinterest.paging.Paging
+import info.kinterest.query.EntityProjection
+import info.kinterest.query.Query
+import info.kinterest.sorting.Ordering
 import kotlinx.coroutines.experimental.channels.Channel
 import kotlinx.coroutines.experimental.runBlocking
 import mu.KLogging
-import org.amshove.kluent.`should be instance of`
-import org.amshove.kluent.`should be true`
-import org.amshove.kluent.`should equal`
+import org.amshove.kluent.*
 import org.jetbrains.spek.api.Spek
 import org.jetbrains.spek.api.dsl.given
 import org.jetbrains.spek.api.dsl.it
@@ -49,9 +53,9 @@ class RelationTest : Spek({
         })
         val tm by base.kodein.instance<TransactionManager>()
         tm.txStore.name
-        Try.errorHandler = {
-            logger.debug(it) { }
-        }
+//        Try.errorHandler = {
+//            logger.debug(it) { }
+//        }
 
         base.metaProvider.register(RelPersonJvm.meta)
         base.metaProvider.register(AddRelationTransactionJvm.meta)
@@ -168,6 +172,36 @@ class RelationTest : Spek({
                 logger.debug { "incoming $incomingRelations" }
                 incomingRelations.count() `should equal` 1
             }
+        }
+
+        on("trying to delete an entity with incoming relations") {
+            val p1 = base.retrieve<RelPerson, Long>(listOf(0)).getOrElse { throw it }.first()
+            @Suppress("UNUSED_VARIABLE")
+            val p2 = base.retrieve<RelPerson, Long>(listOf(1)).getOrElse { throw it }.first()
+            val p3 = base.retrieve<RelPerson, Long>(listOf(2)).getOrElse { throw it }.first()
+            val td = base.ds.delete(RelPersonJvm.Meta, listOf(p1)).getOrElse { throw it }.run { runBlocking { await() } }
+            it("should fail") {
+                td.isSuccess.`should be false`()
+                val thr = { td.getOrElse { throw it } }
+                thr.`should throw`(AnyException)
+            }
+
+            it("after removing the relation it should work") {
+                val tf = filter<Transaction<*>, Long>(TransactionJvm.meta) {
+                    EntityFilter.AllFilter<Transaction<*>, Long>(TransactionJvm.meta)
+                }
+                val qr = runBlocking { base.qm.query(Query(tf, listOf(EntityProjection<Transaction<*>, Long>(Ordering.natural(), Paging.ALL)), setOf(tm.txStore))).getOrElse { throw it }.await().getOrElse { throw it } }
+                logger.debug { qr }
+                p3.friends.remove(p1)
+                waiter.waitFor { it is EntityRelationsRemoved<*, *, *, *> && it.relations.any { it.source == p3 && it.target == p1 } }
+                p3.friends.add(p2)
+                waiter.waitFor { it is EntityRelationsAdded<*, *, *, *> && it.relations.any { it.source == p3 && it.target == p2 } }
+
+                val td1 = base.ds.delete(RelPersonJvm.Meta, listOf(p1)).getOrElse { throw it }.run { runBlocking { await() } }
+                td1.getOrElse { throw it }
+                td1.isSuccess.`should be true`()
+            }
+
         }
     }
 }) {

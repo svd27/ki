@@ -81,6 +81,7 @@ interface TransactionManager {
     suspend fun added(tx: Transaction<*>)
 
     suspend fun <R> fail(tx: Transaction<R>, f: Try.Failure<R>) {
+        logger.debug { "fail $tx" }
         if (tx.state in setOf(TxState.FAILING, TxState.FAILED)) return
         setState(tx, TxState.FAILING)
         tx.rollback(this@TransactionManager)
@@ -112,6 +113,7 @@ interface TransactionManager {
     }
 
     suspend fun <R> commit(tx: Transaction<R>, r: Try.Success<R>): R = run {
+        logger.debug { "commit $tx" }
         callback(tx, r)
         setState(tx, TxState.DONE)
         complete(tx, r)
@@ -171,8 +173,8 @@ interface TransactionManager {
                             is Either.Right -> res = commit(tx, Try.succeed(either.right))
                         }
                         if (res != null) break
-                    } catch (e: Exception) {
-                        logger.debug(e) {}
+                    } catch (e: java.lang.Exception) {
+                        logger.debug(e) { "tx $tx failed" }
                         fail(tx.cast(), Try.raise<Any>(e.cast()))
                         throw e
                     }
@@ -282,12 +284,13 @@ interface CreateTransaction : Transaction<Any> {
         val cp = CountProjection<CreateTransaction, Long>(_meta.idProperty)
         val elements = EntityProjection<CreateTransaction, Long>(Ordering.natural(), Paging(0, 10))
         logger.debug { "query $f" }
-        val q = Query(f, listOf(cp, elements))
+        val q = Query(f, listOf(cp, elements), setOf(tm.txStore))
         val qr = tm.txStore.query(q).getOrElse { throw it }.await().getOrElse { throw it }
         val retrieve = qr.retrieve(cp.path, tm.qm).getOrElse { throw it }.await().getOrElse { throw it } as CountProjectionResult<CreateTransaction, Long>
         if (retrieve.count > 0) {
             val entities = qr.retrieve(elements.path, tm.qm)
             val er = entities.getOrElse { throw it }.await().getOrElse { throw it } as EntityProjectionResult
+            logger.debug { "count: $retrieve entities: ${er.page.entities}" }
             er.page.entities.forEach {
                 logger.debug {
                     "$it: ${it.state} ${it.metaName} ${it.create}"
@@ -416,14 +419,15 @@ interface BookRelationTransaction : Transaction<Boolean> {
 interface UnBookRelationTransaction : Transaction<Boolean> {
     override val id: Long
     val relation: String
-    val soutce: IEntityTrace
+    val source: IEntityTrace
     val target: IEntityTrace
     var unbooked: Boolean
 
     override suspend fun rollback(tm: TransactionManager) {
+        logger.debug { "rollback $this $source -> $target" }
         if (unbooked) {
-            val rp = tm.metas.meta(soutce.type)!!.props[relation]!! as KIRelationProperty
-            val sel = tm.qm.retrieve(tm.metas.meta(soutce.type)!!, listOf(soutce.id), setOf(DataStore(soutce.ds))).getOrElse { throw it }
+            val rp = tm.metas.meta(source.type)!!.props[relation]!! as KIRelationProperty
+            val sel = tm.qm.retrieve(tm.metas.meta(source.type)!!, listOf(source.id), setOf(DataStore(source.ds))).getOrElse { throw it }
                     .await().getOrElse { throw it }
             val retrieve = tm.qm.retrieve(tm.metas.meta(target.type)!!, listOf(target.id),
                     setOf(DataStore(target.ds))).getOrElse { throw it }.await().getOrElse { throw it }
@@ -434,15 +438,15 @@ interface UnBookRelationTransaction : Transaction<Boolean> {
     }
 
     override suspend fun process(childrenDone: Iterable<Transaction<*>>, tm: TransactionManager): Either<Iterable<Transaction<*>>, Boolean> {
-        val rp = tm.metas.meta(soutce.type)!!.props[relation]!! as KIRelationProperty
-        val sel = tm.qm.retrieve(tm.metas.meta(soutce.type)!!, listOf(soutce.id), setOf(DataStore(soutce.ds))).getOrElse { throw it }
+        val rp = tm.metas.meta(source.type)!!.props[relation]!! as KIRelationProperty
+        val sel = tm.qm.retrieve(tm.metas.meta(source.type)!!, listOf(source.id), setOf(DataStore(source.ds))).getOrElse { throw it }
                 .await().getOrElse { throw it }
         val retrieve = tm.qm.retrieve(tm.metas.meta(target.type)!!, listOf(target.id),
                 setOf(DataStore(target.ds))).getOrElse { throw it }.await().getOrElse { throw it }
         val es = sel.first()
         val et = retrieve.first() as KIJvmEntity<KIEntity<Any>, Any>
         unbooked = et.removeIncomingRelation(Relation(rp, es, et)).getOrElse { throw it }
-        logger.debug { "result of addIncoming $unbooked for $soutce -> $target" }
+        logger.debug { "result of removeIncoming $unbooked for $source -> $target" }
         return Either.right(unbooked)
     }
 
@@ -454,26 +458,26 @@ interface UnBookRelationTransaction : Transaction<Boolean> {
 interface AddOutgoingRelationTransaction : Transaction<Boolean> {
     override val id: Long
     val relation: String
-    val soutce: IEntityTrace
+    val source: IEntityTrace
     val target: IEntityTrace
     var booked: Boolean
 
     override suspend fun process(childrenDone: Iterable<Transaction<*>>, tm: TransactionManager): Either<Iterable<Transaction<*>>, Boolean> {
-        val rp = tm.metas.meta(soutce.type)!!.props[relation]!! as KIRelationProperty
-        val sel = tm.qm.retrieve(tm.metas.meta(soutce.type)!!, listOf(soutce.id), setOf(DataStore(soutce.ds))).getOrElse { throw it }
+        val rp = tm.metas.meta(source.type)!!.props[relation]!! as KIRelationProperty
+        val sel = tm.qm.retrieve(tm.metas.meta(source.type)!!, listOf(source.id), setOf(DataStore(source.ds))).getOrElse { throw it }
                 .await().getOrElse { throw it }
         val retrieve = tm.qm.retrieve(tm.metas.meta(target.type)!!, listOf(target.id),
                 setOf(DataStore(target.ds))).getOrElse { throw it }.await().getOrElse { throw it }
         val es = sel.first() as KIJvmEntity<KIEntity<Any>, Any>
         val et = retrieve.first()
         booked = es._store.setRelationSync(Relation(rp, es, et)).getOrElse { throw it }
-        logger.debug { "result of setRelation $booked for $soutce -> $target" }
+        logger.debug { "result of setRelation $booked for $source -> $target" }
         return Either.right(booked)
     }
 
     override suspend fun rollback(tm: TransactionManager) {
-        val rp = tm.metas.meta(soutce.type)!!.props[relation]!! as KIRelationProperty
-        val sel = tm.qm.retrieve(tm.metas.meta(soutce.type)!!, listOf(soutce.id), setOf(DataStore(soutce.ds))).getOrElse { throw it }
+        val rp = tm.metas.meta(source.type)!!.props[relation]!! as KIRelationProperty
+        val sel = tm.qm.retrieve(tm.metas.meta(source.type)!!, listOf(source.id), setOf(DataStore(source.ds))).getOrElse { throw it }
                 .await().getOrElse { throw it }
         val retrieve = tm.qm.retrieve(tm.metas.meta(target.type)!!, listOf(target.id),
                 setOf(DataStore(target.ds))).getOrElse { throw it }.await().getOrElse { throw it }
@@ -507,14 +511,17 @@ interface RemoveOutgoingRelationTransaction : Transaction<Boolean> {
     }
 
     override suspend fun rollback(tm: TransactionManager) {
-        val rp = tm.metas.meta(soutce.type)!!.props[relation]!! as KIRelationProperty
-        val sel = tm.qm.retrieve(tm.metas.meta(soutce.type)!!, listOf(soutce.id), setOf(DataStore(soutce.ds))).getOrElse { throw it }
-                .await().getOrElse { throw it }
-        val retrieve = tm.qm.retrieve(tm.metas.meta(target.type)!!, listOf(target.id),
-                setOf(DataStore(target.ds))).getOrElse { throw it }.await().getOrElse { throw it }
-        val es = sel.first() as KIJvmEntity<KIEntity<Any>, Any>
-        val et = retrieve.first()
-        es._store.setRelation(Relation(rp, es, et)).getOrElse { throw it }.await().getOrElse { throw it }
+        logger.debug { "rollback $this $soutce -> $target" }
+        if (unbooked) {
+            val rp = tm.metas.meta(soutce.type)!!.props[relation]!! as KIRelationProperty
+            val sel = tm.qm.retrieve(tm.metas.meta(soutce.type)!!, listOf(soutce.id), setOf(DataStore(soutce.ds))).getOrElse { throw it }
+                    .await().getOrElse { throw it }
+            val retrieve = tm.qm.retrieve(tm.metas.meta(target.type)!!, listOf(target.id),
+                    setOf(DataStore(target.ds))).getOrElse { throw it }.await().getOrElse { throw it }
+            val es = sel.first() as KIJvmEntity<KIEntity<Any>, Any>
+            val et = retrieve.first()
+            es._store.setRelation(Relation(rp, es, et)).getOrElse { throw it }.await().getOrElse { throw it }
+        }
     }
 
     companion object : KLogging()
