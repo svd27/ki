@@ -25,9 +25,9 @@ data class EntityUpdatedEvent<out E : KIEntity<K>, out K : Any>(val entity: E, v
     }
 }
 data class EntityUpdated<out V : Any>(val prop: KIProperty<V>, val old: V?, val new: V?)
-sealed class EntityRelationEvent<out S : KIEntity<K>, out K : Any, T : KIEntity<L>, L : Any>(open val relations: Iterable<Relation<S, T, K, L>>) : EntityEvent<S, K>()
-data class EntityRelationsAdded<out S : KIEntity<K>, out K : Any, T : KIEntity<L>, L : Any>(override val relations: Iterable<Relation<S, T, K, L>>) : EntityRelationEvent<S, K, T, L>(relations)
-data class EntityRelationsRemoved<out S : KIEntity<K>, out K : Any, T : KIEntity<L>, L : Any>(override val relations: Iterable<Relation<S, T, K, L>>) : EntityRelationEvent<S, K, T, L>(relations)
+sealed class EntityRelationEvent<out S : KIEntity<K>, out K : Any, T : KIEntity<L>, L : Any>(open val relation: Relation<S, T, K, L>) : EntityEvent<S, K>()
+data class EntityRelationsAdded<out S : KIEntity<K>, out K : Any, T : KIEntity<L>, L : Any>(override val relation: Relation<S, T, K, L>) : EntityRelationEvent<S, K, T, L>(relation)
+data class EntityRelationsRemoved<out S : KIEntity<K>, out K : Any, T : KIEntity<L>, L : Any>(override val relation: Relation<S, T, K, L>) : EntityRelationEvent<S, K, T, L>(relation)
 
 @Suppress("unused")
 sealed class InterestEvent<out I : Interest<E, K>, E : KIEntity<K>, K : Any> : KIEvent()

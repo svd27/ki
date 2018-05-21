@@ -1,4 +1,5 @@
 import org.gradle.util.GradleVersion
+import org.gradle.api.tasks.testing.logging.*
 import org.jetbrains.kotlin.gradle.dsl.Coroutines
 import org.jetbrains.kotlin.gradle.dsl.KotlinCompile
 import org.jetbrains.kotlin.gradle.dsl.KotlinProjectExtension
@@ -94,6 +95,15 @@ configure(jvm) {
             }
         }
     }
+
+
 }
 
+subprojects {
+    tasks.withType<Test> {
+        testLogging {
+            events = setOf(TestLogEvent.STARTED, TestLogEvent.FAILED)
+        }
+    }
+}
 

@@ -19,14 +19,6 @@ configure(jvm) {
         }
     }
 
-    /*
-    plugins {
-        java
-        kotlin("jvm")
-        kotlin("kapt")
-    }
-    */
-
     apply(plugin = "kotlin-platform-jvm")
     apply {
         plugin("kotlin-platform-jvm")
@@ -34,9 +26,6 @@ configure(jvm) {
         plugin("org.junit.platform.gradle.plugin")
         plugin("com.kncept.junit5.reporter")
     }
-
-
-
 
     dependencies {
         "expectedBy"(project(":core:common"))

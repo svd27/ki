@@ -4,6 +4,7 @@ import info.kinterest.*
 import info.kinterest.filter.*
 import info.kinterest.meta.KIEntityMeta
 import info.kinterest.meta.KIProperty
+import info.kinterest.meta.KIRelationProperty
 import kotlinx.coroutines.experimental.CoroutineDispatcher
 import kotlinx.coroutines.experimental.channels.SendChannel
 import kotlinx.coroutines.experimental.launch
@@ -492,5 +493,48 @@ class OrFilter<E : KIEntity<K>, K : Any>(operands: Iterable<EntityFilter<E, K>>,
 
     override val op: String get() = "||"
 
-    override fun wantCombiner(w1: FilterWant, w2: FilterWant): FilterWant = wantCombiner(w1, w2)
+    override fun wantCombiner(w1: FilterWant, w2: FilterWant): FilterWant = w1.or(w2)
 }
+
+sealed class RelationFilter<S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any>(meta: KIEntityMeta, val rel: KIRelationProperty, val rf: EntityFilter<T, L>) : EntityFilter<S, K>(meta) {
+    override val affectedBy: Set<KIProperty<*>>
+        get() = setOf(rel)
+    override val affectedByAll: Set<KIProperty<*>>
+        get() = affectedBy
+
+    override fun wants(upd: EntityUpdatedEvent<S, K>): FilterWant = FilterWant.NONE
+
+}
+
+/*
+class AnyRelationFilter<S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any>(meta: KIEntityMeta, rel: KIRelationProperty, rf: EntityFilter<T, L>) : RelationFilter<S, K, T, L>(meta, rel, rf) {
+    override fun wants(rel: EntityRelationEvent<S, K, *, *>): FilterWant = if (rel.relation.rel == this.rel)
+        when (rel) {
+            is EntityRelationsAdded -> {
+                val relation = rel.relation as Relation<S, T, K, L>
+                val target = relation.target
+                if (rf.matches(target)) {
+                    val value = relation.source.getValue(rel.relation.rel) as? Collection<T>
+                    if (value?.filter { it != relation.target }?.none { rf.matches(it) } ?: false) {
+                        FilterWant.OUTIN
+                    } else FilterWant.NONE
+                } else FilterWant.NONE
+            }
+            is EntityRelationsRemoved -> {
+                val relation = rel.relation as Relation<S, T, K, L>
+                val target = relation.target
+                if (rf.matches(target)) {
+                    val value = relation.source.getValue(rel.relation.rel) as? Collection<T>
+                    if (value?.filter { it != relation.target }?.none { rf.matches(it) } ?: true) {
+                        FilterWant.INOUT
+                    } else FilterWant.NONE
+                } else FilterWant.NONE
+            }
+
+        } else FilterWant.NONE
+
+    override fun matches(e: S): Boolean = (e.getValue(rel) as Collection<T>).any { rf.matches(it) }
+    override fun contentEquals(f: EntityFilter<*, *>): Boolean = f is AnyRelationFilter<*,*,*,*> && rel == f.rel && rf == f.rf
+}
+*/
+

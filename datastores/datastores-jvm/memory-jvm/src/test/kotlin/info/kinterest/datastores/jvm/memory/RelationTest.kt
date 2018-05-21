@@ -86,7 +86,7 @@ class RelationTest : Spek({
                 @Suppress("UNCHECKED_CAST")
                 val evt = waiter.waitFor {
                     val ev = it as EntityEvent<RelPerson, Long>
-                    ev is EntityRelationsAdded<*, *, *, *> && ev.relations.count() == 1 && ev.relations.first().target == p2
+                    ev is EntityRelationsAdded<*, *, *, *> && ev.relation.target == p2
                 }
                 evt `should be instance of` EntityRelationsAdded::class
                 p1.friends.first() `should equal` p2
@@ -138,8 +138,8 @@ class RelationTest : Spek({
 
 
             it("should reflect that") {
-                waiter.waitFor { it is EntityRelationsRemoved<*, *, *, *> && it.relations.any { it.source == p3 && it.target == p1 } }
-                waiter.waitFor { it is EntityRelationsRemoved<*, *, *, *> && it.relations.any { it.source == p3 && it.target == p2 } }
+                waiter.waitFor { it is EntityRelationsRemoved<*, *, *, *> && it.relation.let { it.source == p3 && it.target == p1 } }
+                waiter.waitFor { it is EntityRelationsRemoved<*, *, *, *> && it.relation.let { it.source == p3 && it.target == p2 } }
                 p3.friends.size `should equal` 0
             }
 
@@ -163,7 +163,7 @@ class RelationTest : Spek({
             val p2 = base.retrieve<RelPerson, Long>(listOf(1)).getOrElse { throw it }.first()
             val p3 = base.retrieve<RelPerson, Long>(listOf(2)).getOrElse { throw it }.first()
             p3.friends.add(p1)
-            waiter.waitFor { it is EntityRelationsAdded<*, *, *, *> && it.relations.any { it.source == p3 && it.target == p1 } }
+            waiter.waitFor { it is EntityRelationsAdded<*, *, *, *> && it.relation.let { it.source == p3 && it.target == p1 } }
             p3.friends.add(p1)
 
             it("should only have one relation") {
@@ -193,9 +193,9 @@ class RelationTest : Spek({
                 val qr = runBlocking { base.qm.query(Query(tf, listOf(EntityProjection<Transaction<*>, Long>(Ordering.natural(), Paging.ALL)), setOf(tm.txStore))).getOrElse { throw it }.await().getOrElse { throw it } }
                 logger.debug { qr }
                 p3.friends.remove(p1)
-                waiter.waitFor { it is EntityRelationsRemoved<*, *, *, *> && it.relations.any { it.source == p3 && it.target == p1 } }
+                waiter.waitFor { it is EntityRelationsRemoved<*, *, *, *> && it.relation.let { it.source == p3 && it.target == p1 } }
                 p3.friends.add(p2)
-                waiter.waitFor { it is EntityRelationsAdded<*, *, *, *> && it.relations.any { it.source == p3 && it.target == p2 } }
+                waiter.waitFor { it is EntityRelationsAdded<*, *, *, *> && it.relation.let { it.source == p3 && it.target == p2 } }
 
                 val td1 = base.ds.delete(RelPersonJvm.Meta, listOf(p1)).getOrElse { throw it }.run { runBlocking { await() } }
                 td1.getOrElse { throw it }

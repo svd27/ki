@@ -257,7 +257,7 @@ class BucketProjectionResult<E : KIEntity<K>, K : Any, B : Any>(val bucketProjec
             val ue = ev as FilterUpdateEvent<E, K>
             if (ue.upds.history(bucketProjection.property).count() > 0) ev else null
         }
-        is FilterRelationEvent<*, *> -> if (ev.upds.relations.any { it.rel == bucketProjection.property }) ev else null
+        is FilterRelationEvent<*, *> -> if (ev.upds.relation.rel == bucketProjection.property) ev else null
     }
 
     override fun <I : Interest<E, K>> digest(i: I, evts: Iterable<FilterEvent<E, K>>, events: (Iterable<ProjectionEvent<E, K>>) -> Unit): ProjectionResult<E, K> = run {
@@ -435,7 +435,7 @@ sealed class ValueProjectionResult<E : KIEntity<K>, K : Any, V : Any>(override v
                         true
                     } else false
                 }
-                is FilterRelationEvent<*, *> -> if (e.upds.relations.first().rel == projection.property) true else false
+                is FilterRelationEvent<*, *> -> if (e.upds.relation.rel == projection.property) true else false
             }
         }
         if (!el) {

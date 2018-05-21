@@ -216,7 +216,7 @@ class JvmMemoryDataStore(cfg: JvmMemCfg, kodein: Kodein) : DataStoreJvm(cfg.name
             OffsetDateTime.now(), OffsetDateTime.now(), TxState.NEW, rel.rel.name,
             EntityTrace(rel.source._meta.name, rel.source.id, rel.source._store.name), EntityTrace(rel.target._meta.name, rel.target.id, rel.target._store.name))) {
         logger.debug { "addRelation TX result: $it" }
-    }.map { it.second.map { launch { events.incoming.send(EntityRelationsAdded(listOf(rel))) }; it } }
+    }.map { it.second.map { launch { events.incoming.send(EntityRelationsAdded(rel)) }; it } }
 
     override fun <S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any> setRelation(rel: Relation<S, T, K, L>): Try<Deferred<Try<Boolean>>> = Try {
         async(pool) {
@@ -233,7 +233,7 @@ class JvmMemoryDataStore(cfg: JvmMemCfg, kodein: Kodein) : DataStoreJvm(cfg.name
             OffsetDateTime.now(), OffsetDateTime.now(), TxState.NEW, rel.rel.name,
             EntityTrace(rel.source._meta.name, rel.source.id, rel.source._store.name), EntityTrace(rel.target._meta.name, rel.target.id, rel.target._store.name))) {
         logger.debug { "addRelation TX result: $it" }
-    }.map { it.second.map { launch { events.incoming.send(EntityRelationsRemoved(listOf(rel))) }; it } }
+    }.map { it.second.map { launch { events.incoming.send(EntityRelationsRemoved(rel)) }; it } }
 
 
     override fun <S : KIEntity<K>, K : Any, T : KIEntity<L>, L : Any> unsetRelation(rel: Relation<S, T, K, L>): Try<Deferred<Try<Boolean>>> = Try {

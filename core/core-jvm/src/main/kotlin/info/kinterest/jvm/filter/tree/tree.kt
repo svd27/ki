@@ -118,7 +118,7 @@ class FilterTree(events: Dispatcher<EntityEvent<*, *>>, load: Int) {
                         if (ev.updates.any { it.prop == property })
                             filters
                         else emptySet()
-                    is EntityRelationEvent<*, *, *, *> -> if (ev.relations.first().rel == property) filters else emptySet()
+                    is EntityRelationEvent<*, *, *, *> -> if (ev.relation.rel == property) filters else emptySet()
                 }
             }
         }
@@ -140,7 +140,7 @@ class FilterTree(events: Dispatcher<EntityEvent<*, *>>, load: Int) {
                 is EntityCreateEvent -> ev.entities.firstOrNull()?.let { e -> this[e._meta].collect(ev) } ?: setOf()
                 is EntityDeleteEvent -> ev.entities.firstOrNull()?.let { e -> this[e._meta].collect(ev) } ?: setOf()
                 is EntityUpdatedEvent -> this[ev.entity._meta].collect(ev)
-                is EntityRelationEvent<*, *, *, *> -> ev.relations.firstOrNull()?.let {
+                is EntityRelationEvent<*, *, *, *> -> ev.relation.let {
                     val meta = it.source._meta
                     this[meta].collect(ev)
                 } ?: emptySet()
