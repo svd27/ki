@@ -36,6 +36,10 @@ import org.jetbrains.spek.api.Spek
 import org.jetbrains.spek.api.dsl.given
 import org.jetbrains.spek.api.dsl.it
 import org.jetbrains.spek.api.dsl.on
+import org.kodein.di.Kodein
+import org.kodein.di.erased.bind
+import org.kodein.di.erased.instance
+import org.kodein.di.erased.singleton
 import kotlin.reflect.KClass
 
 
@@ -167,7 +171,14 @@ class BasicInterestTest : Spek({
             CompletableDeferred(t)
         }
 
-        val qm = QueryManagerJvm(FilterTree(Dispatcher(CommonPool), 2), MetaProvider())
+        val kodein = Kodein {
+            bind<Dispatcher<EntityEvent<*, *>>>("entities") with singleton { Dispatcher<EntityEvent<*, *>>(CommonPool) }
+            bind<FilterTree>() with singleton { FilterTree(kodein, 2) }
+        }
+
+        val ft: FilterTree by kodein.instance()
+
+        val qm = QueryManagerJvm(ft, MetaProvider())
         runBlocking { qm.dataStores.send(StoreReady(ds)) }
 
         on("creating the interest") {

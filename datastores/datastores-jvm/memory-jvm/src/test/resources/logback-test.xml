@@ -8,20 +8,20 @@
     </appender>
 
     <!-- control the level of output here -->
-    <root level="INFO">
+    <root level="DEBUG">
         <appender-ref ref="STDOUT" />
     </root>
 
-    </logger>
-<logger name="info.kinterest.datastore
-        <logger name=" info.kinterest" level="INFO" additivity="false">
-            <appender-ref ref="STDOUT"/>s.jvm.memory" level="INFO" additivity="false">" additivity="false">
-<appender-ref ref="STDOUT"/>
+    <logger name="info.kinterest" level="DEBUG" additivity="false">
         <appender-ref ref="STDOUT"/>
     </logger>
-<logger name="info.kinterest.datastores.jvm.memory.RelationTest" level="INFO
+    <logger name="info.kinterest.datastores.jvm.memory" level="DEBUG" additivity="false">
+        <appender-ref ref="STDOUT"/>
     </logger>
-    <logger name=" info.kinterest.jvm.tx" level="INFO" additivity="false">
+    <logger name="info.kinterest.datastores.jvm.memory.RelationTest" level="DEBUG" additivity="false">
+        <appender-ref ref="STDOUT"/>
+    </logger>
+    <logger name="info.kinterest.jvm.tx" level="DEBUG" additivity="false">
         <appender-ref ref="STDOUT"/>
     </logger>
 </configuration>

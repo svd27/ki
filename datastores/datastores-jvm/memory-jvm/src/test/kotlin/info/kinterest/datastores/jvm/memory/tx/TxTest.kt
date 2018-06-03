@@ -59,7 +59,7 @@ class TxTest : Spek({
             }
 
             val ret = tm.add(CreateTransactionJvm.Transient(ds1, 1.toLong(), null, OffsetDateTime.now(), OffsetDateTime.now(), TxState.NEW, RelPersonJvm.meta.name, 1, ds1.name)) { res1 ->
-                ds1.create(RelPersonJvm.meta, RelPersonJvm.Transient(ds1, (res1.getOrElse { throw it } as Number).toLong(), "a", mutableSetOf())).getOrElse { throw it }.await().getOrElse { throw it }
+                ds1.create(RelPersonJvm.meta, RelPersonJvm.Transient(ds1, (res1.getOrElse { throw it } as Number).toLong(), "a", false, mutableSetOf())).getOrElse { throw it }.await().getOrElse { throw it }
             }
 
             it("should be created") {
@@ -88,7 +88,7 @@ class TxTest : Spek({
             val create = (tm.add(CreateTransactionJvm.Transient(ds1, 3, null, OffsetDateTime.now(), OffsetDateTime.now(), TxState.NEW, RelPersonJvm.meta.name, 2.toLong(), ds1.name))).getOrElse { throw it }.second
             val fr = runBlocking { withTimeout(500) { create.await() } }
             val created = fr.map {
-                ds2.create<RelPerson, Long>(RelPersonJvm.meta, RelPersonJvm.Transient(ds2, it as Long, "b", mutableSetOf()))
+                ds2.create<RelPerson, Long>(RelPersonJvm.meta, RelPersonJvm.Transient(ds2, it as Long, "b", false, mutableSetOf()))
             }.getOrElse { throw it }.map { runBlocking { it.await() } }.flatten()
             it("should work") {
                 fr.isSuccess.`should be true`()
@@ -106,7 +106,7 @@ class TxTest : Spek({
             val create = (tm.add(CreateTransactionJvm.Transient(ds1, 4, null, OffsetDateTime.now(), OffsetDateTime.now(), TxState.NEW, RelPersonJvm.meta.name, 2.toLong(), ds1.name))).getOrElse { throw it }.second
             val fr = runBlocking { withTimeout(500) { create.await() } }
             fr.map {
-                ds1.create<RelPerson, Long>(RelPersonJvm.meta, RelPersonJvm.Transient(ds2, it as Long, "b", mutableSetOf()))
+                ds1.create<RelPerson, Long>(RelPersonJvm.meta, RelPersonJvm.Transient(ds2, it as Long, "b", false, mutableSetOf()))
             }
             it("should not work") {
                 fr.isFailure.`should be true`()

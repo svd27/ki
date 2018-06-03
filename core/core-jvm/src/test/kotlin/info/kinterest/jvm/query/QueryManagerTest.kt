@@ -3,6 +3,7 @@ package info.kinterest.jvm.query
 import com.nhaarman.mockito_kotlin.doReturn
 import com.nhaarman.mockito_kotlin.mock
 import com.nhaarman.mockito_kotlin.whenever
+import info.kinterest.EntityEvent
 import info.kinterest.MetaProvider
 import info.kinterest.StoreReady
 import info.kinterest.cast
@@ -30,6 +31,10 @@ import org.jetbrains.spek.api.Spek
 import org.jetbrains.spek.api.dsl.given
 import org.jetbrains.spek.api.dsl.it
 import org.jetbrains.spek.api.dsl.on
+import org.kodein.di.Kodein
+import org.kodein.di.erased.bind
+import org.kodein.di.erased.instance
+import org.kodein.di.erased.singleton
 import kotlin.math.min
 
 val meta1 = InterestEntityImpl.Meta
@@ -135,8 +140,12 @@ class QueryManagerTest : Spek({
 
         val meta = InterestEntityImpl.Meta
 
-
-        val qm = QueryManagerJvm(FilterTree(Dispatcher(), 2), MetaProvider())
+        val kodein = Kodein {
+            bind<Dispatcher<EntityEvent<*, *>>>("entities") with singleton { Dispatcher<EntityEvent<*, *>>() }
+            bind<FilterTree>() with singleton { FilterTree(kodein, 2) }
+        }
+        val ft: FilterTree by kodein.instance()
+        val qm = QueryManagerJvm(ft, MetaProvider())
         runBlocking {
             qm.dataStores.send(StoreReady(ds1))
             qm.dataStores.send(StoreReady(ds2))

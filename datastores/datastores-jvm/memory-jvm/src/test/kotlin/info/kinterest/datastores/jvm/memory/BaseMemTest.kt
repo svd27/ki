@@ -13,7 +13,7 @@ import info.kinterest.jvm.datastores.DataStoreConfig
 import info.kinterest.jvm.datastores.IDataStoreFactoryProvider
 import info.kinterest.jvm.events.Dispatcher
 import info.kinterest.jvm.tx.TransactionManager
-import info.kinterest.jvm.tx.jvm.CreateTransactionJvm
+import info.kinterest.jvm.tx.jvm.*
 import info.kinterest.meta.KIEntityMeta
 import info.kinterest.query.QueryManager
 import kotlinx.coroutines.experimental.channels.Channel
@@ -51,6 +51,12 @@ class BaseMemTest(vararg cfg: DataStoreConfig) {
 
     init {
         metaProvider.register(CreateTransactionJvm.meta)
+        metaProvider.register(AddRelationTransactionJvm.meta)
+        metaProvider.register(RemoveRelationTransactionJvm.meta)
+        metaProvider.register(BookRelationTransactionJvm.meta)
+        metaProvider.register(UnBookRelationTransactionJvm.meta)
+        metaProvider.register(AddOutgoingRelationTransactionJvm.meta)
+        metaProvider.register(RemoveOutgoingRelationTransactionJvm.meta)
         val tm: TransactionManager by kodein.instance()
         tm.txStore.name
     }

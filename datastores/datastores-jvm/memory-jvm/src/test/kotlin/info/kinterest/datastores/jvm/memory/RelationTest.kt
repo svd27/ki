@@ -36,6 +36,7 @@ interface RelPerson : KIEntity<Long> {
     override val id: Long
 
     val name: String
+    var online: Boolean
 
     val friends: MutableSet<RelPerson>
         @Relation(target = RelPerson::class, targetId = Long::class) get() = TODO()
@@ -70,7 +71,7 @@ class RelationTest : Spek({
 
 
         repeat(2) {
-            base.create<RelPerson, Long>(RelPersonJvm.Transient(base.ds, it.toLong(), "${'A' + it}", mutableSetOf()))
+            base.create<RelPerson, Long>(RelPersonJvm.Transient(base.ds, it.toLong(), "${'A' + it}", false, mutableSetOf()))
         }
         on("addding a relation") {
             val p1 = base.retrieve<RelPerson, Long>(listOf(0)).getOrElse { throw it }.first()
@@ -103,7 +104,7 @@ class RelationTest : Spek({
         on("adding a relation at creation time") {
             val p1 = base.retrieve<RelPerson, Long>(listOf(0)).getOrElse { throw it }.first()
             val p2 = base.retrieve<RelPerson, Long>(listOf(1)).getOrElse { throw it }.first()
-            val cr = base.create<RelPerson, Long>(RelPersonJvm.Transient(base.ds, 2, "${'A' + 2}", mutableSetOf(p1, p2)))
+            val cr = base.create<RelPerson, Long>(RelPersonJvm.Transient(base.ds, 2, "${'A' + 2}", false, mutableSetOf(p1, p2)))
 
 
             it("should be properly created") {

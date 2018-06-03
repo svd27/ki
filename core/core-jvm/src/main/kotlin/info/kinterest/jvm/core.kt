@@ -142,7 +142,7 @@ abstract class KIJvmEntityMeta(override val impl: KClass<*>, final override val 
 val coreKodein = Module {
     bind<MetaProvider>() with instance(MetaProvider())
     bind<Dispatcher<EntityEvent<*, *>>>("entities") with instance(Dispatcher())
-    bind<FilterTree>() with singleton { FilterTree(instance("entities"), 100) }
+    bind<FilterTree>() with singleton { FilterTree(kodein, 100) }
     bind<QueryManagerJvm>() with singleton { QueryManagerJvm(instance(), instance()) }
     bind<QueryManager>() with singleton { instance<QueryManagerJvm>() }
     bind<Channel<DataStoreEvent>>() with singleton { instance<QueryManagerJvm>().dataStores }

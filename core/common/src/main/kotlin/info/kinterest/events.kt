@@ -1,6 +1,9 @@
 package info.kinterest
 
+import info.kinterest.filter.Filter
+import info.kinterest.filter.FilterWant
 import info.kinterest.meta.KIProperty
+import info.kinterest.meta.KIRelationProperty
 import info.kinterest.meta.Relation
 import info.kinterest.query.EntityProjection
 import info.kinterest.query.Projection
@@ -29,6 +32,7 @@ sealed class EntityRelationEvent<out S : KIEntity<K>, out K : Any, T : KIEntity<
 data class EntityRelationsAdded<out S : KIEntity<K>, out K : Any, T : KIEntity<L>, L : Any>(override val relation: Relation<S, T, K, L>) : EntityRelationEvent<S, K, T, L>(relation)
 data class EntityRelationsRemoved<out S : KIEntity<K>, out K : Any, T : KIEntity<L>, L : Any>(override val relation: Relation<S, T, K, L>) : EntityRelationEvent<S, K, T, L>(relation)
 
+
 @Suppress("unused")
 sealed class InterestEvent<out I : Interest<E, K>, E : KIEntity<K>, K : Any> : KIEvent()
 sealed class InterestContainedEvent<out I : Interest<E, K>, E : KIEntity<K>, K : Any>(open val interest: I) : InterestEvent<I, E, K>()
@@ -36,6 +40,19 @@ data class InterestCreated<out I : Interest<E, K>, E : KIEntity<K>, K : Any>(ove
 data class InterestDeleted<out I : Interest<E, K>, E : KIEntity<K>, K : Any>(val id: Any) : InterestEvent<I, E, K>()
 data class InterestLoadedEvent<out I : Interest<E, K>, E : KIEntity<K>, K : Any>(override val interest: I, val result: QueryResult<E, K>) : InterestContainedEvent<I, E, K>(interest)
 data class InterestProjectionEvent<out I : Interest<E, K>, E : KIEntity<K>, K : Any>(override val interest: I, val evts: Iterable<ProjectionEvent<E, K>>) : InterestContainedEvent<I, E, K>(interest)
+
+
+sealed class FilterEvent<E : KIEntity<K>, K : Any>(val want: FilterWant, val filter: Filter<E, K>) : KIEvent()
+class FilterCreateEvent<E : KIEntity<K>, K : Any>(val entities: Iterable<E>, want: FilterWant, f: Filter<E, K>) : FilterEvent<E, K>(want, f)
+class FilterDeleteEvent<E : KIEntity<K>, K : Any>(val entities: Iterable<E>, want: FilterWant, f: Filter<E, K>) : FilterEvent<E, K>(want, f)
+class FilterUpdateEvent<E : KIEntity<K>, K : Any>(val upds: EntityUpdatedEvent<E, K>, want: FilterWant, f: Filter<E, K>) : FilterEvent<E, K>(want, f)
+class FilterRelationEvent<E : KIEntity<K>, K : Any>(val relationEvent: EntityRelationEvent<E, K, *, *>, want: FilterWant, f: Filter<E, K>) : FilterEvent<E, K>(want, f)
+sealed class FilterRelationScopeEvent<E : KIEntity<K>, K : Any>(val entity: E, val rel: KIRelationProperty, want: FilterWant, relationFilter: Filter<E, K>) : FilterEvent<E, K>(want, relationFilter)
+class FilterRelationInScopeEvent<E : KIEntity<K>, K : Any>(entity: E, rel: KIRelationProperty, want: FilterWant, relationFilter: Filter<E, K>) : FilterRelationScopeEvent<E, K>(entity, rel, want, relationFilter)
+class FilterRelationOutOfScopeEvent<E : KIEntity<K>, K : Any>(entity: E, rel: KIRelationProperty, want: FilterWant, relationFilter: Filter<E, K>) : FilterRelationScopeEvent<E, K>(entity, rel, want, relationFilter)
+
+class FilterRelationChangeEvent<E : KIEntity<K>, K : Any>(val entity: E, val want: FilterWant, val relationFilter: Filter<E, K>, val target: KIEntity<Any>)
+
 
 sealed class ProjectionEvent<E : KIEntity<K>, K : Any>(open val projection: Projection<E, K>)
 data class ProjectionChanged<E : KIEntity<K>, K : Any>(override val projection: Projection<E, K>) : ProjectionEvent<E, K>(projection)

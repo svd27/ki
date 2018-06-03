@@ -381,6 +381,24 @@ object JvmGenerator : Generator {
                             }
                         }
 
+                        if (entity.relations.isNotEmpty()) {
+                            function("getValue", OVERRIDE) {
+                                typeParam("V")
+                                typeParam("P", parseType("KIProperty<V>"))
+                                param("prop", "P")
+                                returnType("V?")
+                                body(true) {
+                                    append(
+                                            """when(prop) {
+                                         ${entity.relations.map { "Meta.${it.metaName} -> ${it.property}" }.joinToString("\n")}
+                                         else -> super.getValue(prop)
+                                       } as V?
+                                    """
+                                    )
+                                }
+                            }
+                        }
+
                         if (!entity.abstract) function("asTransient", OVERRIDE) {
                             body(true) {
                                 append("Transient(this)")

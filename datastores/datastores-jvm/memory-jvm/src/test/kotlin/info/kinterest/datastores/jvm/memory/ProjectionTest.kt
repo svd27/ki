@@ -36,10 +36,10 @@ class ProjectionTest : Spek({
     base.metaProvider.register(RelPersonJvm.meta)
     given("a datastore with some entities") {
         repeat(5) {
-            base.create<RelPerson, Long>(RelPersonJvm.Transient(base.ds, it.toLong(), "AA", mutableSetOf()))
+            base.create<RelPerson, Long>(RelPersonJvm.Transient(base.ds, it.toLong(), "AA", false, mutableSetOf()))
         }
         repeat(7) {
-            base.create<RelPerson, Long>(RelPersonJvm.Transient(base.ds, (it + 5).toLong(), "BB", mutableSetOf()))
+            base.create<RelPerson, Long>(RelPersonJvm.Transient(base.ds, (it + 5).toLong(), "BB", false, mutableSetOf()))
         }
         on("querying a BucketProjection on them") {
             val filter = EntityFilter.AllFilter<RelPerson, Long>(RelPersonJvm.meta)
@@ -106,7 +106,7 @@ class ProjectionTest : Spek({
             val bucketsPath = Path(discriminators.name, null)
             fun pathFor(n: String) = Path("${bucketsPath.name} = $n", bucketsPath)
             waiterInterest.waitFor { it is InterestProjectionEvent && it.evts.any { it is ProjectionLoaded && it.projection.path == bucketProjection.path } }
-            base.create<RelPerson, Long>(RelPersonJvm.Transient(base.ds, 100, "AA", mutableSetOf()))
+            base.create<RelPerson, Long>(RelPersonJvm.Transient(base.ds, 100, "AA", false, mutableSetOf()))
             it("should reflect the change") {
                 val wait = {
                     waiterInterest.waitFor {
@@ -130,7 +130,7 @@ class ProjectionTest : Spek({
             }
 
             it("should create a new bucket") {
-                base.create<RelPerson, Long>(RelPersonJvm.Transient(base.ds, 101, "CC", mutableSetOf()))
+                base.create<RelPerson, Long>(RelPersonJvm.Transient(base.ds, 101, "CC", false, mutableSetOf()))
                 val wait = {
                     waiterInterest.waitFor {
                         logger.debug { it }

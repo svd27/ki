@@ -2,7 +2,8 @@ package info.kinterest.query
 
 import info.kinterest.*
 import info.kinterest.datastores.DataStoreFacade
-import info.kinterest.filter.*
+import info.kinterest.filter.Filter
+import info.kinterest.filter.FilterWant
 import info.kinterest.functional.Try
 import info.kinterest.functional.getOrElse
 import info.kinterest.meta.KINumberProperty
@@ -207,15 +208,18 @@ class ProjectionBucketResult<E : KIEntity<K>, K : Any, B : Any>(result: Map<Proj
         }
         is FilterRelationEvent<*, *> -> {
             @Suppress("UNCHECKED_CAST")
-            val want = bucket.discriminator.asFilter().wants(ev.upds as EntityRelationEvent<E, K, *, *>)
+            val want = bucket.discriminator.asFilter().wants(ev.relationEvent as EntityRelationEvent<E, K, *, *>)
             if (want in setOf(FilterWant.OUTOUT, FilterWant.NONE)) null
             else ev
+        }
+        is FilterRelationScopeEvent<E, K> -> {
+            if (bucket.discriminator.asFilter().matches(ev.entity)) ev else null
         }
     }
 
     override fun <I : Interest<E, K>> digest(i: I, evts: Iterable<FilterEvent<E, K>>, events: (Iterable<ProjectionEvent<E, K>>) -> Unit): ProjectionResult<E, K> = run {
         val rel = evts.map { relevant(it) }.filterNotNull()
-        if (rel.any { it is FilterCreateEvent || it is FilterDeleteEvent }) {
+        if (rel.any { it is FilterCreateEvent || it is FilterDeleteEvent || it is FilterRelationScopeEvent }) {
             events(listOf(ProjectionChanged(bucket)))
             ReloadProjectionResult(bucket)
         } else
@@ -257,7 +261,8 @@ class BucketProjectionResult<E : KIEntity<K>, K : Any, B : Any>(val bucketProjec
             val ue = ev as FilterUpdateEvent<E, K>
             if (ue.upds.history(bucketProjection.property).count() > 0) ev else null
         }
-        is FilterRelationEvent<*, *> -> if (ev.upds.relation.rel == bucketProjection.property) ev else null
+        is FilterRelationEvent<*, *> -> if (ev.relationEvent.relation.rel == bucketProjection.property) ev else null
+        is FilterRelationScopeEvent -> if (ev.rel == bucketProjection.property) ev else null
     }
 
     override fun <I : Interest<E, K>> digest(i: I, evts: Iterable<FilterEvent<E, K>>, events: (Iterable<ProjectionEvent<E, K>>) -> Unit): ProjectionResult<E, K> = run {
@@ -397,9 +402,33 @@ class EntityProjectionResult<E : KIEntity<K>, K : Any>(override val projection: 
                     } else if (ev.want in setOf(FilterWant.INOUT)) {
                         if (upd.entity in page) match - upd.entity
                         match.evtRem(upd.entity)
+                    } else {
                     }
                 }
-            }
+                is FilterRelationEvent -> {
+
+                }
+                is FilterRelationScopeEvent -> when (ev) {
+                    is FilterRelationInScopeEvent -> {
+                        val entity = ev.entity
+                        when {
+                            page.size < paging.size -> match + entity
+                            ordering.isIn(entity, page.first() to page.last()) -> {
+                                match + entity
+                                match - page.last()
+                            }
+                        }
+                        match.evtAdd(entity)
+                    }
+                    is FilterRelationOutOfScopeEvent -> {
+                        val entity = ev.entity
+                        if (entity in page) {
+                            match - entity
+                        }
+                        match.evtRem(entity)
+                    }
+                }
+            }.exhaust
         }
         val dist = match.page.distinct()
         match.page.clear()
@@ -435,7 +464,8 @@ sealed class ValueProjectionResult<E : KIEntity<K>, K : Any, V : Any>(override v
                         true
                     } else false
                 }
-                is FilterRelationEvent<*, *> -> if (e.upds.relation.rel == projection.property) true else false
+                is FilterRelationEvent<*, *> -> if (e.relationEvent.relation.rel == projection.property) true else false
+                is FilterRelationScopeEvent -> true
             }
         }
         if (!el) {

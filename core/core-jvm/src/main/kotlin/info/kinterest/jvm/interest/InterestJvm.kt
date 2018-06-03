@@ -1,7 +1,6 @@
 package info.kinterest.jvm.interest
 
 import info.kinterest.*
-import info.kinterest.filter.FilterEvent
 import info.kinterest.functional.Try
 import info.kinterest.functional.getOrElse
 import info.kinterest.jvm.filter.EntityFilter

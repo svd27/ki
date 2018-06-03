@@ -1,5 +1,6 @@
 package info.kinterest.filter
 
+import info.kinterest.EntityEvent
 import info.kinterest.EntityRelationEvent
 import info.kinterest.EntityUpdatedEvent
 import info.kinterest.KIEntity
@@ -14,11 +15,11 @@ enum class FilterWant {
         ININ -> w.and(this)
         OUTIN -> w.and(this)
         INOUT -> when (w) {
-            NONE -> this
-            ININ -> this
-            OUTIN -> this
-            INOUT -> this
-            OUTOUT -> w
+            NONE -> INOUT
+            ININ -> INOUT
+            OUTIN -> INOUT
+            INOUT -> INOUT
+            OUTOUT -> OUTOUT
         }
         OUTOUT -> OUTOUT
     }
@@ -39,11 +40,6 @@ enum class FilterWant {
     }
 }
 
-sealed class FilterEvent<E : KIEntity<K>, K : Any>(val want: FilterWant, val filter: Filter<E, K>)
-class FilterCreateEvent<E : KIEntity<K>, K : Any>(val entities: Iterable<E>, want: FilterWant, f: Filter<E, K>) : FilterEvent<E, K>(want, f)
-class FilterDeleteEvent<E : KIEntity<K>, K : Any>(val entities: Iterable<E>, want: FilterWant, f: Filter<E, K>) : FilterEvent<E, K>(want, f)
-class FilterUpdateEvent<E : KIEntity<K>, K : Any>(val upds: EntityUpdatedEvent<E, K>, want: FilterWant, f: Filter<E, K>) : FilterEvent<E, K>(want, f)
-class FilterRelationEvent<E : KIEntity<K>, K : Any>(val upds: EntityRelationEvent<E, K, *, *>, want: FilterWant, f: Filter<E, K>) : FilterEvent<E, K>(want, f)
 
 @Suppress("AddVarianceModifier")
 interface Filter<E : KIEntity<K>, K : Any> {
@@ -53,11 +49,14 @@ interface Filter<E : KIEntity<K>, K : Any> {
     fun wants(rel: EntityRelationEvent<E, K, *, *>): FilterWant
     fun inverse(): Filter<E, K>
     fun and(f: Filter<E, K>): Filter<E, K>
+    fun relationFilters(): Iterable<Filter<E, K>>
 
     companion object {
         fun <E : KIEntity<K>, K : Any> nofilter(meta: KIEntityMeta): Filter<E, K> = object : Filter<E, K> {
             override val meta: KIEntityMeta
                 get() = meta
+
+            override fun relationFilters(): Iterable<Filter<E, K>> = emptyList()
 
             override fun matches(e: E): Boolean = false
             override fun wants(upd: EntityUpdatedEvent<E, K>): FilterWant = FilterWant.OUTOUT
@@ -81,16 +80,25 @@ abstract class AbstractFilterWrapper<E : KIEntity<K>, K : Any>(filter: Filter<E,
     override fun wants(rel: EntityRelationEvent<E, K, *, *>): FilterWant = f.wants(rel)
     override abstract fun and(f: Filter<E, K>): AbstractFilterWrapper<E, K>
 
+    abstract fun digest(ev: EntityEvent<E, K>)
+
+    override fun toString(): String = "FilterWrapper { $f }"
 }
 
 open class FilterWrapper<E : KIEntity<K>, K : Any>(f: Filter<E, K>) : AbstractFilterWrapper<E, K>(f) {
     override fun inverse(): Filter<E, K> = FilterWrapper(f.inverse())
 
-    override fun and(f: Filter<E, K>): AbstractFilterWrapper<E, K> = if (f is AbstractFilterWrapper) FilterWrapper(this.f.and(f.f)) else FilterWrapper(this.f.and(f))
+    override fun and(f: Filter<E, K>): FilterWrapper<E, K> = if (f is AbstractFilterWrapper) FilterWrapper(this.f.and(f.f)) else FilterWrapper(this.f.and(f))
+
+    override fun relationFilters(): Iterable<Filter<E, K>> = f.relationFilters()
+
+    override fun digest(ev: EntityEvent<E, K>) {}
 
     companion object {
-        fun <E : KIEntity<K>, K : Any> nofilter(meta: KIEntityMeta): AbstractFilterWrapper<E, K> = FilterWrapper(Filter.nofilter(meta))
+        fun <E : KIEntity<K>, K : Any> nofilter(meta: KIEntityMeta): FilterWrapper<E, K> = FilterWrapper(Filter.nofilter(meta))
     }
 }
+
+abstract class RelationFilterWrapper<T : KIEntity<L>, L : Any, S : KIEntity<K>, K : Any>(f: Filter<T, L>, val parent: FilterWrapper<S, K>, val relationFilter: Filter<S, K>) : FilterWrapper<T, L>(f)
 
 expect class IdFilter<E : KIEntity<K>, K : Any>(ids: Set<K>, meta: KIEntityMeta) : Filter<E, K>

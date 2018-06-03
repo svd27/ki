@@ -1,9 +1,7 @@
 package info.kinterest.query
 
 import info.kinterest.*
-import info.kinterest.filter.AbstractFilterWrapper
 import info.kinterest.filter.Filter
-import info.kinterest.filter.FilterEvent
 import info.kinterest.filter.FilterWrapper
 import info.kinterest.functional.Try
 import info.kinterest.functional.getOrElse
@@ -12,7 +10,7 @@ import kotlinx.coroutines.experimental.Deferred
 import kotlinx.coroutines.experimental.async
 
 data class Query<E : KIEntity<K>, K : Any>(
-        val f: AbstractFilterWrapper<E, K>,
+        val f: FilterWrapper<E, K>,
         val projections: Iterable<Projection<E, K>>,
         val ds: Set<DataStore> = ALL
 ) {
