@@ -101,6 +101,7 @@ configure(jvm) {
 
 subprojects {
     tasks.withType<Test> {
+        systemProperties.put("kotlinx.coroutines.default.parallelism", "2")
         testLogging {
             events = setOf(TestLogEvent.STARTED, TestLogEvent.FAILED)
         }
