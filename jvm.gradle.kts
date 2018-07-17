@@ -12,7 +12,7 @@ configure(jvm) {
             mavenCentral()
         }
         dependencies {
-            classpath("org.jetbrains.kotlinx:kotlinx-coroutines-core:0.22.5")
+            classpath("org.jetbrains.kotlinx:kotlinx-coroutines-core:0.23.4")
             classpath ("org.jetbrains.kotlin:kotlin-gradle-plugin:1.2.30")
             classpath("org.junit.platform:junit-platform-gradle-plugin:1.1.0")
             classpath("com.kncept.junit5.reporter:junit-reporter:1.1.0")
